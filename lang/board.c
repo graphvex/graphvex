@@ -1,9 +1,9 @@
-#include "board.h"
+#include "graphvex/lang/board.h"
 
 #include <stdlib.h>
 
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**

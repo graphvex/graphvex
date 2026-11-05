@@ -8,7 +8,7 @@
 #include "c23/constructor.h"
 
 #include "graphics/graphics.h"
-#include "image.h"
+#include "graphvex/lang/image.h"
 
 // graphvex R3 — board.h
 //

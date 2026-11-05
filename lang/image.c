@@ -1,6 +1,6 @@
-#include "image.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "graphvex/lang/image.h"
+#include "annotation/annotation.h"
+#include "annotation/annotation.h"
 #include "exception/throw.h"
 
 #include <stdlib.h>
