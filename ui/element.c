@@ -5,9 +5,8 @@
 #include <string.h>
 
 #include "nio/property_pool.h"
-#include "image.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "graphvex/lang/image.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /**
@@ -290,7 +289,8 @@ Rect Element_resolve(const Element *e, Rect parent) {
 
 // Sets stored dimensions on the bound and marks the element tree dirty.
 Element *Element_setSize(Element *e, float w, float h) {
-    if (e && (*e).property) { (*e).property->w = w; (*e).property->h = h; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).w = w; (*property).h = h; Element_markDirty(e); }
     return e;
 }
 // Sets nonnegative minimum dimensions on the shared bound and marks it dirty.
@@ -327,48 +327,55 @@ Element *Element_setTag(Element *e, const char *tag) {
 // ── visual ──────────────────────────────────────────────────────────────────
 // Sets the corner radius, clamping negative values to zero, and marks the tree dirty.
 Element *Element_setRadius(Element *e, float radius) {
-    if (e && (*e).property) { (*e).property->radius = radius < 0.0f ? 0.0f : radius; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).radius = radius < 0.0f ? 0.0f : radius; Element_markDirty(e); }
     return e;
 }
 // Sets the bound's background color and marks the tree dirty.
 Element *Element_setBackground(Element *e, Color color) {
-    if (e && (*e).property) { (*e).property->background = color; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).background = color; Element_markDirty(e); }
     return e;
 }
 // Sets border color and nonnegative width on the bound.
 Element *Element_setBorder(Element *e, Color color, float width) {
-    if (e && (*e).property) {
-        (*e).property->border = color;
-        (*e).property->borderWidth = width < 0.0f ? 0.0f : width;
+    Property *property = e ? (*e).property : nullptr;
+    if (property) {
+        (*property).border = color;
+        (*property).borderWidth = width < 0.0f ? 0.0f : width;
         Element_markDirty(e);
     }
     return e;
 }
 // Sets shadow offset and nonnegative blur, assigning a default translucent black if unset.
 Element *Element_setShadow(Element *e, float offsetX, float offsetY, float blur) {
-    if (!e || !(*e).property) return e;
-    (*e).property->shadowX = offsetX;
-    (*e).property->shadowY = offsetY;
-    (*e).property->shadowBlur = blur < 0.0f ? 0.0f : blur;
+    Property *property = e ? (*e).property : nullptr;
+    if (!property) return e;
+    (*property).shadowX = offsetX;
+    (*property).shadowY = offsetY;
+    (*property).shadowBlur = blur < 0.0f ? 0.0f : blur;
     // a lone setShadow() should *do* something: default the colour if unset
-    if (Color_alpha((*e).property->shadow) == 0u)
-        (*e).property->shadow = COLOR_RGBA(0, 0, 0, 128);
+    if (Color_alpha((*property).shadow) == 0u)
+        (*property).shadow = COLOR_RGBA(0, 0, 0, 128);
     Element_markDirty(e);
     return e;
 }
 // Sets the shadow color on the bound and marks the tree dirty.
 Element *Element_setShadowColor(Element *e, Color color) {
-    if (e && (*e).property) { (*e).property->shadow = color; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).shadow = color; Element_markDirty(e); }
     return e;
 }
 // Sets nonnegative element-edge blur on the bound and marks the tree dirty.
 Element *Element_setBlur(Element *e, float blur) {
-    if (e && (*e).property) { (*e).property->blur = blur < 0.0f ? 0.0f : blur; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).blur = blur < 0.0f ? 0.0f : blur; Element_markDirty(e); }
     return e;
 }
 // Enables or disables clipping of descendants to this element's bound.
 Element *Element_setClip(Element *e, bool clip) {
-    if (e && (*e).property) { (*e).property->clip = clip; Element_markDirty(e); }
+    Property *property = e ? (*e).property : nullptr;
+    if (property) { (*property).clip = clip; Element_markDirty(e); }
     return e;
 }
 // Updates the pressed visual state without changing layout.
@@ -409,13 +416,19 @@ float Element_width(const Element *e) { return (e && (*e).property) ? Property_w
 // Returns the effective clamped property height, or zero without a bound.
 float Element_height(const Element *e) { return (e && (*e).property) ? Property_height((*e).property) : 0.0f; }
 // Returns the bound's corner radius, or zero when unavailable.
-float Element_radius(const Element *e) { return (e && (*e).property) ? (*e).property->radius : 0.0f; }
+float Element_radius(const Element *e) {
+    const Property *property = e ? (*e).property : nullptr;
+    return property ? (*property).radius : 0.0f;
+}
 // Returns the parent anchor part, defaulting to top-left for null.
 int   Element_anchor(const Element *e) { return e ? (*e).anchor : PART_TOP_LEFT; }
 // Returns the self pivot part, defaulting to top-left for null.
 int   Element_pivot(const Element *e) { return e ? (*e).pivot : PART_TOP_LEFT; }
 // Reports whether a bound exists and its stored width and height are nonnegative.
-bool  Element_isValid(const Element *e) { return e && (*e).property && (*e).property->w >= 0.0f && (*e).property->h >= 0.0f; }
+bool  Element_isValid(const Element *e) {
+    const Property *property = e ? (*e).property : nullptr;
+    return property && (*property).w >= 0.0f && (*property).h >= 0.0f;
+}
 // Reports whether the element is visible.
 bool  Element_isVisible(const Element *e) { return e && (*e).visible; }
 // Reports whether the element is in its pressed state.
@@ -480,23 +493,24 @@ void Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
 // Computes a conservative world-space paint bound including own effects and clipped descendants.
 Rect Element_absoluteBound(const Element *e, Rect parent) {
     if (!e || !(*e).visible || !(*e).property) return (Rect){0, 0, 0, 0};
+    const Property *property = (*e).property;
     Rect base = Element_eventBound(e, parent);
     // Current styles affect the node's own shape, not the assembled subtree.
     // Ordered group-filter support will be integrated at the compositor seam.
-    float eb = (*e).property->blur > 0.0f ? (*e).property->blur : 0.0f;
+    float eb = (*property).blur > 0.0f ? (*property).blur : 0.0f;
     float x0 = base.x - eb, y0 = base.y - eb;
     float x1 = base.x + base.w + eb, y1 = base.y + base.h + eb;
-    if (Color_alpha((*e).property->shadow) != 0u) {
-        float sb = (*e).property->shadowBlur > 0.0f ? (*e).property->shadowBlur : 0.0f;
-        float sx0 = base.x + (*e).property->shadowX - sb, sy0 = base.y + (*e).property->shadowY - sb;
-        float sx1 = base.x + base.w + (*e).property->shadowX + sb, sy1 = base.y + base.h + (*e).property->shadowY + sb;
+    if (Color_alpha((*property).shadow) != 0u) {
+        float sb = (*property).shadowBlur > 0.0f ? (*property).shadowBlur : 0.0f;
+        float sx0 = base.x + (*property).shadowX - sb, sy0 = base.y + (*property).shadowY - sb;
+        float sx1 = base.x + base.w + (*property).shadowX + sb, sy1 = base.y + base.h + (*property).shadowY + sb;
         if (sx0 < x0) x0 = sx0;
         if (sy0 < y0) y0 = sy0;
         if (sx1 > x1) x1 = sx1;
         if (sy1 > y1) y1 = sy1;
     }
     Rect result = {x0, y0, x1 - x0, y1 - y0};
-    bool clips = (*e).property->clip || (*e).property->radius > 0.0f;
+    bool clips = (*property).clip || (*property).radius > 0.0f;
     for (int i = 0; i < (*e).count; i++) {
         Rect child = Element_absoluteBound((*e).children[i], base);
         if (clips) child = Rect_intersect(child, base);
