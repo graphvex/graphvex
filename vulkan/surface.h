@@ -6,8 +6,8 @@
 
 #include "c23/constructor.h"
 
-#include "image.h"
-#include "board.h"
+#include "graphvex/lang/image.h"
+#include "graphvex/lang/board.h"
 
 // graphvex R3 — vulkan/surface.h
 //

@@ -1,7 +1,7 @@
 #ifndef GRAPHVEX_SAMPLED_IMAGE_H
 #define GRAPHVEX_SAMPLED_IMAGE_H
 #include "vulkan/device.h"
-#include "image.h"
+#include "graphvex/lang/image.h"
 
 typedef struct SampledImage SampledImage;
 /* Owner-thread/external synchronization. Borrows Device, which must outlive all

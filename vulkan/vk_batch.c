@@ -1,6 +1,5 @@
 #include "vulkan/vk_batch.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -21,13 +20,13 @@
  * float clipRadius              current rounded clip radius
  * FUNCTION REGISTRY
  * Constructors: VkBatch *VkBatch_0(void)
- * Lifecycle: void VkBatch_free(VkBatch *b), void VkBatch_clear(VkBatch *b)
- * Setters: void VkBatch_setClip(VkBatch *b, Rect clip)
- *   void VkBatch_setClipRadius(VkBatch *b, float radius)
- * Operations: void VkBatch_rect(VkBatch *b, Rect dst, const Brush *brush)
- *   void VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst)
- *   void VkBatch_glyph(VkBatch *b, Rect dst, uint32_t atlasLayer, Color color)
- * Projection: size_t VkBatch_vertices(const VkBatch *b, VkVertex *out,
+ * Lifecycle: void VkBatch_free(VkBatch *b.sh), void VkBatch_clear(VkBatch *b.sh)
+ * Setters: void VkBatch_setClip(VkBatch *b.sh, Rect clip)
+ *   void VkBatch_setClipRadius(VkBatch *b.sh, float radius)
+ * Operations: void VkBatch_rect(VkBatch *b.sh, Rect dst, const Brush *brush)
+ *   void VkBatch_image(VkBatch *b.sh, const Image *image, Rect src, Rect dst)
+ *   void VkBatch_glyph(VkBatch *b.sh, Rect dst, uint32_t atlasLayer, Color color)
+ * Projection: size_t VkBatch_vertices(const VkBatch *b.sh, VkVertex *out,
  *   size_t capacity)
  * Private helpers: clip_quad converts batch clip to local quad bounds;
  *   batch_push reserves and initializes a quad; put converts quad attributes

@@ -10,12 +10,12 @@
 #define VK_USE_PLATFORM_METAL_EXT 1
 #include <vulkan/vulkan.h>
 
-#include "image.h"
+#include "graphvex/lang/image.h"
 #include "vulkan/sampled_image.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 #include "exception/throw.h"
-#include "quad_spv.h"
+#include "quad_vert_spv.h"
+#include "quad_frag_spv.h"
 #include "vulkan/device.h"
 
 // graphvex R3 — vulkan/vk_renderer.c

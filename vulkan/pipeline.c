@@ -1,6 +1,5 @@
 #include "vulkan/pipeline.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 
 #include <stdio.h>
 #include <stdlib.h>
