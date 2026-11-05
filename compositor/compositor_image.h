@@ -2,7 +2,7 @@
 #define GRAPHVEX_COMPOSITOR_IMAGE_H
 
 #include "compositor/compositor.h"
-#include "image.h"
+#include "graphvex/lang/image.h"
 
 /* Explicit CPU boundary: Image is interpreted as straight-alpha sRGB RGBA8.
  * Import borrows a populated CPU shadow, never a native GPU handle. BGRA and

@@ -1,8 +1,7 @@
 #include "compositor/compositor_image.h"
 
 #include <math.h>
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 
 ;;DEFINITION
 /* Explicit Image boundary for the CPU compositor. Borrowed

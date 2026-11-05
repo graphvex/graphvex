@@ -1,7 +1,7 @@
 #ifndef GRAPHVEX_GPU_SCOPE_H
 #define GRAPHVEX_GPU_SCOPE_H
 #include "vulkan/device.h"
-#include "image.h"
+#include "graphvex/lang/image.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -9,7 +9,7 @@
 typedef struct GpuScope GpuScope;
 enum { GPU_SCOPE_BACKDROP, GPU_SCOPE_FOREGROUND, GPU_SCOPE_ELEMENT };
 /* Cold explicit rectangular GPU scope compositor. Borrow Device; shaderDir
- * contains b-generated scatter.vert/frag, resolve.vert and scope.frag SPIR-V.
+ * contains b.sh-generated scatter.vert/frag, resolve.vert and scope.frag SPIR-V.
  * maxPixels is a caller safety/work budget, not a hidden entity ceiling.
  * No CPU filtering/composition, no fallback. Source upload and final readback
  * are transport for the current Image/Picture bridge, not pixel algorithms.

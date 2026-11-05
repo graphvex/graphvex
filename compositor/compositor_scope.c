@@ -1,6 +1,5 @@
 #include "compositor/compositor_scope.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 
 #include <float.h>
 #include <string.h>

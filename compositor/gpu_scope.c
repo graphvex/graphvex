@@ -1,8 +1,7 @@
 #include "compositor/gpu_scope.h"
 #include "vulkan/sampled_image.h"
 #include "filter/filter_functions.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "annotation/annotation.h"
 #include "exception/throw.h"
 #include <vulkan/vulkan.h>
 #include <stdio.h>
@@ -330,7 +329,7 @@ GpuScope *GpuScope_3(Device *device,const char *directory,uint32_t maxPixels) {
     push.stageFlags=VK_SHADER_STAGE_VERTEX_BIT; push.size=24; pl.pSetLayouts=&(*self).scatterDescriptor;
     if (vkCreatePipelineLayout((*self).device,&pl,nullptr,&(*self).scatterLayout)!=VK_SUCCESS)
         goto failed;
-    const char *names[]={"scatter.vert","scatter.frag","resolve.vert","scope.frag"};
+    const char *names[]={"scatter_vert","scatter_frag","resolve_vert","scope_frag"};
     VkShaderModule modules[4]={0};
     bool ready=true;
     for (unsigned i=0;i<4;++i) {
