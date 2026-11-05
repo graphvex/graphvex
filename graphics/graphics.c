@@ -1,9 +1,8 @@
 #include "graphics/graphics.h"
 #include "graphics/image_runs.h"
 
-#include "image.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "graphvex/lang/image.h"
+#include "annotation/annotation.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -1,7 +1,6 @@
 #ifndef GRAPHICS_GRAPHICS_H
 #define GRAPHICS_GRAPHICS_H
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -60,10 +59,11 @@ typedef uint32_t Color;   // 0xRRGGBBAA
 #define COLOR_RGBA(r, g, b, a) \
     ((((uint32_t)(r) & 0xFFu) << 24) | (((uint32_t)(g) & 0xFFu) << 16) | \
      (((uint32_t)(b) & 0xFFu) << 8) | ((uint32_t)(a) & 0xFFu))
-static inline uint8_t Color_red(Color c) { return (uint8_t)((c >> 24) & 0xFFu); }
-static inline uint8_t Color_green(Color c) { return (uint8_t)((c >> 16) & 0xFFu); }
-static inline uint8_t Color_blue(Color c) { return (uint8_t)((c >> 8) & 0xFFu); }
-static inline uint8_t Color_alpha(Color c) { return (uint8_t)(c & 0xFFu); }
+
+static inline uint8_t Color_red(const Color c) { return (uint8_t)((c >> 24) & 0xFFu); }
+static inline uint8_t Color_green(const Color c) { return (uint8_t)((c >> 16) & 0xFFu); }
+static inline uint8_t Color_blue(const Color c) { return (uint8_t)((c >> 8) & 0xFFu); }
+static inline uint8_t Color_alpha(const Color c) { return (uint8_t)(c & 0xFFu); }
 
 // ── brush: color + optional rounded corners + optional border ───────────────
 typedef struct Brush {
@@ -156,9 +156,9 @@ bool Graphics_submit(DisplayList *dl);
 #define BACKEND_NONE    0u
 #define BACKEND_RASTER  1u
 
-const Backend *RasterGraphics_row(void);
+const Backend *RasterGraphics_row();
 bool Raster_configure(uint32_t width, uint32_t height);   // (re)allocate the target
-const uint32_t *Raster_pixels(void);                      // 0xRRGGBBAA, tightly packed
+const uint32_t *Raster_pixels();                      // 0xRRGGBBAA, tightly packed
 uint32_t Raster_pixelAt(uint32_t x, uint32_t y);          // 0 when out of bounds
 
 #endif // GRAPHICS_GRAPHICS_H

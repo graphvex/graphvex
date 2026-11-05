@@ -1,7 +1,6 @@
 #include "graphics/image_runs.h"
-#include "image.h"
-#include "annotation/definition.h"
-#include "annotation/overview.h"
+#include "graphvex/lang/image.h"
+#include "annotation/annotation.h"
 
 #include <limits.h>
 #include <math.h>
