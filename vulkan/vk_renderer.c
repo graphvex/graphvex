@@ -12,8 +12,8 @@
 
 #include "graphvex/lang/image.h"
 #include "vulkan/sampled_image.h"
-#include "annotation/annotation.h"
-#include "exception/throw.h"
+#include "util/annotation.h"
+#include "util/throw.h"
 #include "quad_vert_spv.h"
 #include "quad_frag_spv.h"
 #include "vulkan/device.h"
@@ -72,8 +72,20 @@ typedef struct VkSurfaceSlot {
     bool used;
 } VkSurfaceSlot;
 static VkSurfaceSlot s_surfaces[VK_SURFACE_MAX];
-static int s_surfaceCurrent = -1;   // -1 => the private readback target
-static int s_boundSlot = -1;        // slot owned by VulkanBackend_bindSurface
+
+// What the renderer draws into, as one word. PRIVATE is the offscreen readback
+// target; SLOT names one entry in s_surfaces[]. The slot index is consulted
+// ONLY when kind == SLOT, and every write goes through the three helpers below,
+// so the two words cannot disagree about whether a surface is selected.
+typedef enum VkSurfaceTargetKind {
+    VK_SURFACE_PRIVATE = 0,   // private readback target
+    VK_SURFACE_SLOT           // an imported entry in s_surfaces[]
+} VkSurfaceTargetKind;
+
+#define VK_SURFACE_NO_SLOT (-1)
+static VkSurfaceTargetKind s_targetKind = VK_SURFACE_PRIVATE;
+static int s_targetSlot = VK_SURFACE_NO_SLOT;  // valid only when kind == SLOT
+static int s_boundSlot = VK_SURFACE_NO_SLOT;   // slot owned by VulkanBackend_bindSurface
 
 static VkDescriptorSetLayout s_dsl = VK_NULL_HANDLE;
 static VkPipelineLayout s_pl = VK_NULL_HANDLE;
@@ -289,12 +301,27 @@ static int surface_slot_add(void *iosurface, uint32_t w, uint32_t h) {
     return i;
 }
 
+// The only writers of the target word. Selecting a slot validates it here, so
+// every later reader may trust kind == SLOT to mean a live registry entry.
+static void surfaceTargetPrivate(void) {
+    s_targetKind = VK_SURFACE_PRIVATE;
+    s_targetSlot = VK_SURFACE_NO_SLOT;
+}
+
+static bool surfaceTargetSelect(int slot) {
+    if (slot < 0 || slot >= VK_SURFACE_MAX || !s_surfaces[slot].used)
+        return false;
+    s_targetKind = VK_SURFACE_SLOT;
+    s_targetSlot = slot;
+    return true;
+}
+
 // Destroys every imported surface target and clears the slot registry.
 static void surface_slots_destroy_all(void) {
     for (int k = 0; k < VK_SURFACE_MAX; k++)
         if (s_surfaces[k].used) surface_slot_destroy(k);
-    s_surfaceCurrent = -1;
-    s_boundSlot = -1;
+    surfaceTargetPrivate();
+    s_boundSlot = VK_SURFACE_NO_SLOT;
 }
 
 // ── pipeline ────────────────────────────────────────────────────────────────
@@ -560,9 +587,8 @@ static bool render(void) {
     // Resolve the target: the current imported IOSurface slot, else the private
     // readback target.
     VkSurfaceSlot *slot = nullptr;
-    if (s_surfaceCurrent >= 0 && s_surfaceCurrent < VK_SURFACE_MAX &&
-        s_surfaces[s_surfaceCurrent].used)
-        slot = &s_surfaces[s_surfaceCurrent];
+    if (s_targetKind == VK_SURFACE_SLOT && s_surfaces[s_targetSlot].used)
+        slot = &s_surfaces[s_targetSlot];
 
     VkFramebuffer fb;
     VkRenderPass rp;
@@ -763,7 +789,7 @@ static bool vk_drawText(const Rect *rect, const char *text, const Brush *brush) 
 // Reads back the private render target into dest when capture is supported.
 static bool vk_capture(Image *dest) {
     if (!dest) return false;
-    if (s_surfaceCurrent >= 0) return false;   // an imported surface is read by the host
+    if (s_targetKind == VK_SURFACE_SLOT) return false;   // an imported surface is read by the host
     if (!s_rendered && !render()) return false;
     if (!Image_ensureShadow(dest, (uint32_t)s_w, (uint32_t)s_h)) return false;
     void *map = nullptr;
@@ -805,8 +831,10 @@ bool VulkanBackend_bindSurface(void *iosurface, uint32_t widthPx, uint32_t heigh
     }
     int i = surface_slot_add(iosurface, widthPx, heightPx);
     if (i < 0) return false;
+    // Unreachable today (the slot was just marked used), but a select that
+    // refused must not leave an imported slot registered and unowned.
+    if (!surfaceTargetSelect(i)) { surface_slot_destroy(i); return false; }
     s_boundSlot = i;
-    s_surfaceCurrent = i;
     s_w = (int)widthPx;
     s_h = (int)heightPx;
     s_clip = (Rect){0, 0, (float)widthPx, (float)heightPx};
@@ -817,11 +845,11 @@ bool VulkanBackend_bindSurface(void *iosurface, uint32_t widthPx, uint32_t heigh
 // Leave the imported target and return to the private (readback) target.
 // Leaves the currently imported IOSurface target and restores private-target rendering.
 void VulkanBackend_unbindSurface(void) {
-    if (s_boundSlot < 0) return;
+    if (s_boundSlot == VK_SURFACE_NO_SLOT) return;
     if (!retire_frame()) return;
-    s_surfaceCurrent = -1;
+    surfaceTargetPrivate();
     surface_slot_destroy(s_boundSlot);
-    s_boundSlot = -1;
+    s_boundSlot = VK_SURFACE_NO_SLOT;
 }
 
 // ── surface-target pool (double buffering; the seam swaps slots) ────────────
@@ -833,9 +861,8 @@ int VulkanBackend_addSurface(void *iosurface, uint32_t widthPx, uint32_t heightP
 
 // Selects a registered surface slot as the active render target.
 bool VulkanBackend_useSurface(int slot) {
-    if (slot < 0) { s_surfaceCurrent = -1; return true; }
-    if (slot >= VK_SURFACE_MAX || !s_surfaces[slot].used) return false;
-    s_surfaceCurrent = slot;
+    if (slot < 0) { surfaceTargetPrivate(); return true; }
+    if (!surfaceTargetSelect(slot)) return false;
     s_w = (int)s_surfaces[slot].w;
     s_h = (int)s_surfaces[slot].h;
     s_clip = (Rect){0, 0, (float)s_surfaces[slot].w, (float)s_surfaces[slot].h};
@@ -854,8 +881,8 @@ void VulkanBackend_cleanupSurfaces(void) {
 void VulkanBackend_removeSurface(int slot) {
     if (slot < 0 || slot >= VK_SURFACE_MAX || !s_surfaces[slot].used) return;
     if (!retire_frame()) return;
-    if (s_surfaceCurrent == slot) s_surfaceCurrent = -1;
-    if (s_boundSlot == slot) s_boundSlot = -1;
+    if (s_targetKind == VK_SURFACE_SLOT && s_targetSlot == slot) surfaceTargetPrivate();
+    if (s_boundSlot == slot) s_boundSlot = VK_SURFACE_NO_SLOT;
     surface_slot_destroy(slot);
 }
 
