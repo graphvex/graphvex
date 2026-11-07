@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "c23/constructor.h"
+#include "util/constructor.h"
 
 #include "graphvex/lang/image.h"
 #include "graphvex/lang/board.h"

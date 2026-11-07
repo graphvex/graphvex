@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "c23/constructor.h"
+#include "util/constructor.h"
 
 #include "graphics/graphics.h"
 #include "graphvex/lang/image.h"

@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
 ;;INTENTION("Surface caps coalesce render/present demand without sleeping or "
             "retiming independent scene workers. The host polls pending demand; "

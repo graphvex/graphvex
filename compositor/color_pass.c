@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vulkan/vulkan.h>
-#include "annotation/annotation.h"
-#include "exception/throw.h"
+#include "util/annotation.h"
+#include "util/throw.h"
 
 ;;DEFINITION
 /* ColorPass owns a real Vulkan fullscreen texture-filter pipeline, never CPU

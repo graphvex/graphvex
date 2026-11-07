@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "c23/constructor.h"
+#include "util/constructor.h"
 
 // graphvex R3 — graphics/graphics.h
 //

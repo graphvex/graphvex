@@ -2,7 +2,7 @@
 #include "graphics/image_runs.h"
 
 #include "graphvex/lang/image.h"
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -1,6 +1,6 @@
 #include "vulkan/sampled_image.h"
-#include "annotation/annotation.h"
-#include "exception/throw.h"
+#include "util/annotation.h"
+#include "util/throw.h"
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>

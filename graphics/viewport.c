@@ -1,5 +1,5 @@
 #include "graphics/viewport.h"
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
 ;;DEFINITION
 /** Viewport stores a framebuffer's native-pixel extent and converts UI geometry

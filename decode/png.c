@@ -6,8 +6,8 @@
 
 #include "nio/mem.h"
 #include "oop/type.h"
-#include "exception/throw.h"
-#include "annotation/annotation.h"
+#include "util/throw.h"
+#include "util/annotation.h"
 
 ;;DEFINITION
 /**

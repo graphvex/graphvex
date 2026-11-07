@@ -1,5 +1,5 @@
 #include "graphics/render_loop.h"
-#include "annotation/annotation.h"
+#include "util/annotation.h"
 
 #include <stdlib.h>
 #include <time.h>
