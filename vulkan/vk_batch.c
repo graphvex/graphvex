@@ -14,31 +14,31 @@
  * CLASS: VkBatch (vulkan/vk_batch.c)
  * STRUCT FIELDS (Mirroring VkBatch)
  * VkQuad *quads                 owned growable quad array
- * size_t count                  initialized quad count
- * size_t cap                    allocated quad capacity
+ * bytes count                  initialized quad count
+ * bytes cap                    allocated quad capacity
  * Rect clip                     current native-pixel rectangular clip
- * float clipRadius              current rounded clip radius
+ * f32 clipRadius              current rounded clip radius
  * FUNCTION REGISTRY
  * Constructors: VkBatch *VkBatch_0(void)
  * Lifecycle: void VkBatch_free(VkBatch *b.sh), void VkBatch_clear(VkBatch *b.sh)
  * Setters: void VkBatch_setClip(VkBatch *b.sh, Rect clip)
- *   void VkBatch_setClipRadius(VkBatch *b.sh, float radius)
+ *   void VkBatch_setClipRadius(VkBatch *b.sh, f32 radius)
  * Operations: void VkBatch_rect(VkBatch *b.sh, Rect dst, const Brush *brush)
  *   void VkBatch_image(VkBatch *b.sh, const Image *image, Rect src, Rect dst)
- *   void VkBatch_glyph(VkBatch *b.sh, Rect dst, uint32_t atlasLayer, Color color)
- * Projection: size_t VkBatch_vertices(const VkBatch *b.sh, VkVertex *out,
- *   size_t capacity)
+ *   void VkBatch_glyph(VkBatch *b.sh, Rect dst, u32 atlasLayer, Color color)
+ * Projection: bytes VkBatch_vertices(const VkBatch *b.sh, VkVertex *out,
+ *   bytes capacity)
  * Private helpers: clip_quad converts batch clip to local quad bounds;
  *   batch_push reserves and initializes a quad; put converts quad attributes
  *   into one packed vertex.
  * SLOT RECORD: VkQuad (public behaviorless row used by the batch)
- * float x,y,w,h                 native-pixel destination
- * float u0,v0,u1,v1             source texture coordinates
+ * f32 x,y,w,h                 native-pixel destination
+ * f32 u0,v0,u1,v1             source texture coordinates
  * Color fill, border            packed 0xRRGGBBAA colors
- * float radius,stroke,blur,mode shape and sampling parameters
- * uint32_t texture              atlas/layer selection
- * float cx0,cy0,cx1,cy1         local clip rectangle
- * float clipRadius              local rounded-clip radius
+ * f32 radius,stroke,blur,mode shape and sampling parameters
+ * u32 texture              atlas/layer selection
+ * f32 cx0,cy0,cx1,cy1         local clip rectangle
+ * f32 clipRadius              local rounded-clip radius
  * Admission, failure and ownership contract:
  * The batch owns quads and free releases them. Invalid/null inputs are ignored.
  * Vertex projection returns required count without writing when output is null
@@ -75,13 +75,13 @@ void VkBatch_setClip(VkBatch *b, Rect clip) {
 }
 
 // Sets a nonnegative rounded-clip radius for subsequently added quads.
-void VkBatch_setClipRadius(VkBatch *b, float radius) {
+void VkBatch_setClipRadius(VkBatch *b, f32 radius) {
     if (b) (*b).clipRadius = radius > 0.0f ? radius : 0.0f;
 }
 
 // bake the batch clip into a quad's LOCAL space (the shape is untouched)
 // Encodes the batch clip relative to a quad while preserving its original geometry.
-static void clip_quad(VkQuad *q, Rect clip, float radius) {
+static void clip_quad(VkQuad *q, Rect clip, f32 radius) {
     (*q).cx0 = clip.x - (*q).x;
     (*q).cy0 = clip.y - (*q).y;
     (*q).cx1 = clip.x + clip.w - (*q).x;
@@ -125,8 +125,8 @@ void VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst) {
     VkQuad *q = batch_push(b);
     if (!q) return;
     (*q).x = dst.x; (*q).y = dst.y; (*q).w = dst.w; (*q).h = dst.h;
-    float iw = Image_width(image) > 0 ? (float)Image_width(image) : 1.0f;
-    float ih = Image_height(image) > 0 ? (float)Image_height(image) : 1.0f;
+    f32 iw = Image_width(image) > 0 ? (f32)Image_width(image) : 1.0f;
+    f32 ih = Image_height(image) > 0 ? (f32)Image_height(image) : 1.0f;
     (*q).u0 = src.x / iw; (*q).v0 = src.y / ih;
     (*q).u1 = (src.x + src.w) / iw; (*q).v1 = (src.y + src.h) / ih;
     (*q).fill = COLOR_WHITE;
@@ -136,7 +136,7 @@ void VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst) {
 }
 
 // Appends a tinted glyph quad referencing the supplied atlas layer.
-void VkBatch_glyph(VkBatch *b, Rect dst, uint32_t atlasLayer, Color color) {
+void VkBatch_glyph(VkBatch *b, Rect dst, u32 atlasLayer, Color color) {
     if (!b || Rect_isEmpty(dst)) return;
     VkQuad *q = batch_push(b);
     if (!q) return;
@@ -148,21 +148,21 @@ void VkBatch_glyph(VkBatch *b, Rect dst, uint32_t atlasLayer, Color color) {
 }
 
 // Copies quad attributes and the supplied position/UV into one packed vertex.
-static void put(VkVertex *v, const VkQuad *q, float x, float y, float u, float vv) {
+static void put(VkVertex *v, const VkQuad *q, f32 x, f32 y, f32 u, f32 vv) {
     (*v).x = x; (*v).y = y;
     (*v).u = u; (*v).v = vv;
-    (*v).r = (float)Color_red((*q).fill) / 255.0f;
-    (*v).g = (float)Color_green((*q).fill) / 255.0f;
-    (*v).b = (float)Color_blue((*q).fill) / 255.0f;
-    (*v).a = (float)Color_alpha((*q).fill) / 255.0f;
-    (*v).br = (float)Color_red((*q).border) / 255.0f;
-    (*v).bg = (float)Color_green((*q).border) / 255.0f;
-    (*v).bb = (float)Color_blue((*q).border) / 255.0f;
-    (*v).ba = (float)Color_alpha((*q).border) / 255.0f;
+    (*v).r = (f32)Color_red((*q).fill) / 255.0f;
+    (*v).g = (f32)Color_green((*q).fill) / 255.0f;
+    (*v).b = (f32)Color_blue((*q).fill) / 255.0f;
+    (*v).a = (f32)Color_alpha((*q).fill) / 255.0f;
+    (*v).br = (f32)Color_red((*q).border) / 255.0f;
+    (*v).bg = (f32)Color_green((*q).border) / 255.0f;
+    (*v).bb = (f32)Color_blue((*q).border) / 255.0f;
+    (*v).ba = (f32)Color_alpha((*q).border) / 255.0f;
     (*v).radius = (*q).radius;
     (*v).stroke = (*q).stroke;
     (*v).mode = (*q).mode;
-    (*v).layer = (float)((*q).texture);
+    (*v).layer = (f32)((*q).texture);
     (*v).qw = (*q).w;
     (*v).qh = (*q).h;
     (*v).c0 = (*q).cx0;
@@ -174,14 +174,14 @@ static void put(VkVertex *v, const VkQuad *q, float x, float y, float u, float v
 }
 
 // Returns required vertex count, or expands all quads into six vertices each when capacity suffices.
-size_t VkBatch_vertices(const VkBatch *b, VkVertex *out, size_t capacity) {
+bytes VkBatch_vertices(const VkBatch *b, VkVertex *out, bytes capacity) {
     if (!b) return 0;
-    size_t needed = (*b).count * 6u;
+    bytes needed = (*b).count * 6u;
     if (!out || capacity < needed) return needed;
-    size_t w = 0;
-    for (size_t i = 0; i < (*b).count; i++) {
+    bytes w = 0;
+    for (bytes i = 0; i < (*b).count; i++) {
         const VkQuad *q = &(*b).quads[i];
-        float x0 = (*q).x, y0 = (*q).y, x1 = (*q).x + (*q).w, y1 = (*q).y + (*q).h;
+        f32 x0 = (*q).x, y0 = (*q).y, x1 = (*q).x + (*q).w, y1 = (*q).y + (*q).h;
         // two triangles: (0,0)(1,0)(0,1)  (0,1)(1,0)(1,1)
         put(&out[w++], q, x0, y0, (*q).u0, (*q).v0);
         put(&out[w++], q, x1, y0, (*q).u1, (*q).v0);

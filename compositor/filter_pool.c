@@ -26,9 +26,9 @@
  * format projects bounded strings. No mutable recipe view is exported.
  */
 typedef struct Slot {
-    uint32_t references;
-    uint16_t generation;
-    size_t count;
+    u32 references;
+    u16 generation;
+    bytes count;
     bool retired;
     FilterToken tokens[COMPOSITOR_MAX_FILTERS];
 } Slot;
@@ -37,9 +37,9 @@ _Static_assert(FILTER_POOL_MAX_CAPACITY <= SIZE_MAX / sizeof(Slot),
                "configured slot budget must fit allocation size");
 
 struct FilterPool {
-    uint32_t capacity;
-    uint32_t maxRecipeFilters;
-    uint32_t live;
+    u32 capacity;
+    u32 maxRecipeFilters;
+    u32 live;
     Slot *slots;
 };
 
@@ -55,9 +55,9 @@ static FilterPoolStatus lookup(const FilterPool *pool, FilterToken token,
                                Slot **out) {
     if (!pool || Filter_id(token) != FILTER_POOL_ID)
         return FILTER_POOL_INVALID;
-    uint64_t payload = Filter_payload(token);
-    uint32_t index = (uint32_t) payload;
-    uint16_t generation = (uint16_t) (payload >> 32);
+    u64 payload = Filter_payload(token);
+    u32 index = (u32) payload;
+    u16 generation = (u16) (payload >> 32);
     if (!generation)
         return FILTER_POOL_INVALID;
     if (index >= (*pool).capacity)
@@ -87,7 +87,7 @@ FilterPoolStatus FilterPool_2(FilterPoolConfig config, FilterPool **out) {
     (*pool).capacity = config.capacity;
     (*pool).maxRecipeFilters = config.maxRecipeFilters;
     (*pool).slots = slots;
-    for (uint32_t i = 0; i < config.capacity; ++i)
+    for (u32 i = 0; i < config.capacity; ++i)
         slots[i].generation = 1;
     *out = pool;
     return FILTER_POOL_OK;
@@ -106,12 +106,12 @@ FilterPoolStatus FilterPool_destroy(FilterPool *pool) {
 
 // Validates and copies an ordered non-nested recipe into an available slot.
 FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
-                                  size_t count, FilterToken *out) {
+                                  bytes count, FilterToken *out) {
     if (!pool || !out || (count && !tokens))
         return reject(FILTER_POOL_INVALID);
     if (count > (*pool).maxRecipeFilters)
         return reject(FILTER_POOL_LIMIT);
-    for (size_t i = 0; i < count; ++i)
+    for (bytes i = 0; i < count; ++i)
         if (Filter_id(tokens[i]) == FILTER_POOL_ID)
             return reject(FILTER_POOL_UNSUPPORTED);
     CompositorBounds unused;
@@ -119,7 +119,7 @@ FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
                                                      tokens, count, &unused);
     if (status != COMPOSITOR_OK)
         return reject((FilterPoolStatus) status);
-    for (uint32_t i = 0; i < (*pool).capacity; ++i) {
+    for (u32 i = 0; i < (*pool).capacity; ++i) {
         Slot *slot = &(*pool).slots[i];
         if ((*slot).references || (*slot).retired)
             continue;
@@ -128,8 +128,8 @@ FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
         (*slot).count = count;
         (*slot).references = 1;
         ++(*pool).live;
-        *out = ((uint64_t) FILTER_POOL_ID << 48) |
-               ((uint64_t) (*slot).generation << 32) | i;
+        *out = ((u64) FILTER_POOL_ID << 48) |
+               ((u64) (*slot).generation << 32) | i;
         return FILTER_POOL_OK;
     }
     return reject(FILTER_POOL_LIMIT);
@@ -166,8 +166,8 @@ FilterPoolStatus FilterPool_release(FilterPool *pool, FilterToken token) {
 
 // Copies a live recipe into caller storage, leaving output count untouched on rejection.
 FilterPoolStatus FilterPool_snapshot(const FilterPool *pool, FilterToken token,
-                                    FilterToken *outTokens, size_t capacity,
-                                    size_t *outCount) {
+                                    FilterToken *outTokens, bytes capacity,
+                                    bytes *outCount) {
     Slot *slot;
     FilterPoolStatus status = lookup(pool, token, &slot);
     if (status != FILTER_POOL_OK)
@@ -185,15 +185,15 @@ FilterPoolStatus FilterPool_snapshot(const FilterPool *pool, FilterToken token,
 // Expands pool tokens in order and composes the supplied source group with that recipe.
 FilterPoolStatus FilterPool_compose(const FilterPool *pool,
                                    const CompositorSurface *const *sources,
-                                   size_t sourceCount, const FilterToken *tokens,
-                                   size_t tokenCount, CompositorSurface **out) {
+                                   bytes sourceCount, const FilterToken *tokens,
+                                   bytes tokenCount, CompositorSurface **out) {
     if (!pool || !out || (tokenCount && !tokens) || (sourceCount && !sources))
         return reject(FILTER_POOL_INVALID);
     if (tokenCount > COMPOSITOR_MAX_FILTERS || sourceCount > COMPOSITOR_MAX_SOURCES)
         return reject(FILTER_POOL_LIMIT);
     FilterToken expanded[COMPOSITOR_MAX_FILTERS];
-    size_t count = 0;
-    for (size_t i = 0; i < tokenCount; ++i) {
+    bytes count = 0;
+    for (bytes i = 0; i < tokenCount; ++i) {
         if (Filter_id(tokens[i]) != FILTER_POOL_ID) {
             if (count == COMPOSITOR_MAX_FILTERS)
                 return reject(FILTER_POOL_LIMIT);
@@ -214,20 +214,20 @@ FilterPoolStatus FilterPool_compose(const FilterPool *pool,
 }
 
 // Returns configured slot capacity, or zero for null.
-uint32_t FilterPool_capacity(const FilterPool *pool) {
+u32 FilterPool_capacity(const FilterPool *pool) {
     return pool ? (*pool).capacity : 0;
 }
 // Returns the per-recipe filter limit, or zero for null.
-uint32_t FilterPool_maxRecipeFilters(const FilterPool *pool) {
+u32 FilterPool_maxRecipeFilters(const FilterPool *pool) {
     return pool ? (*pool).maxRecipeFilters : 0;
 }
 // Returns the number of occupied recipe slots, or zero for null.
-uint32_t FilterPool_live(const FilterPool *pool) {
+u32 FilterPool_live(const FilterPool *pool) {
     return pool ? (*pool).live : 0;
 }
 
 // Writes the selected bounded pool projection and reports truncation.
-static void format(const FilterPool *pool, bool structure, char *dest, size_t cap,
+static void format(const FilterPool *pool, bool structure, char *dest, bytes cap,
                    bool *outTruncated) {
     if (!dest && cap) {
         if (outTruncated)
@@ -247,15 +247,15 @@ static void format(const FilterPool *pool, bool structure, char *dest, size_t ca
         length = snprintf(dest, cap, "FilterPool(live=%u,capacity=%u)",
                           (*pool).live, (*pool).capacity);
     if (outTruncated)
-        *outTruncated = length < 0 || (size_t) length >= cap;
+        *outTruncated = length < 0 || (bytes) length >= cap;
 }
 // Formats the pool's concise value summary into caller storage.
-void FilterPool_toString(const FilterPool *pool, char *dest, size_t cap,
+void FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
                          bool *outTruncated) {
     format(pool, false, dest, cap, outTruncated);
 }
 // Formats the pool's own fields into caller storage.
-void FilterPool_toStringStruct(const FilterPool *pool, char *dest, size_t cap,
+void FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
                                bool *outTruncated) {
     format(pool, true, dest, cap, outTruncated);
 }

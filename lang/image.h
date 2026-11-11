@@ -29,40 +29,40 @@ typedef struct Image Image;
 typedef bool (*ImageGpuRefFn)(void *resource);
 
 typedef struct ImageDesc {
-    uint32_t width;    // default 1
-    uint32_t height;   // default 1
-    uint32_t format;   // IMAGE_FORMAT_* (default RGBA8)
-    uint32_t usage;    // IMAGE_USAGE_* (default NONE)
+    u32 width;    // default 1
+    u32 height;   // default 1
+    u32 format;   // IMAGE_FORMAT_* (default RGBA8)
+    u32 usage;    // IMAGE_USAGE_* (default NONE)
 } ImageDesc;
 
 Image *Image_0(void);
-Image *Image_2(uint32_t width, uint32_t height);
-Image *Image_4(uint32_t width, uint32_t height, uint32_t format, uint32_t usage);
+Image *Image_2(u32 width, u32 height);
+Image *Image_4(u32 width, u32 height, u32 format, u32 usage);
 #define GRAPHVEX_IMAGE_CTOR(_0,_1,_2,_3,_4,NAME,...) NAME
 #define Image(...) GRAPHVEX_IMAGE_CTOR(0 __VA_OPT__(,) __VA_ARGS__, \
     Image_4,Image_invalidArity,Image_2,Image_invalidArity,Image_0)(__VA_ARGS__)
 Image *Image_new(const ImageDesc *desc);
 void Image_destroy(Image *image);
 
-bool Image_resize(Image *image, uint32_t width, uint32_t height);
-bool Image_ensureShadow(Image *image, uint32_t width, uint32_t height);
-bool Image_upload(const uint8_t *rgba, uint32_t width, uint32_t height, Image *dest);
+bool Image_resize(Image *image, u32 width, u32 height);
+bool Image_ensureShadow(Image *image, u32 width, u32 height);
+bool Image_upload(const u8 *rgba, u32 width, u32 height, Image *dest);
 void Image_fill(Image *image, Color color);   // CPU shadow fill
 
-uint32_t Image_width(const Image *image);
-uint32_t Image_height(const Image *image);
-uint32_t Image_format(const Image *image);
-uint32_t Image_usage(const Image *image);
-size_t   Image_stride(const Image *image);      // Bytes per row
-uint8_t *Image_pixels(const Image *image);      // CPU shadow (nullable)
+u32 Image_width(const Image *image);
+u32 Image_height(const Image *image);
+u32 Image_format(const Image *image);
+u32 Image_usage(const Image *image);
+bytes   Image_stride(const Image *image);      // Bytes per row
+u8 *Image_pixels(const Image *image);      // CPU shadow (nullable)
 bool     Image_isValid(const Image *image);
 
 void  *Image_native(const Image *image);        // dialect handle (VkImage / MTLTexture)
 void  *Image_iosurface(const Image *image);     // IOSurfaceRef when shared
 void   Image_setNative(Image *image, void *native);
 void   Image_setIOSurface(Image *image, void *ioSurface);
-uint32_t Image_layer(const Image *image);       // atlas layer / sampler index (0 default)
-void     Image_setLayer(Image *image, uint32_t layer);
+u32 Image_layer(const Image *image);       // atlas layer / sampler index (0 default)
+void     Image_setLayer(Image *image, u32 layer);
 
 /* Owned reference to an optional immutable sampled texture; CPU pixels may be
  * absent. Driver admission validates matching extent and readiness; clearGpu unbinds.

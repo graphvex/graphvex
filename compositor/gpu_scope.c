@@ -12,7 +12,7 @@
 ;;DEFINITION
 /* Explicit Vulkan scoped groups: upload borrowed straight sRGB source images,
  * isolate groups on the GPU, splat each source texel's weighted premultiplied
- * color into expanded float attachments with additive blending, then compose
+ * color into expanded f32 attachments with additive blending, then compose
  * the resulting scope into an sRGB target. Only byte transport crosses the CPU;
  * no CPU filter/color/composition algorithm or fallback exists here. The sampled
  * output keeps the final texture on GPU; readback is an explicit numeric bridge.
@@ -21,8 +21,8 @@
 ;;OVERVIEW
 /* CLASS: GpuScope. STRUCT FIELDS: device (borrowed VkDevice), physical (borrowed
  * physical GPU), queue (borrowed graphics queue), maxPixels (configured work
- * budget), maxExtent (probed image/viewport bound), scatterRender (owned 2-float
- * attachment pass), groupRender (owned float pass), finalRender (owned sRGB
+ * budget), maxExtent (probed image/viewport bound), scatterRender (owned 2-f32
+ * attachment pass), groupRender (owned f32 pass), finalRender (owned sRGB
  * pass), scatterDescriptor (owned single-sampler layout), scopeDescriptor
  * (owned four-sampler layout), scatterLayout (owned 24-byte push layout),
  * scopeLayout (owned 36-byte push layout), scatterPipeline/groupPipeline/
@@ -44,12 +44,12 @@
 enum { PRIOR, DECORATION, FOREGROUND, GROUP, ACCUMULATION, WEIGHT, OUTPUT, TEXTURE_COUNT };
 enum { UPLOAD_PRIOR, UPLOAD_DECORATION, UPLOAD_FOREGROUND, READBACK, BUFFER_COUNT };
 enum { GROUP_FRAME, SCATTER_FRAME, FINAL_FRAME, FRAME_COUNT };
-static const uint64_t GPU_WAIT_NS = UINT64_C(100000000);
+static const u64 GPU_WAIT_NS = UINT64_C(100000000);
 /* Security bound for externally supplied shader blobs, not an entity ceiling. */
 static const long MAX_SHADER_BYTES = 16L*1024*1024;
 typedef struct Texture {
     VkImage image; VkDeviceMemory memory; VkImageView view;
-    uint32_t width, height; VkFormat format;
+    u32 width, height; VkFormat format;
 } Texture;
 typedef struct Buffer { VkBuffer buffer; VkDeviceMemory memory; VkDeviceSize size; } Buffer;
 typedef struct Job {
@@ -59,7 +59,7 @@ typedef struct Job {
 } Job;
 struct GpuScope {
     VkDevice device; VkPhysicalDevice physical; VkQueue queue;
-    uint32_t maxPixels, maxExtent;
+    u32 maxPixels, maxExtent;
     VkRenderPass scatterRender, groupRender, finalRender;
     VkDescriptorSetLayout scatterDescriptor, scopeDescriptor;
     VkPipelineLayout scatterLayout, scopeLayout;
@@ -70,10 +70,10 @@ struct GpuScope {
 };
 
 // Finds a device-local memory type supported by the supplied Vulkan requirements.
-static uint32_t memoryType(GpuScope *self,uint32_t bits,VkMemoryPropertyFlags want) {
+static u32 memoryType(GpuScope *self,u32 bits,VkMemoryPropertyFlags want) {
     VkPhysicalDeviceMemoryProperties properties;
     vkGetPhysicalDeviceMemoryProperties((*self).physical,&properties);
-    for (uint32_t i=0;i<properties.memoryTypeCount;++i) {
+    for (u32 i=0;i<properties.memoryTypeCount;++i) {
         VkMemoryType *type=&properties.memoryTypes[i];
         if ((bits&(1u<<i)) && ((*type).propertyFlags&want)==want)
             return i;
@@ -87,7 +87,7 @@ static bool makeBuffer(GpuScope *self,VkDeviceSize size,VkBufferUsageFlags usage
         return false;
     VkMemoryRequirements requirements;
     vkGetBufferMemoryRequirements((*self).device,(*out).buffer,&requirements);
-    uint32_t type=memoryType(self,requirements.memoryTypeBits,
+    u32 type=memoryType(self,requirements.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     if (type==UINT32_MAX)
         return false;
@@ -98,7 +98,7 @@ static bool makeBuffer(GpuScope *self,VkDeviceSize size,VkBufferUsageFlags usage
         vkBindBufferMemory((*self).device,(*out).buffer,(*out).memory,0)==VK_SUCCESS;
 }
 // Creates a sampled/color-attachment texture and its image view.
-static bool makeTexture(GpuScope *self,uint32_t width,uint32_t height,VkFormat format,Texture *out) {
+static bool makeTexture(GpuScope *self,u32 width,u32 height,VkFormat format,Texture *out) {
     (*out).width=width; (*out).height=height; (*out).format=format;
     VkImageCreateInfo info={.sType=VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .flags=format==VK_FORMAT_R8G8B8A8_SRGB ? VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT : 0,
@@ -110,7 +110,7 @@ static bool makeTexture(GpuScope *self,uint32_t width,uint32_t height,VkFormat f
         return false;
     VkMemoryRequirements requirements;
     vkGetImageMemoryRequirements((*self).device,(*out).image,&requirements);
-    uint32_t type=memoryType(self,requirements.memoryTypeBits,0);
+    u32 type=memoryType(self,requirements.memoryTypeBits,0);
     if (type==UINT32_MAX)
         return false;
     VkMemoryAllocateInfo allocate={.sType=VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -221,7 +221,7 @@ static bool renderPass(GpuScope *self,VkFormat format,unsigned count,VkRenderPas
 }
 // Loads a SPIR-V module from the requested shader directory and name.
 static VkShaderModule loadShader(GpuScope *self,const char *directory,const char *name) {
-    size_t n=strlen(directory), m=strlen(name);
+    bytes n=strlen(directory), m=strlen(name);
     if (n>SIZE_MAX-m-6)
         return VK_NULL_HANDLE;
     char *path=malloc(n+m+6);
@@ -235,13 +235,13 @@ static VkShaderModule loadShader(GpuScope *self,const char *directory,const char
     long length=ftell(file);
     if (length<20 || length%4 || length>MAX_SHADER_BYTES) { fclose(file); return VK_NULL_HANDLE; }
     rewind(file);
-    uint32_t *words=malloc((size_t) length);
+    u32 *words=malloc((bytes) length);
     if (!words) { fclose(file); return VK_NULL_HANDLE; }
-    bool valid=fread(words,1,(size_t) length,file)==(size_t) length && words[0]==UINT32_C(0x07230203);
+    bool valid=fread(words,1,(bytes) length,file)==(bytes) length && words[0]==UINT32_C(0x07230203);
     fclose(file);
     VkShaderModule result=VK_NULL_HANDLE;
     VkShaderModuleCreateInfo info={.sType=VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize=(size_t) length,.pCode=words};
+        .codeSize=(bytes) length,.pCode=words};
     if (valid && vkCreateShaderModule((*self).device,&info,nullptr,&result)!=VK_SUCCESS)
         result=VK_NULL_HANDLE;
     free(words); return result;
@@ -273,7 +273,7 @@ static bool pipeline(GpuScope *self,VkShaderModule vertex,VkShaderModule fragmen
         .pColorBlendState=&cb,.pDynamicState=&dynamic,.layout=layout,.renderPass=render};
     return vkCreateGraphicsPipelines((*self).device,VK_NULL_HANDLE,1,&info,nullptr,out)==VK_SUCCESS;
 }
-GpuScope *GpuScope_3(Device *device,const char *directory,uint32_t maxPixels) {
+GpuScope *GpuScope_3(Device *device,const char *directory,u32 maxPixels) {
     if (!Device_isValid(device) || !directory || !*directory || !maxPixels || maxPixels>INT32_MAX) {
         THROW("GpuScope rejected construction inputs"); return nullptr;
     }
@@ -294,8 +294,8 @@ GpuScope *GpuScope_3(Device *device,const char *directory,uint32_t maxPixels) {
         (*self).maxExtent=(*limits).maxViewportDimensions[0];
     if ((*limits).maxViewportDimensions[1]<(*self).maxExtent)
         (*self).maxExtent=(*limits).maxViewportDimensions[1];
-    if ((*self).maxExtent>(uint32_t) INT32_MAX-32)
-        (*self).maxExtent=(uint32_t) INT32_MAX-32;
+    if ((*self).maxExtent>(u32) INT32_MAX-32)
+        (*self).maxExtent=(u32) INT32_MAX-32;
     for (unsigned i=0;i<2;++i) {
         VkFormat format=i ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R32G32B32A32_SFLOAT;
         VkFormatProperties support;
@@ -376,15 +376,15 @@ static void barrier(GpuScope *self,Texture *texture,VkImageLayout old,VkImageLay
 // Uploads one CPU image into its per-job GPU texture and records visibility barriers.
 static bool upload(GpuScope *self,const Image *source,unsigned index) {
     Job *job=&(*self).job; Texture *t=&(*job).textures[index]; Buffer *b=&(*job).buffers[index];
-    uint32_t w=Image_width(source),h=Image_height(source);
+    u32 w=Image_width(source),h=Image_height(source);
     if (!makeTexture(self,w,h,VK_FORMAT_R8G8B8A8_SRGB,t) ||
         !makeBuffer(self,(VkDeviceSize) w*h*4,VK_BUFFER_USAGE_TRANSFER_SRC_BIT,b))
         return false;
     void *mappedPixelBytes;
     if (vkMapMemory((*self).device,(*b).memory,0,(*b).size,0,&mappedPixelBytes)!=VK_SUCCESS)
         return false;
-    for (uint32_t y=0;y<h;++y)
-        memcpy((uint8_t*) mappedPixelBytes+(size_t) y*w*4,Image_pixels(source)+(size_t) y*Image_stride(source),(size_t) w*4);
+    for (u32 y=0;y<h;++y)
+        memcpy((u8*) mappedPixelBytes+(bytes) y*w*4,Image_pixels(source)+(bytes) y*Image_stride(source),(bytes) w*4);
     vkUnmapMemory((*self).device,(*b).memory);
     barrier(self,t,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,0,VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT);
@@ -417,35 +417,35 @@ static void beginPass(GpuScope *self,unsigned frame,VkRenderPass render,VkPipeli
     VkClearValue clear[2]={0};
     VkRenderPassBeginInfo begin={.sType=VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,.renderPass=render,
         .framebuffer=(*job).frames[frame],.renderArea={{0,0},{width,height}},.clearValueCount=attachments,.pClearValues=clear};
-    VkViewport viewport={0,0,(float) width,(float) height,0,1}; VkRect2D scissor={{0,0},{width,height}};
+    VkViewport viewport={0,0,(f32) width,(f32) height,0,1}; VkRect2D scissor={{0,0},{width,height}};
     vkCmdBeginRenderPass((*self).command,&begin,VK_SUBPASS_CONTENTS_INLINE);
     vkCmdSetViewport((*self).command,0,1,&viewport); vkCmdSetScissor((*self).command,0,1,&scissor);
     vkCmdBindPipeline((*self).command,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline);
     vkCmdBindDescriptorSets((*self).command,VK_PIPELINE_BIND_POINT_GRAPHICS,layout,0,1,&(*job).sets[frame],0,nullptr);
 }
 // Checks source image readiness and configured extent/pixel limits before recording work.
-static bool inputValid(const Image *image,uint32_t maxPixels,uint32_t maxExtent) {
-    uint32_t w=Image_width(image),h=Image_height(image);
-    return image && w && h && w<=maxExtent && h<=maxExtent && (uint64_t) w*h<=maxPixels &&
-        (uint64_t) w*h<=SIZE_MAX/4 && Image_format(image)==IMAGE_FORMAT_RGBA8 && Image_pixels(image) && Image_stride(image)>=(uint64_t) w*4;
+static bool inputValid(const Image *image,u32 maxPixels,u32 maxExtent) {
+    u32 w=Image_width(image),h=Image_height(image);
+    return image && w && h && w<=maxExtent && h<=maxExtent && (u64) w*h<=maxPixels &&
+        (u64) w*h<=SIZE_MAX/4 && Image_format(image)==IMAGE_FORMAT_RGBA8 && Image_pixels(image) && Image_stride(image)>=(u64) w*4;
 }
 // Records and submits the selected backdrop/foreground/element scope into an output image.
 static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
-    int32_t panelX,int32_t panelY,const Image *foreground,int32_t foregroundX,int32_t foregroundY,uint32_t radius,bool sampled,Image **out) {
+    i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,bool sampled,Image **out) {
     if (!self || !out || scope>GPU_SCOPE_ELEMENT || radius>FILTER_SCATTER_MAX_RADIUS)
         goto rejected;
-    uint32_t max=(*self).maxPixels,extent=(*self).maxExtent;
+    u32 max=(*self).maxPixels,extent=(*self).maxExtent;
     if (!inputValid(prior,max,extent) || !inputValid(decoration,max,extent) || !inputValid(foreground,max,extent))
         goto rejected;
-    uint32_t w=Image_width(prior),h=Image_height(prior),pw=Image_width(decoration),ph=Image_height(decoration);
-    if (panelX<0 || panelY<0 || (uint64_t) panelX+pw>w || (uint64_t) panelY+ph>h ||
+    u32 w=Image_width(prior),h=Image_height(prior),pw=Image_width(decoration),ph=Image_height(decoration);
+    if (panelX<0 || panelY<0 || (u64) panelX+pw>w || (u64) panelY+ph>h ||
         (int64_t) foregroundX+Image_width(foreground)>INT32_MAX ||
         (int64_t) foregroundY+Image_height(foreground)>INT32_MAX ||
-        foregroundX<INT32_MIN+(int32_t) w+32 || foregroundY<INT32_MIN+(int32_t) h+32)
+        foregroundX<INT32_MIN+(i32) w+32 || foregroundY<INT32_MIN+(i32) h+32)
         goto rejected;
-    uint32_t sw=scope==GPU_SCOPE_FOREGROUND ? Image_width(foreground) : w;
-    uint32_t sh=scope==GPU_SCOPE_FOREGROUND ? Image_height(foreground) : h;
-    uint64_t aw=(uint64_t) sw+2*radius,ah=(uint64_t) sh+2*radius;
+    u32 sw=scope==GPU_SCOPE_FOREGROUND ? Image_width(foreground) : w;
+    u32 sh=scope==GPU_SCOPE_FOREGROUND ? Image_height(foreground) : h;
+    u64 aw=(u64) sw+2*radius,ah=(u64) sh+2*radius;
     if (aw>extent || ah>extent || aw*ah>max || aw*ah>SIZE_MAX/16)
         goto rejected;
     if (!retire(self))
@@ -458,8 +458,8 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
         goto failed;
     if (!upload(self,prior,PRIOR) || !upload(self,decoration,DECORATION) || !upload(self,foreground,FOREGROUND) ||
         !makeTexture(self,w,h,VK_FORMAT_R32G32B32A32_SFLOAT,&(*job).textures[GROUP]) ||
-        !makeTexture(self,(uint32_t) aw,(uint32_t) ah,VK_FORMAT_R32G32B32A32_SFLOAT,&(*job).textures[ACCUMULATION]) ||
-        !makeTexture(self,(uint32_t) aw,(uint32_t) ah,VK_FORMAT_R32G32B32A32_SFLOAT,&(*job).textures[WEIGHT]) ||
+        !makeTexture(self,(u32) aw,(u32) ah,VK_FORMAT_R32G32B32A32_SFLOAT,&(*job).textures[ACCUMULATION]) ||
+        !makeTexture(self,(u32) aw,(u32) ah,VK_FORMAT_R32G32B32A32_SFLOAT,&(*job).textures[WEIGHT]) ||
         !makeTexture(self,w,h,VK_FORMAT_R8G8B8A8_SRGB,&(*job).textures[OUTPUT]) ||
         (!sampled && !makeBuffer(self,(VkDeviceSize) w*h*4,VK_BUFFER_USAGE_TRANSFER_DST_BIT,&(*job).buffers[READBACK])) ||
         !framebuffer(self,GROUP_FRAME,(*self).groupRender,GROUP,1) ||
@@ -481,14 +481,14 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
     }
     unsigned source=scope==GPU_SCOPE_ELEMENT ? GROUP : scope==GPU_SCOPE_FOREGROUND ? FOREGROUND : PRIOR;
     descriptor(self,SCATTER_FRAME,0,source);
-    int32_t push[]={(int32_t) scope,0,panelX,panelY,(int32_t) pw,(int32_t) ph,foregroundX,foregroundY,(int32_t) radius};
+    i32 push[]={(i32) scope,0,panelX,panelY,(i32) pw,(i32) ph,foregroundX,foregroundY,(i32) radius};
     if (scope==GPU_SCOPE_ELEMENT) {
         beginPass(self,GROUP_FRAME,(*self).groupRender,(*self).groupPipeline,(*self).scopeLayout,w,h,1);
         vkCmdPushConstants((*self).command,(*self).scopeLayout,VK_SHADER_STAGE_FRAGMENT_BIT,0,sizeof push,push);
         vkCmdDraw((*self).command,3,1,0,0); vkCmdEndRenderPass((*self).command);
     }
-    beginPass(self,SCATTER_FRAME,(*self).scatterRender,(*self).scatterPipeline,(*self).scatterLayout,(uint32_t) aw,(uint32_t) ah,2);
-    int32_t scatter[]={(int32_t) sw,(int32_t) sh,(int32_t) aw,(int32_t) ah,(int32_t) radius,scope==GPU_SCOPE_ELEMENT ? 0 : 1};
+    beginPass(self,SCATTER_FRAME,(*self).scatterRender,(*self).scatterPipeline,(*self).scatterLayout,(u32) aw,(u32) ah,2);
+    i32 scatter[]={(i32) sw,(i32) sh,(i32) aw,(i32) ah,(i32) radius,scope==GPU_SCOPE_ELEMENT ? 0 : 1};
     vkCmdPushConstants((*self).command,(*self).scatterLayout,VK_SHADER_STAGE_VERTEX_BIT,0,sizeof scatter,scatter);
     vkCmdDraw((*self).command,6,sw*sh,0,0); vkCmdEndRenderPass((*self).command);
     push[1]=1;
@@ -548,8 +548,8 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
     if (!result || !Image_ensureShadow(result,w,h)) { Image_destroy(result); goto failed; }
     void *mappedPixelBytes;
     if (vkMapMemory((*self).device,(*read).memory,0,(*read).size,0,&mappedPixelBytes)!=VK_SUCCESS) { Image_destroy(result); goto failed; }
-    for (uint32_t y=0;y<h;++y)
-        memcpy(Image_pixels(result)+(size_t) y*Image_stride(result),(uint8_t*) mappedPixelBytes+(size_t) y*w*4,(size_t) w*4);
+    for (u32 y=0;y<h;++y)
+        memcpy(Image_pixels(result)+(bytes) y*Image_stride(result),(u8*) mappedPixelBytes+(bytes) y*w*4,(bytes) w*4);
     vkUnmapMemory((*self).device,(*read).memory); releaseJob(self); *out=result; return true;
 failed:
     releaseJob(self);
@@ -558,16 +558,16 @@ rejected:
 }
 // Renders the requested filter scope and synchronously returns its CPU-visible Image output.
 bool GpuScope_render(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
-    int32_t panelX,int32_t panelY,const Image *foreground,int32_t foregroundX,int32_t foregroundY,uint32_t radius,Image **out) {
+    i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,Image **out) {
     return render(self,scope,prior,decoration,panelX,panelY,foreground,foregroundX,foregroundY,radius,false,out);
 }
 // Renders the requested scope and binds the result as a sampled GPU resource without readback.
 bool GpuScope_renderSampled(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
-    int32_t panelX,int32_t panelY,const Image *foreground,int32_t foregroundX,int32_t foregroundY,uint32_t radius,Image **out) {
+    i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,Image **out) {
     return render(self,scope,prior,decoration,panelX,panelY,foreground,foregroundX,foregroundY,radius,true,out);
 }
 // Writes the bounded concise or field-level projection for the scope.
-static void format(const GpuScope *self,bool structure,char *dest,size_t cap,bool *outTruncated) {
+static void format(const GpuScope *self,bool structure,char *dest,bytes cap,bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
             *outTruncated=true;
@@ -585,9 +585,9 @@ static void format(const GpuScope *self,bool structure,char *dest,size_t cap,boo
         (void*) (*self).scatterPipeline,(void*) (*self).groupPipeline,(void*) (*self).finalPipeline,(void*) (*self).sampler,
         (void*) (*self).commands,(void*) (*self).command,(void*) (*self).fence,(*self).pending,(void*) (*self).owner);
     if (outTruncated)
-        *outTruncated=n<0 || (size_t) n>=cap;
+        *outTruncated=n<0 || (bytes) n>=cap;
 }
 // Formats a bounded value summary of the GPU scope.
-void GpuScope_toString(const GpuScope *self,char *dest,size_t cap,bool *outTruncated) { format(self,false,dest,cap,outTruncated); }
+void GpuScope_toString(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,false,dest,cap,outTruncated); }
 // Formats the GPU scope's own fields into caller storage.
-void GpuScope_toStringStruct(const GpuScope *self,char *dest,size_t cap,bool *outTruncated) { format(self,true,dest,cap,outTruncated); }
+void GpuScope_toStringStruct(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,true,dest,cap,outTruncated); }

@@ -33,19 +33,19 @@ typedef enum PngCode {
 } PngCode;
 
 // True when the bytes begin with the 8-byte PNG signature.
-bool Png_isPng(const uint8_t *bytes, size_t length);
+bool Png_isPng(const u8 *bytes, bytes length);
 
 // Decode to RGBA8. On PNG_OK: *outRgba is a Memory_alloc-backed buffer of
 // width*height*4 bytes (release with Memory_free), *outWidth/*outHeight set.
 // On any failure the outputs are untouched and no allocation is retained.
-PngCode Png_decode(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                   uint32_t *outWidth, uint32_t *outHeight);
+PngCode Png_decode(const u8 *bytes, bytes length, u8 **outRgba,
+                   u32 *outWidth, u32 *outHeight);
 
 // Same decode, but the RGBA buffer comes from libc malloc so a caller that is not
 // the engine (a lean host without an arena) can decode its own asset. Release it
 // with free(). Everything else is identical.
-PngCode Png_decodeMalloc(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                         uint32_t *outWidth, uint32_t *outHeight);
+PngCode Png_decodeMalloc(const u8 *bytes, bytes length, u8 **outRgba,
+                         u32 *outWidth, u32 *outHeight);
 
 // Stable name for a code (diagnostics/projections).
 const char *Png_codeName(PngCode code);

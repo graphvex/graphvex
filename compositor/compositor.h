@@ -15,8 +15,8 @@ typedef enum CompositorStatus {
 } CompositorStatus;
 
 typedef struct CompositorBounds {
-    int32_t x, y;
-    uint32_t width, height;
+    i32 x, y;
+    u32 width, height;
 } CompositorBounds;
 
 typedef struct CompositorSurface CompositorSurface;
@@ -26,7 +26,7 @@ typedef struct CompositorSurface CompositorSurface;
 #define COMPOSITOR_MAX_SCATTER_TAPS UINT64_C(67108864)
 
 /* CPU reference backend only; no GPU submission is implied.
- * Surfaces own tightly packed linear-light premultiplied float RGBA. Their
+ * Surfaces own tightly packed linear-light premultiplied f32 RGBA. Their
  * half-open integer bounds have an origin independent of allocation. Empty
  * surfaces are represented by width=height=0 (not just one zero dimension).
  * Pixels: finite nonnegative RGB (HDR allowed), alpha in [0,1], and zero RGB
@@ -56,29 +56,29 @@ CompositorSurface *CompositorSurface_zero(void);
                             CompositorSurface_1, CompositorSurface_0)(__VA_ARGS__)
 void CompositorSurface_destroy(CompositorSurface *surface);
 CompositorBounds CompositorSurface_bounds(const CompositorSurface *surface);
-float *CompositorSurface_pixels(CompositorSurface *surface);
-const float *CompositorSurface_constPixels(const CompositorSurface *surface);
+f32 *CompositorSurface_pixels(CompositorSurface *surface);
+const f32 *CompositorSurface_constPixels(const CompositorSurface *surface);
 CompositorStatus CompositorSurface_validate(const CompositorSurface *surface);
 /* Cold bounded strings. Null self writes "nullptr"; absent/zero-capacity dest
  * reports truncation. Strings never allocate, inspect pixels or recurse. */
 void CompositorSurface_toString(const CompositorSurface *surface, char *dest,
-                                size_t cap, bool *outTruncated);
+                                bytes cap, bool *outTruncated);
 void CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
-                                      size_t cap, bool *outTruncated);
+                                      bytes cap, bool *outTruncated);
 
 /* Validates tokens even for empty bounds. Ordered blur support expands each
  * side by its radius; pointwise filters keep bounds. No clipping is implicit.
  * Rejects unsupported IDs, reserved payload bits, invalid gains and overflow. */
 CompositorStatus Compositor_filterBounds(CompositorBounds source,
-                                        const FilterToken *filters, size_t count,
+                                        const FilterToken *filters, bytes count,
                                         CompositorBounds *out);
 /* Isolate: source-over all sources in array order over transparent union bounds,
  * THEN apply the whole ordered stack exactly once to the assembled group.
  * Empty source/filter arrays may be NULL. No Foreground/Backdrop scene policy
  * is invented here: caller chooses and snapshots the correct sources. */
 CompositorStatus Compositor_compose(const CompositorSurface *const *sources,
-                                    size_t sourceCount,
-                                    const FilterToken *filters, size_t filterCount,
+                                    bytes sourceCount,
+                                    const FilterToken *filters, bytes filterCount,
                                     CompositorSurface **out);
 /* Source-over into existing destination, integer origin-aware, clipped to its
  * bounds. Self-compositing is rejected. Failure never partially changes dest. */

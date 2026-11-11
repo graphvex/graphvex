@@ -20,7 +20,7 @@ static unsigned expectedDiagnostics;
 #define ERROR(call, status) do { ++expectedDiagnostics; CHECK((call) == (status)); } while (0)
 
 // Creates a filter pool with the requested slot and per-stack limits.
-static FilterPool *pool(uint32_t capacity, uint32_t maxFilters) {
+static FilterPool *pool(u32 capacity, u32 maxFilters) {
     FilterPool *p = nullptr;
     FilterPoolConfig config = {capacity, maxFilters};
     CHECK(FilterPool(config, &p) == FILTER_POOL_OK);
@@ -35,10 +35,10 @@ static void lifetime(void) {
     FilterToken recipe[] = {Filter_gain(2), Filter_scatterBlur(1)};
     FilterToken token = 99;
     CHECK(FilterPool_insert(p, recipe, 2, &token) == FILTER_POOL_OK);
-    CHECK(Filter_id(token) == FILTER_POOL_ID && (uint32_t) token == 0);
+    CHECK(Filter_id(token) == FILTER_POOL_ID && (u32) token == 0);
     recipe[0] = Filter_gain(7); // mutation cannot alter the stored recipe
     FilterToken snapshot[2] = {99, 88};
-    size_t count = 99;
+    bytes count = 99;
     ERROR(FilterPool_snapshot(p, token, snapshot, 1, &count), FILTER_POOL_LIMIT);
     CHECK(snapshot[0] == 99 && snapshot[1] == 88 && count == 99);
     CHECK(FilterPool_snapshot(p, token, snapshot, 2, &count) == FILTER_POOL_OK);
@@ -75,7 +75,7 @@ static void invalid_and_strings(void) {
     CHECK(p == nullptr);
     p = pool(2, 2);
     FilterToken out = 99;
-    FilterToken invalid = ((uint64_t) FILTER_POOL_ID << 48) | (UINT64_C(1) << 32);
+    FilterToken invalid = ((u64) FILTER_POOL_ID << 48) | (UINT64_C(1) << 32);
     ERROR(FilterPool_insert(p, &invalid, 1, &out), FILTER_POOL_UNSUPPORTED);
     invalid = UINT64_C(0x7777000000000000);
     ERROR(FilterPool_insert(p, &invalid, 1, &out), FILTER_POOL_UNSUPPORTED);
@@ -90,13 +90,13 @@ static void invalid_and_strings(void) {
     ERROR(FilterPool_insert(nullptr, nullptr, 0, &out), FILTER_POOL_INVALID);
     ERROR(FilterPool_insert(p, nullptr, 0, nullptr), FILTER_POOL_INVALID);
     CHECK(out == 99 && FilterPool_live(p) == 0);
-    ERROR(FilterPool_retain(p, (uint64_t) FILTER_POOL_ID << 48), FILTER_POOL_INVALID);
-    ERROR(FilterPool_retain(p, ((uint64_t) FILTER_POOL_ID << 48) |
+    ERROR(FilterPool_retain(p, (u64) FILTER_POOL_ID << 48), FILTER_POOL_INVALID);
+    ERROR(FilterPool_retain(p, ((u64) FILTER_POOL_ID << 48) |
           (UINT64_C(1) << 32) | UINT32_MAX), FILTER_POOL_STALE);
     ERROR(FilterPool_release(nullptr, 0), FILTER_POOL_INVALID);
     ERROR(FilterPool_retain(p, Filter_identity()), FILTER_POOL_INVALID);
     CHECK(FilterPool_insert(p, three, 2, &out) == FILTER_POOL_OK);
-    size_t count = 44;
+    bytes count = 44;
     ERROR(FilterPool_snapshot(p, out, nullptr, 2, &count), FILTER_POOL_INVALID);
     ERROR(FilterPool_snapshot(p, out, three, 2, nullptr), FILTER_POOL_INVALID);
     CHECK(count == 44 && FilterPool_live(p) == 1);
@@ -133,7 +133,7 @@ static void composition(void) {
     FilterToken inlineStack[] = {Filter_gain(3), recipe[0], recipe[1], recipe[0], recipe[1]};
     CompositorSurface *source = nullptr, *actual = nullptr, *expected = nullptr;
     CHECK(CompositorSurface_create((CompositorBounds){-2, 3, 1, 1}, &source) == COMPOSITOR_OK);
-    float *pixels = CompositorSurface_pixels(source);
+    f32 *pixels = CompositorSurface_pixels(source);
     pixels[0] = 0.25f; pixels[3] = 0.5f;
     const CompositorSurface *sources[] = {source};
     CHECK(FilterPool_compose(p, sources, 1, stack, 3, &actual) == FILTER_POOL_OK);
@@ -142,7 +142,7 @@ static void composition(void) {
     CHECK(a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height);
     CHECK(a.x == -4 && a.y == 1 && a.width == 5 && a.height == 5);
     CHECK(memcmp(CompositorSurface_constPixels(actual), CompositorSurface_constPixels(expected),
-                 (size_t) a.width * a.height * 4 * sizeof(float)) == 0);
+                 (bytes) a.width * a.height * 4 * sizeof(f32)) == 0);
     CHECK(pixels[0] == 0.25f && pixels[3] == 0.5f);
     CompositorSurface *unchanged = actual;
     FilterToken full[COMPOSITOR_MAX_FILTERS] = {0}, fullToken;
@@ -171,9 +171,9 @@ static void composition(void) {
 static void generation_exhaustion(void) {
     FilterPool *p = pool(1, 1);
     FilterToken first = 0, last = 0;
-    for (uint32_t generation = 1; generation <= UINT16_MAX; ++generation) {
+    for (u32 generation = 1; generation <= UINT16_MAX; ++generation) {
         CHECK(FilterPool_insert(p, nullptr, 0, &last) == FILTER_POOL_OK);
-        CHECK((uint16_t) (Filter_payload(last) >> 32) == generation);
+        CHECK((u16) (Filter_payload(last) >> 32) == generation);
         if (generation == 1)
             first = last;
         CHECK(FilterPool_release(p, last) == FILTER_POOL_OK);

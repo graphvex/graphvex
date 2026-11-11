@@ -19,14 +19,14 @@
 // No ceiling: a full block just adds another (the No Hardcoding Law).
 typedef struct Pool Pool;
 
-Pool *Pool_new(size_t stride, uint32_t blockCap);
+Pool *Pool_new(bytes stride, u32 blockCap);
 void Pool_destroy(Pool *pool);
 
 void *Pool_alloc(Pool *pool);              // a zeroed slot, or NULL on OOM
 void Pool_release(Pool *pool, void *item); // return a slot to the free list
 bool Pool_contains(const Pool *pool, const void *item);   // does the slot belong here?
 
-uint32_t Pool_live(const Pool *pool);
-size_t Pool_stride(const Pool *pool);
+u32 Pool_live(const Pool *pool);
+bytes Pool_stride(const Pool *pool);
 
 #endif // GRAPHICS_NIO_POOL_H

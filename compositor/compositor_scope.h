@@ -11,15 +11,15 @@ typedef struct CompositorScopeDesc {
     const CompositorSurface *priorScene;
     const CompositorSurface *decoration; /* optional panel background/border */
     const CompositorSurface *const *foreground;
-    size_t foregroundCount;
+    bytes foregroundCount;
     CompositorBounds panelBounds;
-    uint32_t radius; /* prototype supports rectangle radius 0 only */
+    u32 radius; /* prototype supports rectangle radius 0 only */
     const FilterToken *backdropFilters;
-    size_t backdropFilterCount;
+    bytes backdropFilterCount;
     const FilterToken *foregroundFilters;
-    size_t foregroundFilterCount;
+    bytes foregroundFilterCount;
     const FilterToken *elementFilters;
-    size_t elementFilterCount;
+    bytes elementFilterCount;
 } CompositorScopeDesc;
 
 /* Owned rectangular crop/copy, retaining requested world origin and dimensions.

@@ -48,14 +48,14 @@
  * ============================================================================
  */
 
-static const uint8_t PNG_SIGNATURE[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
-static const uint32_t PNG_MAX_PIXELS = 64u * 1024u * 1024u;   // 64 MP safety bound
+static const u8 PNG_SIGNATURE[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
+static const u32 PNG_MAX_PIXELS = 64u * 1024u * 1024u;   // 64 MP safety bound
 
-static uint32_t pngReadBE32(const uint8_t *p) {
-    return ((uint32_t) p[0] << 24) | ((uint32_t) p[1] << 16) | ((uint32_t) p[2] << 8) | (uint32_t) p[3];
+static u32 pngReadBE32(const u8 *p) {
+    return ((u32) p[0] << 24) | ((u32) p[1] << 16) | ((u32) p[2] << 8) | (u32) p[3];
 }
 
-static uint32_t pngChannels(int colorType) {
+static u32 pngChannels(int colorType) {
     switch (colorType) {
         case 0: return 1;   // grey
         case 2: return 3;   // RGB
@@ -65,7 +65,7 @@ static uint32_t pngChannels(int colorType) {
     }
 }
 
-bool Png_isPng(const uint8_t *bytes, size_t length) {
+bool Png_isPng(const u8 *bytes, bytes length) {
     return bytes != nullptr && length >= sizeof(PNG_SIGNATURE)
         && memcmp(bytes, PNG_SIGNATURE, sizeof(PNG_SIGNATURE)) == 0;
 }
@@ -83,29 +83,29 @@ const char *Png_codeName(PngCode code) {
 
 // Reconstruct the unfiltered scanlines in place. `raw` holds height rows of
 // (1 filter byte + rowBytes). Filters: 0 none, 1 sub, 2 up, 3 average, 4 paeth.
-static bool pngUnfilter(uint8_t *raw, uint32_t height, size_t rowBytes, uint32_t bpp) {
-    size_t stride = rowBytes + 1;
-    for (uint32_t y = 0; y < height; ++y) {
-        uint8_t *row = raw + (size_t) y * stride;
-        uint8_t filter = row[0];
-        uint8_t *cur = row + 1;
-        const uint8_t *prev = (y == 0) ? nullptr : raw + (size_t) (y - 1) * stride + 1;
-        for (size_t x = 0; x < rowBytes; ++x) {
-            uint8_t left = (x >= bpp) ? cur[x - bpp] : 0;
-            uint8_t up = prev ? prev[x] : 0;
-            uint8_t upLeft = (prev && x >= bpp) ? prev[x - bpp] : 0;
+static bool pngUnfilter(u8 *raw, u32 height, bytes rowBytes, u32 bpp) {
+    bytes stride = rowBytes + 1;
+    for (u32 y = 0; y < height; ++y) {
+        u8 *row = raw + (bytes) y * stride;
+        u8 filter = row[0];
+        u8 *cur = row + 1;
+        const u8 *prev = (y == 0) ? nullptr : raw + (bytes) (y - 1) * stride + 1;
+        for (bytes x = 0; x < rowBytes; ++x) {
+            u8 left = (x >= bpp) ? cur[x - bpp] : 0;
+            u8 up = prev ? prev[x] : 0;
+            u8 upLeft = (prev && x >= bpp) ? prev[x - bpp] : 0;
             switch (filter) {
                 case 0: break;
-                case 1: cur[x] = (uint8_t) (cur[x] + left); break;
-                case 2: cur[x] = (uint8_t) (cur[x] + up); break;
-                case 3: cur[x] = (uint8_t) (cur[x] + (uint8_t) (((uint32_t) left + up) / 2u)); break;
+                case 1: cur[x] = (u8) (cur[x] + left); break;
+                case 2: cur[x] = (u8) (cur[x] + up); break;
+                case 3: cur[x] = (u8) (cur[x] + (u8) (((u32) left + up) / 2u)); break;
                 case 4: {
                     int p = (int) left + (int) up - (int) upLeft;
                     int pa = p > (int) left ? p - (int) left : (int) left - p;
                     int pb = p > (int) up ? p - (int) up : (int) up - p;
                     int pc = p > (int) upLeft ? p - (int) upLeft : (int) upLeft - p;
-                    uint8_t pred = (pa <= pb && pa <= pc) ? left : (pb <= pc ? up : upLeft);
-                    cur[x] = (uint8_t) (cur[x] + pred);
+                    u8 pred = (pa <= pb && pa <= pc) ? left : (pb <= pc ? up : upLeft);
+                    cur[x] = (u8) (cur[x] + pred);
                     break;
                 }
                 default: return false;
@@ -115,10 +115,10 @@ static bool pngUnfilter(uint8_t *raw, uint32_t height, size_t rowBytes, uint32_t
     return true;
 }
 
-static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                              uint32_t *outWidth, uint32_t *outHeight, bool useMalloc);
+static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
+                              u32 *outWidth, u32 *outHeight, bool useMalloc);
 
-static void *pngAlloc(size_t bytes, bool useMalloc) {
+static void *pngAlloc(bytes bytes, bool useMalloc) {
     return useMalloc ? malloc(bytes) : Memory_alloc(TYPE_BYTE_ARRAY, bytes);
 }
 static void pngRelease(void *block, bool useMalloc) {
@@ -126,18 +126,18 @@ static void pngRelease(void *block, bool useMalloc) {
     else Memory_free(block);
 }
 
-PngCode Png_decode(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                   uint32_t *outWidth, uint32_t *outHeight) {
+PngCode Png_decode(const u8 *bytes, bytes length, u8 **outRgba,
+                   u32 *outWidth, u32 *outHeight) {
     return Png_decodeWith(bytes, length, outRgba, outWidth, outHeight, false);
 }
 
-PngCode Png_decodeMalloc(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                         uint32_t *outWidth, uint32_t *outHeight) {
+PngCode Png_decodeMalloc(const u8 *bytes, bytes length, u8 **outRgba,
+                         u32 *outWidth, u32 *outHeight) {
     return Png_decodeWith(bytes, length, outRgba, outWidth, outHeight, true);
 }
 
-static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **outRgba,
-                              uint32_t *outWidth, uint32_t *outHeight, bool useMalloc) {
+static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
+                              u32 *outWidth, u32 *outHeight, bool useMalloc) {
     if (bytes == nullptr || outRgba == nullptr || outWidth == nullptr || outHeight == nullptr) {
         THROW("Png decode: null bytes or output");
         return PNG_INVALID;
@@ -147,25 +147,25 @@ static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **out
         return PNG_INVALID;
     }
 
-    uint32_t width = 0, height = 0;
-    uint32_t channels = 0;
-    size_t idatTotal = 0;
+    u32 width = 0, height = 0;
+    u32 channels = 0;
+    bytes idatTotal = 0;
     bool seenIHDR = false, seenIDAT = false, seenIEND = false;
 
     // Pass 1: validate every chunk (length, CRC, order) and size the IDAT stream.
-    size_t at = sizeof(PNG_SIGNATURE);
+    bytes at = sizeof(PNG_SIGNATURE);
     while (at + 12 <= length) {
-        uint32_t chunkLen = pngReadBE32(bytes + at);
-        const uint8_t *type = bytes + at + 4;
+        u32 chunkLen = pngReadBE32(bytes + at);
+        const u8 *type = bytes + at + 4;
         if (chunkLen > PNG_MAX_PIXELS || at + 12u + chunkLen > length) {
             THROW("Png decode: chunk length");
             return PNG_TRUNCATED;
         }
-        uint32_t expected = pngReadBE32(bytes + at + 8 + chunkLen);
+        u32 expected = pngReadBE32(bytes + at + 8 + chunkLen);
         uLong computed = crc32(0L, Z_NULL, 0);
         computed = crc32(computed, type, 4);
         computed = crc32(computed, bytes + at + 8, chunkLen);
-        if ((uint32_t) computed != expected) {
+        if ((u32) computed != expected) {
             THROW("Png decode: chunk CRC");
             return PNG_INVALID;
         }
@@ -178,7 +178,7 @@ static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **out
             int colorType = bytes[at + 17];
             int interlace = bytes[at + 20];
             if (width == 0 || height == 0 || width > PNG_MAX_PIXELS || height > PNG_MAX_PIXELS
-                || (uint64_t) width * height > PNG_MAX_PIXELS) {
+                || (u64) width * height > PNG_MAX_PIXELS) {
                 THROW("Png decode: geometry");
                 return PNG_INVALID;
             }
@@ -208,18 +208,18 @@ static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **out
         return PNG_TRUNCATED;
     }
 
-    size_t rowBytes = (size_t) width * channels;
-    size_t rawSize = (size_t) height * (rowBytes + 1);
+    bytes rowBytes = (bytes) width * channels;
+    bytes rawSize = (bytes) height * (rowBytes + 1);
     if (rawSize == 0 || rawSize > PNG_MAX_PIXELS * 8u) {
         THROW("Png decode: raw size");
         return PNG_INVALID;
     }
-    uint8_t *compressed = (uint8_t*) pngAlloc(idatTotal ? idatTotal : 1, useMalloc);
+    u8 *compressed = (u8*) pngAlloc(idatTotal ? idatTotal : 1, useMalloc);
     if (compressed == nullptr) {
         THROW("Png decode: idat allocation");
         return PNG_NO_MEMORY;
     }
-    uint8_t *raw = (uint8_t*) pngAlloc(rawSize, useMalloc);
+    u8 *raw = (u8*) pngAlloc(rawSize, useMalloc);
     if (raw == nullptr) {
         pngRelease(compressed, useMalloc);
         THROW("Png decode: raw allocation");
@@ -227,11 +227,11 @@ static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **out
     }
 
     // Pass 2: gather the IDAT payloads.
-    size_t gathered = 0;
+    bytes gathered = 0;
     at = sizeof(PNG_SIGNATURE);
     while (at + 12 <= length && gathered < idatTotal) {
-        uint32_t chunkLen = pngReadBE32(bytes + at);
-        const uint8_t *type = bytes + at + 4;
+        u32 chunkLen = pngReadBE32(bytes + at);
+        const u8 *type = bytes + at + 4;
         if (memcmp(type, "IDAT", 4) == 0) {
             memcpy(compressed + gathered, bytes + at + 8, chunkLen);
             gathered += chunkLen;
@@ -255,17 +255,17 @@ static PngCode Png_decodeWith(const uint8_t *bytes, size_t length, uint8_t **out
         return PNG_INVALID;
     }
 
-    size_t outBytes = (size_t) width * height * 4u;
-    uint8_t *rgba = (uint8_t*) pngAlloc(outBytes, useMalloc);
+    bytes outBytes = (bytes) width * height * 4u;
+    u8 *rgba = (u8*) pngAlloc(outBytes, useMalloc);
     if (rgba == nullptr) {
         pngRelease(raw, useMalloc);
         THROW("Png decode: output allocation");
         return PNG_NO_MEMORY;
     }
-    for (uint32_t y = 0; y < height; ++y) {
-        const uint8_t *src = raw + (size_t) y * (rowBytes + 1) + 1;
-        uint8_t *dst = rgba + (size_t) y * width * 4u;
-        for (uint32_t x = 0; x < width; ++x) {
+    for (u32 y = 0; y < height; ++y) {
+        const u8 *src = raw + (bytes) y * (rowBytes + 1) + 1;
+        u8 *dst = rgba + (bytes) y * width * 4u;
+        for (u32 x = 0; x < width; ++x) {
             switch (channels) {
                 case 1: dst[0] = dst[1] = dst[2] = src[0]; dst[3] = 255; break;
                 case 2: dst[0] = dst[1] = dst[2] = src[0]; dst[3] = src[1]; break;

@@ -27,13 +27,13 @@
  *
  * STRUCT FIELDS (mirrors ui/property.h):
  * ----------------------------------------------------------------------------
- *   float x, y, w, h;      // placement rect (native px)
- *   float minW, minH;      // size floor (0 = none)
- *   float maxW, maxH;      // size ceiling (<= 0 = unbounded)
- *   float radius;          // corner radius (also clips children when > 0)
+ *   f32 x, y, w, h;      // placement rect (native px)
+ *   f32 minW, minH;      // size floor (0 = none)
+ *   f32 maxW, maxH;      // size ceiling (<= 0 = unbounded)
+ *   f32 radius;          // corner radius (also clips children when > 0)
  *   bool  clip;            // clip children to this rect
- *   Color background, border; float borderWidth;
- *   Color shadow; float shadowX, shadowY, shadowBlur; float blur;
+ *   Color background, border; f32 borderWidth;
+ *   Color shadow; f32 shadowX, shadowY, shadowBlur; f32 blur;
  *
  * FUNCTION REGISTRY (exported by ui/property.h):
  * ----------------------------------------------------------------------------
@@ -55,32 +55,32 @@ Property Property_default(void) {
 
 // Clamp the stored extent into [min, max]; a non-positive max is no ceiling.
 // Applies the minimum and an optional positive maximum to one stored dimension.
-static float property_clamp(float value, float min, float max) {
+static f32 property_clamp(f32 value, f32 min, f32 max) {
     if (max > 0.0f && value > max) value = max;
     if (value < min) value = min;
     return value;
 }
 
 // Sets nonnegative minimum dimensions; zero disables each minimum.
-void Property_setMinSize(Property *property, float width, float height) {
+void Property_setMinSize(Property *property, f32 width, f32 height) {
     if (!property) return;
     (*property).minW = width > 0.0f ? width : 0.0f;
     (*property).minH = height > 0.0f ? height : 0.0f;
 }
 
 // Sets nonnegative maximum dimensions; zero means no upper bound.
-void Property_setMaxSize(Property *property, float width, float height) {
+void Property_setMaxSize(Property *property, f32 width, f32 height) {
     if (!property) return;
     (*property).maxW = width > 0.0f ? width : 0.0f;
     (*property).maxH = height > 0.0f ? height : 0.0f;
 }
 
 // Returns the stored width clamped to configured limits, or zero for null.
-float Property_width(const Property *property) {
+f32 Property_width(const Property *property) {
     return property ? property_clamp((*property).w, (*property).minW, (*property).maxW) : 0.0f;
 }
 
 // Returns the stored height clamped to configured limits, or zero for null.
-float Property_height(const Property *property) {
+f32 Property_height(const Property *property) {
     return property ? property_clamp((*property).h, (*property).minH, (*property).maxH) : 0.0f;
 }

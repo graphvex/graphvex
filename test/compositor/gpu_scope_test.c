@@ -1,5 +1,5 @@
 /* Owner: compositor/gpu_scope.{c,h}, scope.frag and scatter.vert/frag runtime.
- * Actual Vulkan three-scope numeric proof; test-only double CPU math is oracle,
+ * Actual Vulkan three-scope numeric proof; test-only d64 CPU math is oracle,
  * never the renderer. Covers transparent-domain kernel denominator, linear-light
  * premultiplied alpha, event clips vs element spill, exact backdrop replacement,
  * zero/max radius, bounded budget rejection/retry, borrowed inputs and teardown.
@@ -21,8 +21,8 @@
 // device function is used after injection to prove safe retained-job recovery.
 static unsigned forcedTimeouts;
 // Injects bounded wait timeouts before delegating to Vulkan's real fence wait.
-VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device,uint32_t count,
-    const VkFence *fences,VkBool32 all,uint64_t timeout) {
+VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device,u32 count,
+    const VkFence *fences,VkBool32 all,u64 timeout) {
     if (forcedTimeouts) { --forcedTimeouts; return VK_TIMEOUT; }
     PFN_vkWaitForFences real=(PFN_vkWaitForFences) vkGetDeviceProcAddr(device,"vkWaitForFences");
     assert(real && real!=vkWaitForFences);
@@ -31,45 +31,45 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device,uint32_t count,
 
 enum { WIDTH=12, HEIGHT=10, PX=3, PY=2, PW=6, PH=6, FX=2, FY=3 };
 // Converts an encoded channel to linear-light space for the oracle.
-static double linear(unsigned value) {
-    double v=value/255.0;
+static d64 linear(unsigned value) {
+    d64 v=value/255.0;
     return v<=.04045 ? v/12.92 : pow((v+.055)/1.055,2.4);
 }
 // Encodes a linear-light oracle channel as an 8-bit display value.
-static unsigned encoded(double value) {
+static unsigned encoded(d64 value) {
     value=fmin(1,fmax(0,value));
     return (unsigned) lround(255*(value<=.0031308 ? 12.92*value : 1.055*pow(value,1/2.4)-.055));
 }
 // Reads one RGBA pixel and converts its channels to linear light.
-static void sample(const Image *image,int x,int y,double *out) {
-    memset(out,0,4*sizeof(double));
+static void sample(const Image *image,int x,int y,d64 *out) {
+    memset(out,0,4*sizeof(d64));
     if (x<0 || y<0 || x>=(int) Image_width(image) || y>=(int) Image_height(image)) return;
-    const uint8_t *p=Image_pixels(image)+(size_t) y*Image_stride(image)+(size_t) x*4;
+    const u8 *p=Image_pixels(image)+(bytes) y*Image_stride(image)+(bytes) x*4;
     out[3]=p[3]/255.0;
     for (unsigned c=0;c<3;++c) out[c]=linear(p[c])*out[3];
 }
 // Applies premultiplied source-over composition to oracle pixels.
-static void over(const double *src,double *dest) {
-    double a=src[3];
+static void over(const d64 *src,d64 *dest) {
+    d64 a=src[3];
     for (unsigned c=0;c<4;++c) dest[c]=src[c]+dest[c]*(1-a);
 }
 // Reports whether an absolute pixel lies inside the test element rectangle.
 static bool inside(int x,int y) { return x>=PX && x<PX+PW && y>=PY && y<PY+PH; }
 // Composes decoration and foreground pixels into an isolated group.
-static void group(const Image *decoration,const Image *foreground,int x,int y,double *out) {
-    memset(out,0,4*sizeof(double));
+static void group(const Image *decoration,const Image *foreground,int x,int y,d64 *out) {
+    memset(out,0,4*sizeof(d64));
     if (!inside(x,y)) return;
     sample(decoration,x-PX,y-PY,out);
-    double fore[4]; sample(foreground,x-FX,y-FY,fore); over(fore,out);
+    d64 fore[4]; sample(foreground,x-FX,y-FY,fore); over(fore,out);
 }
 // Computes expected filter output for the selected scope and radius.
 static void oracle(unsigned scope,unsigned radius,const Image *prior,const Image *decoration,
-                   const Image *foreground,int x,int y,double *out) {
-    double filtered[4]={0};
-    double denominator=(2*radius+1)*(2*radius+1);
+                   const Image *foreground,int x,int y,d64 *out) {
+    d64 filtered[4]={0};
+    d64 denominator=(2*radius+1)*(2*radius+1);
     for (int dy=-(int) radius;dy<=(int) radius;++dy) {
         for (int dx=-(int) radius;dx<=(int) radius;++dx) {
-            double source[4];
+            d64 source[4];
             if (scope==GPU_SCOPE_ELEMENT) group(decoration,foreground,x+dx,y+dy,source);
             else if (scope==GPU_SCOPE_FOREGROUND) sample(foreground,x+dx-FX,y+dy-FY,source);
             else sample(prior,x+dx,y+dy,source);
@@ -77,10 +77,10 @@ static void oracle(unsigned scope,unsigned radius,const Image *prior,const Image
         }
     }
     sample(prior,x,y,out);
-    double content[4]; group(decoration,foreground,x,y,content);
+    d64 content[4]; group(decoration,foreground,x,y,content);
     if (scope==GPU_SCOPE_ELEMENT) memcpy(content,filtered,sizeof content);
     else if (inside(x,y)) {
-        if (scope==GPU_SCOPE_BACKDROP) memcpy(out,filtered,4*sizeof(double));
+        if (scope==GPU_SCOPE_BACKDROP) memcpy(out,filtered,4*sizeof(d64));
         else { sample(decoration,x-PX,y-PY,content); over(filtered,content); }
     }
     over(content,out);
@@ -104,7 +104,7 @@ int main(void) {
             FilterGallery_pixel(prior,x,y,(x+y)%2 ? COLOR_RGBA(210,90,40,255) : COLOR_RGBA(30,110,220,255));
     Image_fill(deco,COLOR_RGBA(100,70,190,80));
     Image_fill(fore,COLOR_RGBA(230,170,20,128));
-    uint8_t snapshot[WIDTH*HEIGHT*4]; memcpy(snapshot,Image_pixels(prior),sizeof snapshot);
+    u8 snapshot[WIDTH*HEIGHT*4]; memcpy(snapshot,Image_pixels(prior),sizeof snapshot);
     const unsigned radii[]={0,1,2,16};
     for (unsigned scope=0;scope<3;++scope) {
         for (unsigned r=0;r<sizeof radii/sizeof radii[0];++r) {
@@ -113,8 +113,8 @@ int main(void) {
             assert(!GpuScope_isPending(gpu));
             for (int y=0;y<HEIGHT;++y) {
                 for (int x=0;x<WIDTH;++x) {
-                    double expected[4]; oracle(scope,radii[r],prior,deco,fore,x,y,expected);
-                    const uint8_t *p=Image_pixels(output)+(size_t) y*Image_stride(output)+(size_t) x*4;
+                    d64 expected[4]; oracle(scope,radii[r],prior,deco,fore,x,y,expected);
+                    const u8 *p=Image_pixels(output)+(bytes) y*Image_stride(output)+(bytes) x*4;
                     // Opaque prior keeps final image opaque except backdrop blur
                     // at viewport edges, which only applies inside the inset panel.
                     for (unsigned c=0;c<3;++c) {

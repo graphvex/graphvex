@@ -22,7 +22,7 @@
  * Operations: Property *PropertyPool_alloc(PropertyPool *pool,
  *   const Property *init), void PropertyPool_release(PropertyPool *pool,
  *   Property *property)
- * Projections: uint32_t PropertyPool_live(const PropertyPool *pool)
+ * Projections: u32 PropertyPool_live(const PropertyPool *pool)
  * Private configuration: PROPERTY_POOL_BLOCK_CAP is the initial per-block
  *   capacity; Pool grows by appending blocks.
  * Null/default, failure and ownership contract:
@@ -77,6 +77,6 @@ void PropertyPool_release(PropertyPool *pool, Property *property) {
 }
 
 // Returns the number of outstanding property slots, or zero for null.
-uint32_t PropertyPool_live(const PropertyPool *pool) {
+u32 PropertyPool_live(const PropertyPool *pool) {
     return pool ? Pool_live((*pool).slots) : 0u;
 }

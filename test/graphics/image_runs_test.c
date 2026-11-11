@@ -52,7 +52,7 @@ int main(void) {
     Image_destroy(bgra);
 
     assert(Image_resize(image, 2, 1));
-    uint8_t *p = Image_pixels(image);
+    u8 *p = Image_pixels(image);
     p[0] = 255; p[1] = 0; p[2] = 0; p[3] = 255;
     p[4] = 0; p[5] = 255; p[6] = 0; p[7] = 255;
     assert(Graphics_use(BACKEND_RASTER) && Graphics_resize(8, 4));

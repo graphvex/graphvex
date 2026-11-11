@@ -25,7 +25,7 @@ treats these declarations as identity effects.
 | Form | Functions | Payload |
 |---|---|---|
 | No arguments | identity, grayscale, grayscaleRed, grayscaleGreen, grayscaleBlue, invert | zero |
-| One float | gain, brightness, contrast, blackAndWhite | exact binary32 bits; upper payload bits zero |
+| One f32 | gain, brightness, contrast, blackAndWhite | exact binary32 bits; upper payload bits zero |
 | One packed color | monocolor | `0xRRGGBBAA` in low 32 bits |
 | One integer radius | scatterBlur | unmodified uint32 native-pixel radius |
 | Parameter reference | all remaining named operations | index32 plus generation16 |
@@ -39,7 +39,7 @@ supply the originating pool context: equal index/generation values in different
 pools are not interchangeable. Generation zero is encoded unchanged and reserved
 as invalid, not converted to identity. Copies do not retain an entry.
 
-All float bit patterns, including NaN, infinity and negative zero, are preserved.
+All f32 bit patterns, including NaN, infinity and negative zero, are preserved.
 Ranges and color spaces for unimplemented effects remain to be defined
 at their actual execution seam; a constructor does not validate those policies.
 Brightness's scalar denotes an additive amount, contrast a multiplier, and
@@ -51,7 +51,7 @@ not guessed encodings squeezed into spare payload bits.
 
 `compositor/color_pass.{c,h}` creates a real Vulkan graphics pipeline using
 `resolve.vert` and `color.frag`. `ColorPass_record` samples an isolated group's
-completed float texture and draws a fullscreen triangle into a separate float
+completed f32 texture and draws a fullscreen triangle into a separate f32
 attachment. No pixel processing, upload, readback or CPU fallback occurs in this
 production pass. Readback exists only in the GPU owner test.
 
@@ -65,7 +65,7 @@ Black-and-white accepts a finite threshold in [0,1]; luminance equal to the
 threshold selects white. Transparent pixels remain transparent black.
 
 Premultiplied affine formulas avoid unpremultiplying tiny alpha. Contrast detects
-saturation before multiplication, avoiding overflow without requiring float64.
+saturation before multiplication, avoiding overflow without requiring f3264.
 GPU denormal handling is device-dependent; exact subnormal parity is not claimed.
 Reserved scalar bits,
 nonfinite/out-of-range parameters and nonzero no-argument payloads reject with
@@ -74,7 +74,7 @@ commands. The pass borrows its device, command buffer, descriptor and textures.
 The caller cold-allocates a binding-0 combined-image-sampler descriptor matching
 `ColorPass_getDescriptorLayout`, supplies a compatible single-color render pass
 (subpass zero, sample count one), and keeps every resource alive through completion.
-Use linear-premultiplied float targets with supported sampled/color formats;
+Use linear-premultiplied f32 targets with supported sampled/color formats;
 pointwise blending is disabled. Final group composition uses source-over later.
 
 Stacks execute via ping-pong targets, with a color-write-to-fragment-read barrier
@@ -109,7 +109,7 @@ retain stack entries and use one shared effect library, not duplicate effects.
 Legacy CPU scatter sends each source pixel's weighted premultiplied RGBA to
 multiple destination pixels. The Vulkan scatter pass uses **vertex → fragment**:
 `scatter.vert` creates a footprint per source pixel; `scatter.frag` emits weighted
-color and weight into float attachments requiring additive ONE/ONE blending;
+color and weight into f32 attachments requiring additive ONE/ONE blending;
 `resolve.frag` is the standalone normalization vocabulary. `GpuScope` now binds
 the scatter pair to a two-attachment RGBA32F ONE/ONE ADD Vulkan pipeline and
 `scope.frag` resolves fixed-kernel accumulation while composing the scene.
@@ -119,7 +119,7 @@ GPU pixel tests execute these pipelines; shader compilation alone is not proof.
 
 `compositor/gpu_scope` implements explicit rectangular backdrop/foreground/element
 groups for opaque-prior RGBA8 scenes. Its GPU passes decode sRGB textures, premultiply
-alpha, isolate the whole element when needed, scatter into expanded float targets,
+alpha, isolate the whole element when needed, scatter into expanded f32 targets,
 clip foreground before group assembly, replace the backdrop prefix exactly once,
 and keep whole-element halos outside the event rectangle. Final sRGB encoding and
 unpremultiplication happen in the fragment/output stage, never a CPU filter loop.
@@ -129,7 +129,7 @@ unpremultiplication happen in the fragment/output stage, never a CPU filter loop
 asset generation. Every completed static GPU view is read back once for Picture;
 the current Image bridge is not zero-copy and is not a per-frame filter scheduler.
 
-Construction probes float attachment/blending and sampled/sRGB format support.
+Construction probes f32 attachment/blending and sampled/sRGB format support.
 The caller supplies a per-target pixel budget; extents and signed shader-index
 arithmetic reject cold. GPU fences have a fixed 100ms safety ceiling. A timeout
 leaves the submitted job and its staging/images/descriptors owned by the object;

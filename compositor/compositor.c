@@ -1,6 +1,6 @@
 #include "compositor/compositor.h"
 
-#include <float.h>
+#include <f32.h>
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>
@@ -10,7 +10,7 @@
 #include "util/annotation.h"
 
 ;;DEFINITION
-/* CPU reference compositor: own linear-premultiplied float
+/* CPU reference compositor: own linear-premultiplied f32
  * surfaces at absolute integer origins, isolate ordered source-over groups,
  * and execute validated ordered pointwise/scatter filters. Explicit statuses
  * and private temporaries preserve outputs on failure. Prototype cold
@@ -27,7 +27,7 @@
 
 struct CompositorSurface {
     CompositorBounds bounds;
-    float *pixels;
+    f32 *pixels;
 };
 
 // Validates paired empty dimensions, coordinate extents, and configured pixel/storage limits.
@@ -37,8 +37,8 @@ static CompositorStatus boundsCheck(CompositorBounds b) {
     if ((int64_t) b.x + b.width > INT32_MAX ||
         (int64_t) b.y + b.height > INT32_MAX)
         return COMPOSITOR_LIMIT;
-    if (b.width && ((uint64_t) b.width * b.height > COMPOSITOR_MAX_PIXELS ||
-        (uint64_t) b.width * b.height > SIZE_MAX / (4 * sizeof(float))))
+    if (b.width && ((u64) b.width * b.height > COMPOSITOR_MAX_PIXELS ||
+        (u64) b.width * b.height > SIZE_MAX / (4 * sizeof(f32))))
         return COMPOSITOR_LIMIT;
     return COMPOSITOR_OK;
 }
@@ -56,7 +56,7 @@ CompositorStatus CompositorSurface_create(CompositorBounds b,
         return COMPOSITOR_NO_MEMORY;
     (*surface).bounds = b;
     if (b.width) {
-        (*surface).pixels = calloc((size_t) b.width * b.height * 4, sizeof(float));
+        (*surface).pixels = calloc((bytes) b.width * b.height * 4, sizeof(f32));
         if (!(*surface).pixels) {
             free(surface);
             return COMPOSITOR_NO_MEMORY;
@@ -83,7 +83,7 @@ CompositorSurface *CompositorSurface_zero(void) {
 
 // Writes a bounded value or one-level field projection and reports truncation.
 static void surfaceString(const CompositorSurface *surface, bool structure,
-                           char *dest, size_t cap, bool *outTruncated) {
+                           char *dest, bytes cap, bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
             *outTruncated = true;
@@ -104,16 +104,16 @@ static void surfaceString(const CompositorSurface *surface, bool structure,
         }
     }
     if (outTruncated)
-        *outTruncated = written < 0 || (size_t) written >= cap;
+        *outTruncated = written < 0 || (bytes) written >= cap;
 }
 // Formats a concise bounded summary of the surface.
 void CompositorSurface_toString(const CompositorSurface *surface, char *dest,
-                                size_t cap, bool *outTruncated) {
+                                bytes cap, bool *outTruncated) {
     surfaceString(surface, false, dest, cap, outTruncated);
 }
 // Formats the surface's own fields into a bounded structure projection.
 void CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
-                                      size_t cap, bool *outTruncated) {
+                                      bytes cap, bool *outTruncated) {
     surfaceString(surface, true, dest, cap, outTruncated);
 }
 
@@ -129,31 +129,31 @@ CompositorBounds CompositorSurface_bounds(const CompositorSurface *surface) {
     return surface ? (*surface).bounds : (CompositorBounds) {0};
 }
 // Returns mutable packed linear-premultiplied RGBA pixels borrowed from the surface.
-float *CompositorSurface_pixels(CompositorSurface *surface) {
+f32 *CompositorSurface_pixels(CompositorSurface *surface) {
     return surface ? (*surface).pixels : nullptr;
 }
 // Returns a read-only borrowed view of packed surface pixels.
-const float *CompositorSurface_constPixels(const CompositorSurface *surface) {
+const f32 *CompositorSurface_constPixels(const CompositorSurface *surface) {
     return surface ? (*surface).pixels : nullptr;
 }
 
 // Validates supported filter token payloads and extracts their scalar parameters.
-static CompositorStatus decode(FilterToken token, float *gain, uint32_t *radius) {
-    uint64_t payload = Filter_payload(token);
+static CompositorStatus decode(FilterToken token, f32 *gain, u32 *radius) {
+    u64 payload = Filter_payload(token);
     switch (Filter_id(token)) {
     case FILTER_IDENTITY:
         return payload ? COMPOSITOR_INVALID : COMPOSITOR_OK;
     case FILTER_GAIN: {
         if (payload >> 32)
             return COMPOSITOR_INVALID;
-        uint32_t bits = (uint32_t) payload;
+        u32 bits = (u32) payload;
         memcpy(gain, &bits, sizeof bits);
         return isfinite(*gain) && *gain >= 0 ? COMPOSITOR_OK : COMPOSITOR_INVALID;
     }
     case FILTER_SCATTER_BLUR:
         if (payload > FILTER_SCATTER_MAX_RADIUS)
             return COMPOSITOR_INVALID;
-        *radius = (uint32_t) payload;
+        *radius = (u32) payload;
         return COMPOSITOR_OK;
     default: return COMPOSITOR_UNSUPPORTED;
     }
@@ -161,7 +161,7 @@ static CompositorStatus decode(FilterToken token, float *gain, uint32_t *radius)
 
 // Computes conservative output bounds after sequential filter support expansion.
 CompositorStatus Compositor_filterBounds(CompositorBounds source,
-                                        const FilterToken *filters, size_t count,
+                                        const FilterToken *filters, bytes count,
                                         CompositorBounds *out) {
     if (!out || (count && !filters))
         return COMPOSITOR_INVALID;
@@ -170,25 +170,25 @@ CompositorStatus Compositor_filterBounds(CompositorBounds source,
     CompositorStatus status = boundsCheck(source);
     if (status != COMPOSITOR_OK)
         return status;
-    for (size_t i = 0; i < count; ++i) {
-        float gain = 1;
-        uint32_t radius = 0;
+    for (bytes i = 0; i < count; ++i) {
+        f32 gain = 1;
+        u32 radius = 0;
         status = decode(filters[i], &gain, &radius);
         if (status != COMPOSITOR_OK)
             return status;
         if (!source.width || !radius)
             continue;
-        uint32_t diameter = 2 * radius + 1;
-        if ((uint64_t) source.width * source.height * diameter * diameter >
+        u32 diameter = 2 * radius + 1;
+        if ((u64) source.width * source.height * diameter * diameter >
             COMPOSITOR_MAX_SCATTER_TAPS)
             return COMPOSITOR_LIMIT;
         if ((int64_t) source.x - radius < INT32_MIN ||
             (int64_t) source.y - radius < INT32_MIN ||
-            (uint64_t) source.width + 2 * radius > UINT32_MAX ||
-            (uint64_t) source.height + 2 * radius > UINT32_MAX)
+            (u64) source.width + 2 * radius > UINT32_MAX ||
+            (u64) source.height + 2 * radius > UINT32_MAX)
             return COMPOSITOR_LIMIT;
-        source.x = (int32_t) ((int64_t) source.x - radius);
-        source.y = (int32_t) ((int64_t) source.y - radius);
+        source.x = (i32) ((int64_t) source.x - radius);
+        source.y = (i32) ((int64_t) source.y - radius);
         source.width += 2 * radius;
         source.height += 2 * radius;
         status = boundsCheck(source);
@@ -204,10 +204,10 @@ CompositorStatus CompositorSurface_validate(const CompositorSurface *surface) {
     if (!surface)
         return COMPOSITOR_INVALID;
     CompositorBounds bounds = (*surface).bounds;
-    size_t n = (size_t) bounds.width * bounds.height;
-    for (size_t i = 0; i < n; ++i) {
-        const float *p = (*surface).pixels + 4 * i;
-        for (size_t c = 0; c < 4; ++c)
+    bytes n = (bytes) bounds.width * bounds.height;
+    for (bytes i = 0; i < n; ++i) {
+        const f32 *p = (*surface).pixels + 4 * i;
+        for (bytes c = 0; c < 4; ++c)
             if (!isfinite(p[c]) || p[c] < 0)
                 return COMPOSITOR_INVALID;
         if (p[3] > 1 || (p[3] == 0 && (p[0] != 0 || p[1] != 0 || p[2] != 0)))
@@ -236,17 +236,17 @@ CompositorStatus Compositor_sourceOver(const CompositorSurface *source,
     for (unsigned pass = 0; pass < 2; ++pass) {
         for (int64_t y = y0; y < y1; ++y) {
             for (int64_t x = x0; x < x1; ++x) {
-                const float *sp = (*source).pixels + 4 *
-                    ((size_t) (y - s.y) * s.width + (size_t) (x - s.x));
-                float *dp = (*dest).pixels + 4 *
-                    ((size_t) (y - d.y) * d.width + (size_t) (x - d.x));
-                double remain = 1.0 - sp[3];
+                const f32 *sp = (*source).pixels + 4 *
+                    ((bytes) (y - s.y) * s.width + (bytes) (x - s.x));
+                f32 *dp = (*dest).pixels + 4 *
+                    ((bytes) (y - d.y) * d.width + (bytes) (x - d.x));
+                d64 remain = 1.0 - sp[3];
                 for (unsigned c = 0; c < 4; ++c) {
-                    double value = sp[c] + dp[c] * remain;
+                    d64 value = sp[c] + dp[c] * remain;
                     if (!pass && value > FLT_MAX)
                         return COMPOSITOR_LIMIT;
                     if (pass)
-                        dp[c] = (float) value;
+                        dp[c] = (f32) value;
                 }
             }
         }
@@ -265,14 +265,14 @@ static CompositorStatus unionBounds(CompositorBounds a, CompositorBounds b,
         *out = a;
         return COMPOSITOR_OK;
     }
-    int32_t x = a.x < b.x ? a.x : b.x, y = a.y < b.y ? a.y : b.y;
+    i32 x = a.x < b.x ? a.x : b.x, y = a.y < b.y ? a.y : b.y;
     int64_t ax1 = (int64_t) a.x + a.width, bx1 = (int64_t) b.x + b.width;
     int64_t ay1 = (int64_t) a.y + a.height, by1 = (int64_t) b.y + b.height;
     int64_t width = (ax1 > bx1 ? ax1 : bx1) - x;
     int64_t height = (ay1 > by1 ? ay1 : by1) - y;
     if (width > UINT32_MAX || height > UINT32_MAX)
         return COMPOSITOR_LIMIT;
-    CompositorBounds result = {x, y, (uint32_t) width, (uint32_t) height};
+    CompositorBounds result = {x, y, (u32) width, (u32) height};
     CompositorStatus status = boundsCheck(result);
     if (status == COMPOSITOR_OK)
         *out = result;
@@ -281,28 +281,28 @@ static CompositorStatus unionBounds(CompositorBounds a, CompositorBounds b,
 
 // Applies one validated filter, replacing the owned intermediate only after successful processing.
 static CompositorStatus apply(CompositorSurface **surface, FilterToken token) {
-    float gain = 1;
-    uint32_t radius = 0;
+    f32 gain = 1;
+    u32 radius = 0;
     CompositorStatus status = decode(token, &gain, &radius);
     if (status != COMPOSITOR_OK)
         return status;
     CompositorSurface *src = *surface;
     CompositorBounds b = (*src).bounds;
-    size_t count = (size_t) b.width * b.height;
+    bytes count = (bytes) b.width * b.height;
     if (Filter_id(token) == FILTER_GAIN) {
-        for (size_t i = 0; i < count; ++i)
+        for (bytes i = 0; i < count; ++i)
             for (unsigned c = 0; c < 3; ++c)
-                if ((double) (*src).pixels[4 * i + c] * gain > FLT_MAX)
+                if ((d64) (*src).pixels[4 * i + c] * gain > FLT_MAX)
                     return COMPOSITOR_LIMIT;
-        for (size_t i = 0; i < count; ++i)
+        for (bytes i = 0; i < count; ++i)
             for (unsigned c = 0; c < 3; ++c)
                 (*src).pixels[4 * i + c] *= gain;
         return COMPOSITOR_OK;
     }
     if (!radius || !count)
         return COMPOSITOR_OK;
-    uint32_t diameter = radius * 2 + 1;
-    if ((uint64_t) count * diameter * diameter > COMPOSITOR_MAX_SCATTER_TAPS)
+    u32 diameter = radius * 2 + 1;
+    if ((u64) count * diameter * diameter > COMPOSITOR_MAX_SCATTER_TAPS)
         return COMPOSITOR_LIMIT;
     CompositorBounds expanded;
     status = Compositor_filterBounds(b, &token, 1, &expanded);
@@ -316,28 +316,28 @@ static CompositorStatus apply(CompositorSurface **surface, FilterToken token) {
      * fixed taps in the expanded destination. No gather/separable substitute.
      * Accumulate weighted contributions; resolve clamps alpha rounding only.
      * Transparent-outside uses the FULL denominator, including absent pixels. */
-    double weight = 1.0 / ((double) diameter * diameter);
-    for (uint32_t y = 0; y < b.height; ++y) {
-        for (uint32_t x = 0; x < b.width; ++x) {
-            const float *p = (*src).pixels + 4 * ((size_t) y * b.width + x);
-            for (uint32_t ky = 0; ky < diameter; ++ky) {
-                for (uint32_t kx = 0; kx < diameter; ++kx) {
-                    float *q = (*dst).pixels + 4 *
-                        ((size_t) (y + ky) * expanded.width + x + kx);
+    d64 weight = 1.0 / ((d64) diameter * diameter);
+    for (u32 y = 0; y < b.height; ++y) {
+        for (u32 x = 0; x < b.width; ++x) {
+            const f32 *p = (*src).pixels + 4 * ((bytes) y * b.width + x);
+            for (u32 ky = 0; ky < diameter; ++ky) {
+                for (u32 kx = 0; kx < diameter; ++kx) {
+                    f32 *q = (*dst).pixels + 4 *
+                        ((bytes) (y + ky) * expanded.width + x + kx);
                     for (unsigned c = 0; c < 4; ++c) {
-                        double value = q[c] + p[c] * weight;
+                        d64 value = q[c] + p[c] * weight;
                         if (value > FLT_MAX) {
                             CompositorSurface_destroy(dst);
                             return COMPOSITOR_LIMIT;
                         }
-                        q[c] = (float) value;
+                        q[c] = (f32) value;
                     }
                 }
             }
         }
     }
-    for (size_t i = 0; i < (size_t) expanded.width * expanded.height; ++i) {
-        float *p = (*dst).pixels + 4 * i;
+    for (bytes i = 0; i < (bytes) expanded.width * expanded.height; ++i) {
+        f32 *p = (*dst).pixels + 4 * i;
         if (p[3] > 1)
             p[3] = 1;
         if (p[3] == 0)
@@ -350,15 +350,15 @@ static CompositorStatus apply(CompositorSurface **surface, FilterToken token) {
 
 // Builds painter-order source-over output, then applies filters in their supplied order.
 CompositorStatus Compositor_compose(const CompositorSurface *const *sources,
-                                    size_t sourceCount,
-                                    const FilterToken *filters, size_t filterCount,
+                                    bytes sourceCount,
+                                    const FilterToken *filters, bytes filterCount,
                                     CompositorSurface **out) {
     if (!out || (sourceCount && !sources) || (filterCount && !filters))
         return COMPOSITOR_INVALID;
     if (sourceCount > COMPOSITOR_MAX_SOURCES)
         return COMPOSITOR_LIMIT;
     CompositorBounds bounds = {0};
-    for (size_t i = 0; i < sourceCount; ++i) {
+    for (bytes i = 0; i < sourceCount; ++i) {
         CompositorStatus status = CompositorSurface_validate(sources[i]);
         if (status != COMPOSITOR_OK)
             return status;
@@ -376,12 +376,12 @@ CompositorStatus Compositor_compose(const CompositorSurface *const *sources,
     status = CompositorSurface_create(bounds, &group);
     if (status != COMPOSITOR_OK)
         return status;
-    for (size_t i = 0; i < sourceCount; ++i) {
+    for (bytes i = 0; i < sourceCount; ++i) {
         status = Compositor_sourceOver(sources[i], group);
         if (status != COMPOSITOR_OK)
             break;
     }
-    for (size_t i = 0; status == COMPOSITOR_OK && i < filterCount; ++i)
+    for (bytes i = 0; status == COMPOSITOR_OK && i < filterCount; ++i)
         status = apply(&group, filters[i]);
     if (status != COMPOSITOR_OK) {
         CompositorSurface_destroy(group);

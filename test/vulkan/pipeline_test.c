@@ -21,7 +21,7 @@ static int g_fail = 0;
 static int write_file(const char *path, const void *data, unsigned n) {
     FILE *f = fopen(path, "wb");
     if (!f) return 0;
-    size_t w = fwrite(data, 1, n, f);
+    bytes w = fwrite(data, 1, n, f);
     fclose(f);
     return w == n;
 }

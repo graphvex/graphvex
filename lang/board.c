@@ -33,7 +33,7 @@
  * STRUCT FIELDS:
  * ----------------------------------------------------------------------------
  *   Image    *image;         // owned target (RGBA8)
- *   _Atomic uint64_t generation; // publishes so far (0 = never)
+ *   _Atomic u64 generation; // publishes so far (0 = never)
  *   void     *native;        // opaque dialect handle (the backend's VkImage)
  *   BoardRevalidateFn *revalidators; // borrowed steps (R4 scene/content)
  *   void    **revalidateUd;  // userdata per step
@@ -55,7 +55,7 @@
 
 struct Board {
     Image *image;
-    _Atomic uint64_t generation;
+    _Atomic u64 generation;
     void *native;    // opaque dialect handle (the backend's VkImage)
     BoardRevalidateFn *revalidators;   // borrowed steps (R4 scene/content panels)
     void **revalidateUd;               // userdata per step
@@ -66,9 +66,9 @@ struct Board {
 Board *Board_new(const BoardDesc *desc) {
     Board *b = calloc(1, sizeof *b);
     if (!b) return nullptr;
-    uint32_t w = desc ? (*desc).width : 1;
-    uint32_t h = desc ? (*desc).height : 1;
-    uint32_t usage = desc ? (*desc).usage : (IMAGE_USAGE_RENDER | IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER);
+    u32 w = desc ? (*desc).width : 1;
+    u32 h = desc ? (*desc).height : 1;
+    u32 usage = desc ? (*desc).usage : (IMAGE_USAGE_RENDER | IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER);
     ImageDesc id = {w ? w : 1u, h ? h : 1u, IMAGE_FORMAT_RGBA8, usage};
     (*b).image = Image_new(&id);
     if (!(*b).image) {
@@ -81,7 +81,7 @@ Board *Board_new(const BoardDesc *desc) {
 // Creates a board with the default 1x1 image target.
 Board *Board_0(void) { return Board_new(nullptr); }
 // Creates a board with the requested dimensions and default image usage.
-Board *Board_2(uint32_t width, uint32_t height) {
+Board *Board_2(u32 width, u32 height) {
     BoardDesc d = {width, height, 0u};
     return Board_new(&d);
 }
@@ -96,7 +96,7 @@ void Board_destroy(Board *board) {
 }
 
 // Resizes the image target, preserving its allocation when the current capacity fits.
-bool Board_resize(Board *board, uint32_t width, uint32_t height) {
+bool Board_resize(Board *board, u32 width, u32 height) {
     if (!board || !(*board).image) return false;
     if (Image_width((*board).image) == width && Image_height((*board).image) == height) return true;
     return Image_resize((*board).image, width, height);
@@ -114,11 +114,11 @@ void Board_fill(Board *board, Color color) {
 }
 
 // Returns the image width, or zero when the board or image is absent.
-uint32_t Board_width(const Board *board) { return board && (*board).image ? Image_width((*board).image) : 0u; }
+u32 Board_width(const Board *board) { return board && (*board).image ? Image_width((*board).image) : 0u; }
 // Returns the image height, or zero when the board or image is absent.
-uint32_t Board_height(const Board *board) { return board && (*board).image ? Image_height((*board).image) : 0u; }
+u32 Board_height(const Board *board) { return board && (*board).image ? Image_height((*board).image) : 0u; }
 // Reads the atomic publish generation, or zero for a null board.
-uint64_t Board_generation(const Board *board) {
+u64 Board_generation(const Board *board) {
     return board ? atomic_load(&(*board).generation) : 0u;
 }
 // Reports whether the board has a nonempty image target.
@@ -134,8 +134,8 @@ void Board_addRevalidator(Board *board, BoardRevalidateFn fn, void *userdata) {
     if (!board || !fn) return;
     if ((*board).revalidateCount == (*board).revalidateCap) {
         int cap = (*board).revalidateCap ? (*board).revalidateCap * 2 : 4;
-        BoardRevalidateFn *steps = realloc((*board).revalidators, (size_t)cap * sizeof *steps);
-        void **uds = realloc((*board).revalidateUd, (size_t)cap * sizeof *uds);
+        BoardRevalidateFn *steps = realloc((*board).revalidators, (bytes)cap * sizeof *steps);
+        void **uds = realloc((*board).revalidateUd, (bytes)cap * sizeof *uds);
         if (!steps || !uds) return;   // best-effort; keep whatever we had
         (*board).revalidators = steps;
         (*board).revalidateUd = uds;

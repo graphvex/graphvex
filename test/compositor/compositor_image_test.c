@@ -12,14 +12,14 @@
 static void round_trip(void) {
     Image *image = Image_2(256, 2);
     assert(image && Image_ensureShadow(image, 256, 2));
-    uint8_t *pixels = Image_pixels(image);
-    size_t stride = Image_stride(image);
-    for (uint32_t y = 0; y < 2; ++y) {
-        for (uint32_t x = 0; x < 256; ++x) {
-            uint8_t *p = pixels + (size_t) y * stride + (size_t) x * 4;
-            p[0] = (uint8_t) x;
-            p[1] = (uint8_t) (255 - x);
-            p[2] = (uint8_t) (x / 2);
+    u8 *pixels = Image_pixels(image);
+    bytes stride = Image_stride(image);
+    for (u32 y = 0; y < 2; ++y) {
+        for (u32 x = 0; x < 256; ++x) {
+            u8 *p = pixels + (bytes) y * stride + (bytes) x * 4;
+            p[0] = (u8) x;
+            p[1] = (u8) (255 - x);
+            p[2] = (u8) (x / 2);
             p[3] = y ? 128 : 255;
         }
     }
@@ -30,10 +30,10 @@ static void round_trip(void) {
     assert(CompositorSurface_validate(surface) == COMPOSITOR_OK);
     Image *out = nullptr;
     assert(CompositorSurface_toImage(surface, &out) == COMPOSITOR_OK);
-    const uint8_t *exported = Image_pixels(out);
-    for (uint32_t y = 0; y < 2; ++y)
-        for (uint32_t x = 0; x < 256 * 4; ++x)
-            assert(exported[(size_t) y * Image_stride(out) + x] == pixels[(size_t) y * stride + x]);
+    const u8 *exported = Image_pixels(out);
+    for (u32 y = 0; y < 2; ++y)
+        for (u32 x = 0; x < 256 * 4; ++x)
+            assert(exported[(bytes) y * Image_stride(out) + x] == pixels[(bytes) y * stride + x]);
     Image_destroy(out);
     CompositorSurface_destroy(surface);
     /* Grow-only shadow retains stride larger than logical width. */
@@ -49,12 +49,12 @@ static void round_trip(void) {
 
 // Checks alpha handling and gain adjustments on image composition.
 static void alpha_and_gain(void) {
-    const uint8_t rgba[] = {255, 128, 64, 128, 255, 200, 100, 0};
+    const u8 rgba[] = {255, 128, 64, 128, 255, 200, 100, 0};
     Image *image = Image_2(2, 1);
     assert(Image_upload(rgba, 2, 1, image));
     CompositorSurface *surface = nullptr;
     assert(CompositorSurface_fromImage(image, 0, 0, &surface) == COMPOSITOR_OK);
-    const float *p = CompositorSurface_constPixels(surface);
+    const f32 *p = CompositorSurface_constPixels(surface);
     assert(fabsf(p[0] - 128.0f / 255) < 1e-7f);
     assert(fabsf(p[1] - .2158605f * (128.0f / 255)) < 1e-6f);
     assert(p[4] == 0 && p[5] == 0 && p[6] == 0 && p[7] == 0);
@@ -65,7 +65,7 @@ static void alpha_and_gain(void) {
     assert(Compositor_compose(sources, 1, &gain, 1, &filtered) == COMPOSITOR_OK);
     Image *out = nullptr;
     assert(CompositorSurface_toImage(filtered, &out) == COMPOSITOR_OK);
-    const uint8_t *q = Image_pixels(out);
+    const u8 *q = Image_pixels(out);
     assert(q[0] == 255 && q[1] == 176 && q[3] == 128);
     assert(q[4] == 0 && q[5] == 0 && q[6] == 0 && q[7] == 0);
     Image_destroy(out);

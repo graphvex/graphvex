@@ -7,7 +7,7 @@
 #include "lang/filter.h"
 #include "compositor/compositor.h"
 #include <assert.h>
-#include <float.h>
+#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -30,14 +30,14 @@ int main(void) {
     assert(Filter_scatterBlur(UINT32_MAX) == UINT64_C(0x00020000ffffffff));
     assert(Filter_id(UINT64_MAX) == UINT16_MAX);
     assert(Filter_payload(UINT64_MAX) == FILTER_PAYLOAD_MASK);
-    const float values[] = {0, -0.0f, 1, -1, FLT_MAX, -FLT_MAX, INFINITY, -INFINITY, NAN};
-    FilterToken (*scalars[])(float) = {
+    const f32 values[] = {0, -0.0f, 1, -1, FLT_MAX, -FLT_MAX, INFINITY, -INFINITY, NAN};
+    FilterToken (*scalars[])(f32) = {
         Filter_brightness, Filter_contrast, Filter_blackAndWhite
     };
-    const uint16_t scalarIds[] = {BRIGHTNESS_ID, CONTRAST_ID, BLACK_AND_WHITE_ID};
-    for (size_t i = 0; i < sizeof scalars / sizeof scalars[0]; ++i) {
-        for (size_t j = 0; j < sizeof values / sizeof values[0]; ++j) {
-            uint32_t bits;
+    const u16 scalarIds[] = {BRIGHTNESS_ID, CONTRAST_ID, BLACK_AND_WHITE_ID};
+    for (bytes i = 0; i < sizeof scalars / sizeof scalars[0]; ++i) {
+        for (bytes j = 0; j < sizeof values / sizeof values[0]; ++j) {
+            u32 bits;
             memcpy(&bits, &values[j], sizeof bits);
             FilterToken token = scalars[i](values[j]);
             assert(Filter_id(token) == scalarIds[i]);
@@ -45,8 +45,8 @@ int main(void) {
             unsupported(token);
         }
     }
-    const uint32_t colors[] = {0, 1, UINT32_C(0x12345678), UINT32_MAX};
-    for (size_t i = 0; i < sizeof colors / sizeof colors[0]; ++i) {
+    const u32 colors[] = {0, 1, UINT32_C(0x12345678), UINT32_MAX};
+    for (bytes i = 0; i < sizeof colors / sizeof colors[0]; ++i) {
         FilterToken token = Filter_monocolor(colors[i]);
         assert(Filter_id(token) == MONOCOLOR_ID);
         assert(Filter_payload(token) == colors[i]);
@@ -54,21 +54,21 @@ int main(void) {
     }
     const FilterToken empty[] = {Filter_grayscale(), Filter_grayscaleRed(),
         Filter_grayscaleGreen(), Filter_grayscaleBlue(), Filter_invert()};
-    const uint16_t emptyIds[] = {GRAYSCALE_ID, GRAYSCALE_RED_ID,
+    const u16 emptyIds[] = {GRAYSCALE_ID, GRAYSCALE_RED_ID,
         GRAYSCALE_GREEN_ID, GRAYSCALE_BLUE_ID, INVERT_ID};
-    for (size_t i = 0; i < sizeof empty / sizeof empty[0]; ++i) {
+    for (bytes i = 0; i < sizeof empty / sizeof empty[0]; ++i) {
         assert(Filter_id(empty[i]) == emptyIds[i]);
         assert(Filter_payload(empty[i]) == 0);
         unsupported(empty[i]);
     }
 #define CHECK_REFERENCE(name, id) do { \
-    const uint32_t indices[] = {0, 1, UINT32_MAX}; \
-    const uint16_t generations[] = {0, 1, UINT16_MAX}; \
-    for (size_t i = 0; i < 3; ++i) { \
-        for (size_t j = 0; j < 3; ++j) { \
+    const u32 indices[] = {0, 1, UINT32_MAX}; \
+    const u16 generations[] = {0, 1, UINT16_MAX}; \
+    for (bytes i = 0; i < 3; ++i) { \
+        for (bytes j = 0; j < 3; ++j) { \
             FilterToken token = Filter_##name(indices[i], generations[j]); \
             assert(Filter_id(token) == id); \
-            assert(Filter_payload(token) == ((uint64_t) generations[j] << 32 | indices[i])); \
+            assert(Filter_payload(token) == ((u64) generations[j] << 32 | indices[i])); \
             unsupported(token); \
         } \
     } \

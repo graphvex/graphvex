@@ -55,7 +55,7 @@ static void test_alpha_blend(void) {
     CHECK(Graphics_begin());
     CHECK(Graphics_clear(COLOR_BLACK));
     CHECK(Graphics_fillRect(&(Rect){0, 0, 4, 4}, &(Brush){COLOR_RGBA(255, 255, 255, 128), 0, 0, 0, 0}));
-    uint32_t p = Raster_pixelAt(1, 1);
+    u32 p = Raster_pixelAt(1, 1);
     CHECK(Color_red(p) > 100u && Color_red(p) < 160u);
     CHECK(Graphics_end());
     // fully transparent leaves the destination alone

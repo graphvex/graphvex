@@ -17,7 +17,7 @@ void  IosHost_release(void *surface);
 
 // Lock for read and return the base address; stride out is Bytes/row.
 // Returns NULL if the lock failed.
-const uint8_t *IosHost_lockRead(void *surface, size_t *outStride);
+const u8 *IosHost_lockRead(void *surface, bytes *outStride);
 void IosHost_unlock(void *surface);
 
 #endif // IOSURFACE_HOST_H

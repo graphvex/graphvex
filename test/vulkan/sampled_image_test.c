@@ -14,8 +14,8 @@
 
 static unsigned forcedTimeouts;
 // Injects bounded fence timeouts before delegating to Vulkan's real wait.
-VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, uint32_t count,
-    const VkFence *fences, VkBool32 all, uint64_t timeout) {
+VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, u32 count,
+    const VkFence *fences, VkBool32 all, u64 timeout) {
     assert(timeout <= UINT64_C(100000000));
     if (forcedTimeouts) {
         --forcedTimeouts;
@@ -28,7 +28,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, uint32_t count,
 
 // Asserts the RGB value at one pixel in the sampled image.
 static void pixel(const Image *image, unsigned x, unsigned y, unsigned r, unsigned g, unsigned b) {
-    const uint8_t *p = Image_pixels(image) + y * Image_stride(image) + x * 4u;
+    const u8 *p = Image_pixels(image) + y * Image_stride(image) + x * 4u;
     assert(abs((int) p[0] - (int) r) <= 1);
     assert(abs((int) p[1] - (int) g) <= 1);
     assert(abs((int) p[2] - (int) b) <= 1);
@@ -47,7 +47,7 @@ int main(void) {
     assert(!SampledImage(nullptr, nullptr));
     assert(!SampledImage(device, nullptr, nullptr, 0, 0));
     Image *image = Image(2, 2);
-    const uint8_t rgba[] = {255,0,0,255, 0,255,0,128, 0,0,255,255, 255,255,255,0};
+    const u8 rgba[] = {255,0,0,255, 0,255,0,128, 0,0,255,255, 255,255,255,0};
     assert(Image_upload(rgba, 2, 2, image));
     forcedTimeouts = 2;
     SampledImage *pending = SampledImage_2(device, image);
@@ -85,7 +85,7 @@ int main(void) {
     assert(Graphics_end() && Graphics_capture(shot));
     pixel(shot, 1,1,255,0,0);
     assert(VulkanBackend_vertexBytes() == 240u * sizeof(VkVertex));
-    size_t highWater = VulkanBackend_vertexBytes();
+    bytes highWater = VulkanBackend_vertexBytes();
     for (unsigned frame = 0; frame < 32; ++frame) {
         assert(Graphics_begin() && Graphics_clear(COLOR_BLACK));
         assert(Graphics_clip(&(Rect){0,0,8,8}));

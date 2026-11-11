@@ -26,16 +26,16 @@
  * binding explicitly; borrowed native fields carry no lifetime ownership. */
 
 struct Image {
-    uint32_t width;
-    uint32_t height;
-    uint32_t capW;         // allocation width (grow-only); row stride is capW*4
-    uint32_t capH;         // allocation height
-    uint32_t format;
-    uint32_t usage;
-    uint8_t *pixels;       // CPU shadow (RGBA8)
+    u32 width;
+    u32 height;
+    u32 capW;         // allocation width (grow-only); row stride is capW*4
+    u32 capH;         // allocation height
+    u32 format;
+    u32 usage;
+    u8 *pixels;       // CPU shadow (RGBA8)
     void *native;          // opaque dialect handle
     void *ioSurface;       // opaque IOSurfaceRef
-    uint32_t layer;        // atlas layer / sampler index
+    u32 layer;        // atlas layer / sampler index
     void *gpuResource; // owned opaque texture; renderer retains independently
     void *gpuDevice; // borrowed driver/device identity
     void *gpuDescriptor; // borrowed descriptor from owned resource
@@ -43,7 +43,7 @@ struct Image {
     ImageGpuRefFn gpuRelease;
 };
 
-static void clamp_dims(uint32_t *w, uint32_t *h) {
+static void clamp_dims(u32 *w, u32 *h) {
     if (*w == 0) *w = 1;
     if (*h == 0) *h = 1;
 }
@@ -63,12 +63,12 @@ Image *Image_new(const ImageDesc *desc) {
 // Creates an empty 1x1 RGBA image descriptor with no usage flags.
 Image *Image_0(void) { return Image_new(nullptr); }
 // Creates an RGBA image descriptor with the requested dimensions and no usage flags.
-Image *Image_2(uint32_t width, uint32_t height) {
+Image *Image_2(u32 width, u32 height) {
     ImageDesc d = {width, height, IMAGE_FORMAT_RGBA8, IMAGE_USAGE_NONE};
     return Image_new(&d);
 }
 // Creates an image descriptor with explicit dimensions, format, and usage.
-Image *Image_4(uint32_t width, uint32_t height, uint32_t format, uint32_t usage) {
+Image *Image_4(u32 width, u32 height, u32 format, u32 usage) {
     ImageDesc d = {width, height, format, usage};
     return Image_new(&d);
 }
@@ -83,10 +83,10 @@ void Image_destroy(Image *image) {
 }
 
 // Ensures CPU RGBA shadow capacity, growing only when needed and updating logical extent.
-bool Image_ensureShadow(Image *image, uint32_t width, uint32_t height) {
+bool Image_ensureShadow(Image *image, u32 width, u32 height) {
     if (!image) return false;
     clamp_dims(&width, &height);
-    if ((uint64_t) width * height > SIZE_MAX / 4u)
+    if ((u64) width * height > SIZE_MAX / 4u)
         return false;
     if (!Image_clearGpu(image))
         return false;
@@ -97,13 +97,13 @@ bool Image_ensureShadow(Image *image, uint32_t width, uint32_t height) {
         (*image).height = height;
         return true;
     }
-    uint32_t nw = (*image).capW > width ? (*image).capW : width;
-    uint32_t nh = (*image).capH > height ? (*image).capH : height;
+    u32 nw = (*image).capW > width ? (*image).capW : width;
+    u32 nh = (*image).capH > height ? (*image).capH : height;
     while (nw < width) nw += nw / 2 + 64;
     while (nh < height) nh += nh / 2 + 64;
-    if ((uint64_t) nw * nh > SIZE_MAX / 4u)
+    if ((u64) nw * nh > SIZE_MAX / 4u)
         return false;
-    uint8_t *grown = realloc((*image).pixels, (size_t)nw * (size_t)nh * 4u);
+    u8 *grown = realloc((*image).pixels, (bytes)nw * (bytes)nh * 4u);
     if (!grown) return false;
     (*image).pixels = grown;
     (*image).capW = nw;
@@ -114,17 +114,17 @@ bool Image_ensureShadow(Image *image, uint32_t width, uint32_t height) {
 }
 
 // Resizes the image's CPU shadow through the capacity-preserving ensure path.
-bool Image_resize(Image *image, uint32_t width, uint32_t height) {
+bool Image_resize(Image *image, u32 width, u32 height) {
     return Image_ensureShadow(image, width, height);
 }
 
 // Copies tightly packed RGBA rows into the destination shadow, honoring its padded row stride.
-bool Image_upload(const uint8_t *rgba, uint32_t width, uint32_t height, Image *dest) {
+bool Image_upload(const u8 *rgba, u32 width, u32 height, Image *dest) {
     if (!dest || !rgba) return false;
     if (!Image_ensureShadow(dest, width, height)) return false;
-    size_t stride = (size_t)((*dest).capW) * 4u;
-    for (uint32_t y = 0; y < height; y++) {
-        memcpy((*dest).pixels + (size_t)y * stride, rgba + (size_t)y * width * 4u, (size_t)width * 4u);
+    bytes stride = (bytes)((*dest).capW) * 4u;
+    for (u32 y = 0; y < height; y++) {
+        memcpy((*dest).pixels + (bytes)y * stride, rgba + (bytes)y * width * 4u, (bytes)width * 4u);
     }
     return true;
 }
@@ -135,14 +135,14 @@ void Image_fill(Image *image, Color color) {
     if (!Image_clearGpu(image))
         return;
     if (!(*image).pixels && !Image_ensureShadow(image, (*image).width, (*image).height)) return;
-    uint8_t r = (uint8_t)Color_red(color);
-    uint8_t g = (uint8_t)Color_green(color);
-    uint8_t b = (uint8_t)Color_blue(color);
-    uint8_t a = (uint8_t)Color_alpha(color);
-    size_t stride = (size_t)((*image).capW) * 4u;
-    for (uint32_t y = 0; y < (*image).height; y++) {
-        uint8_t *row = (*image).pixels + (size_t)y * stride;
-        for (uint32_t x = 0; x < (*image).width; x++) {
+    u8 r = (u8)Color_red(color);
+    u8 g = (u8)Color_green(color);
+    u8 b = (u8)Color_blue(color);
+    u8 a = (u8)Color_alpha(color);
+    bytes stride = (bytes)((*image).capW) * 4u;
+    for (u32 y = 0; y < (*image).height; y++) {
+        u8 *row = (*image).pixels + (bytes)y * stride;
+        for (u32 x = 0; x < (*image).width; x++) {
             row[x * 4 + 0] = r;
             row[x * 4 + 1] = g;
             row[x * 4 + 2] = b;
@@ -152,17 +152,17 @@ void Image_fill(Image *image, Color color) {
 }
 
 // Returns the logical image width, or zero when image is null.
-uint32_t Image_width(const Image *image) { return image ? (*image).width : 0u; }
+u32 Image_width(const Image *image) { return image ? (*image).width : 0u; }
 // Returns the logical image height, or zero when image is null.
-uint32_t Image_height(const Image *image) { return image ? (*image).height : 0u; }
+u32 Image_height(const Image *image) { return image ? (*image).height : 0u; }
 // Returns the declared pixel format, or the RGBA8 default for null.
-uint32_t Image_format(const Image *image) { return image ? (*image).format : IMAGE_FORMAT_RGBA8; }
+u32 Image_format(const Image *image) { return image ? (*image).format : IMAGE_FORMAT_RGBA8; }
 // Returns the declared usage flags, or IMAGE_USAGE_NONE for null.
-uint32_t Image_usage(const Image *image) { return image ? (*image).usage : IMAGE_USAGE_NONE; }
+u32 Image_usage(const Image *image) { return image ? (*image).usage : IMAGE_USAGE_NONE; }
 // Returns allocated RGBA row stride in bytes, or zero for null.
-size_t Image_stride(const Image *image) { return image ? (size_t)((*image).capW) * 4u : 0u; }
+bytes Image_stride(const Image *image) { return image ? (bytes)((*image).capW) * 4u : 0u; }
 // Returns the mutable CPU pixel buffer, or nullptr when image is null.
-uint8_t *Image_pixels(const Image *image) { return image ? (*image).pixels : nullptr; }
+u8 *Image_pixels(const Image *image) { return image ? (*image).pixels : nullptr; }
 // Reports whether the logical image extent is nonempty.
 bool Image_isValid(const Image *image) { return image && (*image).width > 0 && (*image).height > 0; }
 
@@ -175,9 +175,9 @@ void Image_setNative(Image *image, void *native) { if (image) (*image).native = 
 // Stores a borrowed opaque IOSurface handle without taking ownership.
 void Image_setIOSurface(Image *image, void *ioSurface) { if (image) (*image).ioSurface = ioSurface; }
 // Returns the image's atlas or sampler layer index.
-uint32_t Image_layer(const Image *image) { return image ? (*image).layer : 0u; }
+u32 Image_layer(const Image *image) { return image ? (*image).layer : 0u; }
 // Sets the image's atlas or sampler layer index.
-void Image_setLayer(Image *image, uint32_t layer) { if (image) (*image).layer = layer; }
+void Image_setLayer(Image *image, u32 layer) { if (image) (*image).layer = layer; }
 
 // Returns the owned opaque GPU resource pointer.
 void *Image_gpuResource(const Image *image) { return image ? (*image).gpuResource : nullptr; }

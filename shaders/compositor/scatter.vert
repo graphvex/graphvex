@@ -1,7 +1,7 @@
 #version 450
 // Bound by GpuScope's isolated accumulation pass. Each source texel emits
 // one six-vertex footprint. Host validates nonzero extents, radius <= 16,
-// instanceCount == sourceWidth*sourceHeight, target == source+2*radius, and float
+// instanceCount == sourceWidth*sourceHeight, target == source+2*radius, and f32
 // sampled/attachment support. Source is linear-light premultiplied RGBA.
 // Expanded target origin is sourceWorldOrigin-radius: allocation never moves
 // the source's world placement. Positive-height Vulkan viewport, native Y-down.
@@ -13,7 +13,7 @@ layout(push_constant) uniform ScatterPush {
     uint straightAlpha; // 1 for sampled sRGB source, 0 for premultiplied group
 } pc;
 layout(location = 0) flat out vec4 weightedColor;
-layout(location = 1) flat out float kernelWeight;
+layout(location = 1) flat out f32 kernelWeight;
 
 const vec2 corners[6] = vec2[6](
     vec2(0, 0), vec2(1, 0), vec2(1, 1),
@@ -22,7 +22,7 @@ const vec2 corners[6] = vec2[6](
 void main() {
     ivec2 source = ivec2(gl_InstanceIndex % pc.sourceExtent.x,
                         gl_InstanceIndex / pc.sourceExtent.x);
-    float diameter = float(2 * pc.radius + 1);
+    f32 diameter = f32(2 * pc.radius + 1);
     vec2 position = vec2(source) + corners[gl_VertexIndex] * diameter;
     gl_Position = vec4(position / vec2(pc.targetExtent) * 2.0 - 1.0, 0, 1);
     kernelWeight = 1.0 / (diameter * diameter);

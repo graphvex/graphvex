@@ -26,10 +26,10 @@
  * const Backend *s_current     selected backend row
  * DrawCmd s_baseClip           external clip scope
  * bool s_hasBaseClip           whether the external clip is active
- * uint32_t *s_px                raster pixel backing
- * int32_t s_capW,s_capH        allocated raster extent/row stride
- * int32_t s_w,s_h              current raster viewport extent
- * Rect s_clip; float s_clipRadius active raster clipping geometry
+ * u32 *s_px                raster pixel backing
+ * i32 s_capW,s_capH        allocated raster extent/row stride
+ * i32 s_w,s_h              current raster viewport extent
+ * Rect s_clip; f32 s_clipRadius active raster clipping geometry
  * FUNCTION REGISTRY
  * Backend registry: Graphics_register, Graphics_use, Graphics_backendId,
  *   Graphics_current
@@ -76,7 +76,7 @@ bool Graphics_register(const Backend *row) {
 }
 
 // Selects a registered backend and configures its callbacks for current dimensions.
-bool Graphics_use(uint32_t backendId) {
+bool Graphics_use(u32 backendId) {
     for (int i = 0; i < s_rowCount; i++) {
         if ((*s_rows[i]).id == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
     }
@@ -90,7 +90,7 @@ bool Graphics_use(uint32_t backendId) {
 }
 
 // Returns the active backend ID, or BACKEND_NONE when no backend is selected.
-uint32_t Graphics_backendId(void) { return s_current ? (*s_current).id : BACKEND_NONE; }
+u32 Graphics_backendId(void) { return s_current ? (*s_current).id : BACKEND_NONE; }
 const Backend *Graphics_current(void) { return s_current; }
 
 // ── forwarders (call through the active row; false when none) ───────────────
@@ -100,7 +100,7 @@ bool Graphics_end(void)     { return s_current && (*s_current).end     ? (*s_cur
 // Forwards presentation to the active backend when provided.
 bool Graphics_present(void) { return s_current && (*s_current).present ? (*s_current).present() : false; }
 // Resizes the active backend and updates graphics clip state on success.
-bool Graphics_resize(uint32_t w, uint32_t h) {
+bool Graphics_resize(u32 w, u32 h) {
     bool ok = s_current && (*s_current).resize ? (*s_current).resize(w, h) : false;
     if (ok) s_hasBaseClip = false;
     return ok;
@@ -110,7 +110,7 @@ bool Graphics_clear(Color color) {
     return s_current && (*s_current).clear ? (*s_current).clear(color) : false;
 }
 // Installs the base rounded clip used by subsequent drawing operations.
-bool Graphics_clipRounded(const Rect *rect, float radius) {
+bool Graphics_clipRounded(const Rect *rect, f32 radius) {
     if (!s_current || !(*s_current).clip || !(*s_current).clip(rect, radius)) return false;
     s_hasBaseClip = rect != nullptr;
     if (rect) { s_baseClip.dst = *rect; s_baseClip.radius = fmaxf(radius, 0); }
@@ -138,10 +138,10 @@ bool Graphics_capture(Image *dest) {
 // ── the display list ────────────────────────────────────────────────────────
 struct DisplayList {
     DrawCmd *items;
-    size_t count;
-    size_t cap;
-    size_t *clipStack;       // command indices; reusable submission scratch
-    size_t clipCap, clipDepth; // reserved nesting depth and recording depth
+    bytes count;
+    bytes cap;
+    bytes *clipStack;       // command indices; reusable submission scratch
+    bytes clipCap, clipDepth; // reserved nesting depth and recording depth
 };
 
 DisplayList *DisplayList_0(void) {
@@ -215,11 +215,11 @@ void DisplayList_clip(DisplayList *dl, Rect rect) {
 }
 
 // Pushes a rounded clip command and records its stack entry.
-void DisplayList_clipRounded(DisplayList *dl, Rect rect, float radius) {
+void DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius) {
     if (!dl) return;
     if ((*dl).clipDepth == (*dl).clipCap) {
-        size_t cap = (*dl).clipCap ? (*dl).clipCap * 2 : 8;
-        size_t *grown = realloc((*dl).clipStack, cap * sizeof *grown);
+        bytes cap = (*dl).clipCap ? (*dl).clipCap * 2 : 8;
+        bytes *grown = realloc((*dl).clipStack, cap * sizeof *grown);
         if (!grown) return;
         (*dl).clipStack = grown;
         (*dl).clipCap = cap;
@@ -242,7 +242,7 @@ void DisplayList_unclip(DisplayList *dl) {
 }
 
 // Returns the number of recorded commands, or zero for null.
-size_t DisplayList_count(const DisplayList *dl) { return dl ? (*dl).count : 0; }
+bytes DisplayList_count(const DisplayList *dl) { return dl ? (*dl).count : 0; }
 const DrawCmd *DisplayList_cmds(const DisplayList *dl) { return dl ? (*dl).items : nullptr; }
 
 // Submit original geometry; scissors must never resize rounded boxes or UVs.
@@ -256,11 +256,11 @@ static bool submit_draw(const DrawCmd *cmd) {
     }
 }
 
-static bool submit_clip(const Rect *rect, float radius) {
+static bool submit_clip(const Rect *rect, f32 radius) {
     return (*s_current).clip && (*s_current).clip(rect, radius);
 }
 
-static const DrawCmd *submit_mask(DisplayList *dl, size_t index) {
+static const DrawCmd *submit_mask(DisplayList *dl, bytes index) {
     if (s_hasBaseClip) {
         if (index == 0) return &s_baseClip;
         --index;
@@ -272,7 +272,7 @@ static bool submit_span(const DrawCmd *cmd, Rect span) {
     return Rect_isEmpty(span) || (submit_clip(&span, 0) && submit_draw(cmd));
 }
 
-static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, size_t depth) {
+static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, bytes depth) {
     depth += s_hasBaseClip ? 1 : 0;
     if (depth == 0)
         return submit_clip(nullptr, 0) && submit_draw(cmd);
@@ -282,7 +282,7 @@ static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, size_t depth) {
     }
     Rect bounds = (*cmd).dst;
     bool rounded = false;
-    for (size_t i = 0; i < depth; ++i) {
+    for (bytes i = 0; i < depth; ++i) {
         const DrawCmd *mask = submit_mask(dl, i);
         bounds = Rect_intersect(bounds, (*mask).dst);
         rounded |= (*mask).radius > 0.0f;
@@ -296,20 +296,20 @@ static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, size_t depth) {
     // ancestor admits at the pixel center. Coalesce identical adjacent rows.
     // Cost is restricted to this quad's clipped bounds, not the whole window.
     Rect span = {0};
-    float end = ceilf(bounds.y + bounds.h - 0.5f);
-    for (float y = ceilf(bounds.y - 0.5f); y < end; y += 1.0f) {
-        float left = bounds.x, right = bounds.x + bounds.w;
-        for (size_t i = 0; i < depth; ++i) {
+    f32 end = ceilf(bounds.y + bounds.h - 0.5f);
+    for (f32 y = ceilf(bounds.y - 0.5f); y < end; y += 1.0f) {
+        f32 left = bounds.x, right = bounds.x + bounds.w;
+        for (bytes i = 0; i < depth; ++i) {
             const DrawCmd *mask = submit_mask(dl, i);
             Rect r = (*mask).dst;
-            float radius = fminf((*mask).radius, fminf(r.w, r.h) * 0.5f);
+            f32 radius = fminf((*mask).radius, fminf(r.w, r.h) * 0.5f);
             if (radius <= 0.0f) continue;
-            float qy = fabsf(y + 0.5f - r.y - r.h * 0.5f) - (r.h * 0.5f - radius);
-            float inset = qy > 0.0f ? radius - sqrtf(fmaxf(0.0f, radius * radius - qy * qy)) : 0.0f;
+            f32 qy = fabsf(y + 0.5f - r.y - r.h * 0.5f) - (r.h * 0.5f - radius);
+            f32 inset = qy > 0.0f ? radius - sqrtf(fmaxf(0.0f, radius * radius - qy * qy)) : 0.0f;
             left = fmaxf(left, r.x + inset);
             right = fminf(right, r.x + r.w - inset);
         }
-        float x0 = ceilf(left - 0.5f), x1 = ceilf(right - 0.5f);
+        f32 x0 = ceilf(left - 0.5f), x1 = ceilf(right - 0.5f);
         if (x1 > x0 && span.h > 0 && span.x == x0 && span.w == x1 - x0 && span.y + span.h == y) {
             span.h += 1;
         } else {
@@ -323,9 +323,9 @@ static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, size_t depth) {
 // Submits recorded commands in order while applying accumulated clip masks.
 bool Graphics_submit(DisplayList *dl) {
     if (!dl || !s_current) return false;
-    size_t depth = 0;
+    bytes depth = 0;
     bool ok = true;
-    for (size_t i = 0; i < (*dl).count && ok; ++i) {
+    for (bytes i = 0; i < (*dl).count && ok; ++i) {
         const DrawCmd *cmd = &(*dl).items[i];
         if ((*cmd).kind == CMD_CLIP_PUSH) {
             if (depth >= (*dl).clipCap) { ok = false; break; }
@@ -344,26 +344,26 @@ bool Graphics_submit(DisplayList *dl) {
 }
 
 // ── headless CPU (raster) backend ───────────────────────────────────────────
-static uint32_t *s_px = nullptr;
-static int32_t s_capW = 0, s_capH = 0;   // allocation; row stride == s_capW
-static int32_t s_w = 0, s_h = 0;         // logical viewport (the scissor region)
+static u32 *s_px = nullptr;
+static i32 s_capW = 0, s_capH = 0;   // allocation; row stride == s_capW
+static i32 s_w = 0, s_h = 0;         // logical viewport (the scissor region)
 static Rect s_clip = {0, 0, 0, 0};
-static float s_clipRadius = 0.0f;   // > 0 = rounded mask on the clip rect
+static f32 s_clipRadius = 0.0f;   // > 0 = rounded mask on the clip rect
 
-static uint32_t blend_over(uint32_t dst, uint32_t src) {
-    uint32_t sa = src & 0xFFu;
+static u32 blend_over(u32 dst, u32 src) {
+    u32 sa = src & 0xFFu;
     if (sa == 255u) return src;
     if (sa == 0u) return dst;
-    uint32_t ia = 255u - sa;
-    uint32_t r = (((src >> 24) & 0xFFu) * sa + ((dst >> 24) & 0xFFu) * ia) / 255u;
-    uint32_t g = (((src >> 16) & 0xFFu) * sa + ((dst >> 16) & 0xFFu) * ia) / 255u;
-    uint32_t b = (((src >> 8) & 0xFFu) * sa + ((dst >> 8) & 0xFFu) * ia) / 255u;
-    uint32_t a = (sa * 255u + ((dst & 0xFFu) * ia)) / 255u;
+    u32 ia = 255u - sa;
+    u32 r = (((src >> 24) & 0xFFu) * sa + ((dst >> 24) & 0xFFu) * ia) / 255u;
+    u32 g = (((src >> 16) & 0xFFu) * sa + ((dst >> 16) & 0xFFu) * ia) / 255u;
+    u32 b = (((src >> 8) & 0xFFu) * sa + ((dst >> 8) & 0xFFu) * ia) / 255u;
+    u32 a = (sa * 255u + ((dst & 0xFFu) * ia)) / 255u;
     return (r << 24) | (g << 16) | (b << 8) | a;
 }
 
 // Allocates or resizes the CPU reference framebuffer to the requested dimensions.
-bool Raster_configure(uint32_t width, uint32_t height) {
+bool Raster_configure(u32 width, u32 height) {
     // GROW-ONLY. The framebuffer is allocated once and only ever grows, so a
     // resize is pure scissoring: no realloc, no refill, ever. The row stride is
     // the allocation width (s_capW), independent of the logical width (s_w).
@@ -373,53 +373,53 @@ bool Raster_configure(uint32_t width, uint32_t height) {
         s_clip = (Rect){0, 0, 0, 0};
         return true;
     }
-    if (s_px && width <= (uint32_t)s_capW && height <= (uint32_t)s_capH) {
-        s_w = (int32_t)width;
-        s_h = (int32_t)height;
-        s_clip = (Rect){0, 0, (float)width, (float)height};
+    if (s_px && width <= (u32)s_capW && height <= (u32)s_capH) {
+        s_w = (i32)width;
+        s_h = (i32)height;
+        s_clip = (Rect){0, 0, (f32)width, (f32)height};
         return true;
     }
-    uint32_t nw = s_capW > 0 ? (uint32_t)s_capW : width;
-    uint32_t nh = s_capH > 0 ? (uint32_t)s_capH : height;
+    u32 nw = s_capW > 0 ? (u32)s_capW : width;
+    u32 nh = s_capH > 0 ? (u32)s_capH : height;
     while (nw < width) nw += nw / 2 + 64;   // amortized growth
     while (nh < height) nh += nh / 2 + 64;
-    uint32_t *grown = realloc(s_px, (size_t)nw * (size_t)nh * sizeof *grown);
+    u32 *grown = realloc(s_px, (bytes)nw * (bytes)nh * sizeof *grown);
     if (!grown) return false;
     s_px = grown;
-    s_capW = (int32_t)nw;
-    s_capH = (int32_t)nh;
-    s_w = (int32_t)width;
-    s_h = (int32_t)height;
-    s_clip = (Rect){0, 0, (float)width, (float)height};
+    s_capW = (i32)nw;
+    s_capH = (i32)nh;
+    s_w = (i32)width;
+    s_h = (i32)height;
+    s_clip = (Rect){0, 0, (f32)width, (f32)height};
     return true;
 }
 
-const uint32_t *Raster_pixels(void) { return s_px; }
+const u32 *Raster_pixels(void) { return s_px; }
 
 // Returns the packed pixel at x,y, or transparent black outside the configured extent.
-uint32_t Raster_pixelAt(uint32_t x, uint32_t y) {
-    if (!s_px || (int32_t)x >= s_w || (int32_t)y >= s_h) return 0u;
-    return s_px[(size_t)y * (size_t)s_capW + (size_t)x];
+u32 Raster_pixelAt(u32 x, u32 y) {
+    if (!s_px || (i32)x >= s_w || (i32)y >= s_h) return 0u;
+    return s_px[(bytes)y * (bytes)s_capW + (bytes)x];
 }
 
 static bool raster_begin(void) { return s_px != nullptr; }
 static bool raster_end(void) { return true; }
 static bool raster_present(void) { return true; }
 
-static bool raster_resize(uint32_t w, uint32_t h) { return Raster_configure(w, h); }
+static bool raster_resize(u32 w, u32 h) { return Raster_configure(w, h); }
 
 static bool raster_clear(Color color) {
     if (!s_px) return false;
     for (int y = 0; y < s_h; y++) {
-        uint32_t *row = s_px + (size_t)y * (size_t)s_capW;
+        u32 *row = s_px + (bytes)y * (bytes)s_capW;
         for (int x = 0; x < s_w; x++) row[x] = color;
     }
     return true;
 }
 
-static bool raster_clip(const Rect *rect, float radius) {
+static bool raster_clip(const Rect *rect, f32 radius) {
     if (!rect) {
-        s_clip = (Rect){0, 0, (float)s_w, (float)s_h};
+        s_clip = (Rect){0, 0, (f32)s_w, (f32)s_h};
         s_clipRadius = 0.0f;
         return true;
     }
@@ -429,12 +429,12 @@ static bool raster_clip(const Rect *rect, float radius) {
 }
 
 // signed distance to a rounded box centred at the origin (negative = inside)
-static float sd_round_box(float px, float py, float hw, float hh, float r) {
-    float qx = fabsf(px) - hw + r;
-    float qy = fabsf(py) - hh + r;
-    float mx = qx > 0.0f ? qx : 0.0f;
-    float my = qy > 0.0f ? qy : 0.0f;
-    float inside = qx > qy ? qx : qy;
+static f32 sd_round_box(f32 px, f32 py, f32 hw, f32 hh, f32 r) {
+    f32 qx = fabsf(px) - hw + r;
+    f32 qy = fabsf(py) - hh + r;
+    f32 mx = qx > 0.0f ? qx : 0.0f;
+    f32 my = qy > 0.0f ? qy : 0.0f;
+    f32 inside = qx > qy ? qx : qy;
     if (inside > 0.0f) inside = 0.0f;
     return inside + sqrtf(mx * mx + my * my) - r;
 }
@@ -445,15 +445,15 @@ static float sd_round_box(float px, float py, float hw, float hh, float r) {
 // area grew.
 static bool raster_fillRect(const Rect *rect, const Brush *brush) {
     if (!s_px || !rect || !brush) return false;
-    float blur = (*brush).blur > 0.0f ? (*brush).blur : 0.0f;
-    float cx = (*rect).x + (*rect).w * 0.5f;
-    float cy = (*rect).y + (*rect).h * 0.5f;
-    float hw = (*rect).w * 0.5f - blur;
-    float hh = (*rect).h * 0.5f - blur;
+    f32 blur = (*brush).blur > 0.0f ? (*brush).blur : 0.0f;
+    f32 cx = (*rect).x + (*rect).w * 0.5f;
+    f32 cy = (*rect).y + (*rect).h * 0.5f;
+    f32 hw = (*rect).w * 0.5f - blur;
+    f32 hh = (*rect).h * 0.5f - blur;
     if (hw < 0.0f) hw = 0.0f;
     if (hh < 0.0f) hh = 0.0f;
-    float r = (*brush).radius;
-    float rmax = hw < hh ? hw : hh;
+    f32 r = (*brush).radius;
+    f32 rmax = hw < hh ? hw : hh;
     if (r > rmax) r = rmax;
     if (r < 0.0f) r = 0.0f;
 
@@ -468,41 +468,41 @@ static bool raster_fillRect(const Rect *rect, const Brush *brush) {
         for (int x = x0; x < x1; x++) {
             if (s_clipRadius > 0.0f) {
                 // the active clip may be a rounded mask (a parent's corner radius)
-                float ccx = s_clip.x + s_clip.w * 0.5f;
-                float ccy = s_clip.y + s_clip.h * 0.5f;
-                float chw = s_clip.w * 0.5f, chh = s_clip.h * 0.5f;
-                float cr = s_clipRadius;
-                float cmax = chw < chh ? chw : chh;
+                f32 ccx = s_clip.x + s_clip.w * 0.5f;
+                f32 ccy = s_clip.y + s_clip.h * 0.5f;
+                f32 chw = s_clip.w * 0.5f, chh = s_clip.h * 0.5f;
+                f32 cr = s_clipRadius;
+                f32 cmax = chw < chh ? chw : chh;
                 if (cr > cmax) cr = cmax;
-                if (sd_round_box((float)x + 0.5f - ccx, (float)y + 0.5f - ccy, chw, chh, cr) > 0.0f)
+                if (sd_round_box((f32)x + 0.5f - ccx, (f32)y + 0.5f - ccy, chw, chh, cr) > 0.0f)
                     continue;
             }
-            float d = sd_round_box((float)x + 0.5f - cx, (float)y + 0.5f - cy, hw, hh, r);
-            float a;
+            f32 d = sd_round_box((f32)x + 0.5f - cx, (f32)y + 0.5f - cy, hw, hh, r);
+            f32 a;
             if (blur > 0.0f) {
                 // falloff centred on the shape edge: 1 inside, 0.5 at the edge,
                 // 0 at +blur — a bleed, not a full-opacity ring. A wider blur
                 // spreads the same panel over more pixels, so its colour weakens.
                 if (d <= -blur) a = 1.0f;
                 else if (d >= blur) continue;
-                else { float t = (d + blur) / (2.0f * blur); a = 1.0f - t * t * (3.0f - 2.0f * t); }
+                else { f32 t = (d + blur) / (2.0f * blur); a = 1.0f - t * t * (3.0f - 2.0f * t); }
                 a *= 24.0f / (24.0f + blur);
             } else {
                 a = 0.5f - d;
                 if (a <= 0.0f) continue;
                 if (a > 1.0f) a = 1.0f;
             }
-            float stroke = (*brush).borderWidth > 0.0f ? (*brush).borderWidth : 0.0f;
-            float borderMix = stroke > 0.0f ? fminf(fmaxf(d + stroke + 0.5f, 0.0f), 1.0f) : 0.0f;
-            float borderAlpha = (float) Color_alpha((*brush).border) / 255.0f * borderMix;
+            f32 stroke = (*brush).borderWidth > 0.0f ? (*brush).borderWidth : 0.0f;
+            f32 borderMix = stroke > 0.0f ? fminf(fmaxf(d + stroke + 0.5f, 0.0f), 1.0f) : 0.0f;
+            f32 borderAlpha = (f32) Color_alpha((*brush).border) / 255.0f * borderMix;
             Color fill = (*brush).color, border = (*brush).border;
-            uint32_t red = (uint32_t) ((float) Color_red(fill) * (1 - borderAlpha) + (float) Color_red(border) * borderAlpha + 0.5f);
-            uint32_t green = (uint32_t) ((float) Color_green(fill) * (1 - borderAlpha) + (float) Color_green(border) * borderAlpha + 0.5f);
-            uint32_t blue = (uint32_t) ((float) Color_blue(fill) * (1 - borderAlpha) + (float) Color_blue(border) * borderAlpha + 0.5f);
-            uint32_t sa = (uint32_t) (((float) Color_alpha(fill) * (1 - borderAlpha) + (float) Color_alpha(border) * borderAlpha) * a + 0.5f);
+            u32 red = (u32) ((f32) Color_red(fill) * (1 - borderAlpha) + (f32) Color_red(border) * borderAlpha + 0.5f);
+            u32 green = (u32) ((f32) Color_green(fill) * (1 - borderAlpha) + (f32) Color_green(border) * borderAlpha + 0.5f);
+            u32 blue = (u32) ((f32) Color_blue(fill) * (1 - borderAlpha) + (f32) Color_blue(border) * borderAlpha + 0.5f);
+            u32 sa = (u32) (((f32) Color_alpha(fill) * (1 - borderAlpha) + (f32) Color_alpha(border) * borderAlpha) * a + 0.5f);
             if (sa == 0u) continue;
-            uint32_t src = COLOR_RGBA(red, green, blue, sa);
-            size_t i = (size_t)y * (size_t)s_capW + (size_t)x;
+            u32 src = COLOR_RGBA(red, green, blue, sa);
+            bytes i = (bytes)y * (bytes)s_capW + (bytes)x;
             s_px[i] = blend_over(s_px[i], src);
         }
     }
@@ -518,7 +518,7 @@ static bool raster_imageRun(Rect run, Color color, void *context) {
 static bool raster_drawImage(const Image *image, const Rect *dst) {
     if (!s_px || !dst)
         return false;
-    Rect viewport = {0, 0, (float) s_w, (float) s_h};
+    Rect viewport = {0, 0, (f32) s_w, (f32) s_h};
     Rect clip = Rect_intersect(s_clip, viewport);
     if (Rect_isEmpty(clip))
         return true;
@@ -536,19 +536,19 @@ static bool raster_drawText(const Rect *rect, const char *text, const Brush *bru
 // screenshot: copy the framebuffer into an Image (RGBA8, 0xRRGGBBAA Bytes)
 static bool raster_capture(Image *dest) {
     if (!dest || !s_px) return false;
-    if (!Image_ensureShadow(dest, (uint32_t)s_w, (uint32_t)s_h)) return false;
-    uint8_t *out = Image_pixels(dest);
+    if (!Image_ensureShadow(dest, (u32)s_w, (u32)s_h)) return false;
+    u8 *out = Image_pixels(dest);
     if (!out) return false;
-    size_t outStride = Image_stride(dest);
+    bytes outStride = Image_stride(dest);
     for (int y = 0; y < s_h; y++) {
-        const uint32_t *row = s_px + (size_t)y * (size_t)s_capW;
-        uint8_t *orow = out + (size_t)y * outStride;
+        const u32 *row = s_px + (bytes)y * (bytes)s_capW;
+        u8 *orow = out + (bytes)y * outStride;
         for (int x = 0; x < s_w; x++) {
-            uint32_t c = row[x];
-            orow[x * 4 + 0] = (uint8_t)((c >> 24) & 0xFFu);
-            orow[x * 4 + 1] = (uint8_t)((c >> 16) & 0xFFu);
-            orow[x * 4 + 2] = (uint8_t)((c >> 8) & 0xFFu);
-            orow[x * 4 + 3] = (uint8_t)(c & 0xFFu);
+            u32 c = row[x];
+            orow[x * 4 + 0] = (u8)((c >> 24) & 0xFFu);
+            orow[x * 4 + 1] = (u8)((c >> 16) & 0xFFu);
+            orow[x * 4 + 2] = (u8)((c >> 8) & 0xFFu);
+            orow[x * 4 + 3] = (u8)(c & 0xFFu);
         }
     }
     return true;

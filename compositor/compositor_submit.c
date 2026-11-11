@@ -22,18 +22,18 @@ CompositorStatus Compositor_record(const CompositorSurface *surface,
         return COMPOSITOR_INVALID;
     // Rect uses binary32; reject placements which would lose native-pixel origin
     // or extent precision rather than silently shifting the filtered group.
-    Rect destination = {(float) bounds.x, (float) bounds.y,
-                        (float) bounds.width, (float) bounds.height};
-    if ((double) destination.x != bounds.x || (double) destination.y != bounds.y ||
-        (double) destination.w != bounds.width || (double) destination.h != bounds.height ||
-        (double) (destination.x + destination.w) != (int64_t) bounds.x + bounds.width ||
-        (double) (destination.y + destination.h) != (int64_t) bounds.y + bounds.height)
+    Rect destination = {(f32) bounds.x, (f32) bounds.y,
+                        (f32) bounds.width, (f32) bounds.height};
+    if ((d64) destination.x != bounds.x || (d64) destination.y != bounds.y ||
+        (d64) destination.w != bounds.width || (d64) destination.h != bounds.height ||
+        (d64) (destination.x + destination.w) != (int64_t) bounds.x + bounds.width ||
+        (d64) (destination.y + destination.h) != (int64_t) bounds.y + bounds.height)
         return COMPOSITOR_LIMIT;
     Image *image = nullptr;
     CompositorStatus status = CompositorSurface_toImage(surface, &image);
     if (status != COMPOSITOR_OK)
         return status;
-    size_t count = DisplayList_count(list);
+    bytes count = DisplayList_count(list);
     Rect source = {0, 0, destination.w, destination.h};
     DisplayList_image(list, image, source, destination);
     if (DisplayList_count(list) != count + 1) {

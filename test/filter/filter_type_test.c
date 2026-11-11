@@ -8,7 +8,7 @@
 
 // Checks canonical filter IDs, aliases, and operation-table consistency.
 int main(void) {
-    const uint32_t ids[] = {
+    const u32 ids[] = {
         IDENTITY_ID, GAIN_ID, SCATTER_BLUR_ID, BRIGHTNESS_ID,
         CONTRAST_ID, TONE_CURVE_ID, HSL_ID, HSV_ID,
         COLOR_BALANCE_ID, EDGES_ID, DROP_SHADOW_ID, MONOCOLOR_ID,
@@ -24,17 +24,17 @@ int main(void) {
         PIXELATE_ID, POINTILLIZE_ID, EXPANSION_ID, FISHEYE_ID,
         SPHERE_ID, WAVE_ID, DOTS_ID, RECIPE_POOL_ID
     };
-    const size_t count = sizeof ids / sizeof ids[0];
+    const bytes count = sizeof ids / sizeof ids[0];
     assert(count == 53);
     assert(FILTER_IDENTITY == 0 && FILTER_GAIN == 1 && FILTER_SCATTER_BLUR == 2);
     assert(FILTER_POOL_ID == 0x8000);
     assert(FILTER_IDENTITY == IDENTITY_ID && FILTER_GAIN == GAIN_ID);
     assert(FILTER_SCATTER_BLUR == SCATTER_BLUR_ID && FILTER_POOL_ID == RECIPE_POOL_ID);
-    for (size_t i = 0; i < count; ++i) {
+    for (bytes i = 0; i < count; ++i) {
         assert(ids[i] <= UINT16_MAX);
         if (i + 1 < count)
             assert(ids[i] == i);
-        for (size_t j = i + 1; j < count; ++j)
+        for (bytes j = i + 1; j < count; ++j)
             assert(ids[i] != ids[j]);
     }
     puts("filter operation registry: PASS");

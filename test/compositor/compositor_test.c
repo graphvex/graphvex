@@ -2,30 +2,30 @@
  * Surface inventory: create/destroy/bounds/pixels/constPixels/validate.
  * Operations: filterBounds/compose/sourceOver. Proves origin/expanded support,
  * isolation, painter order, nested groups, fixed scatter versus independent
- * double-precision convolution, alpha/HDR, malformed tokens, cold size/work
+ * d64-precision convolution, alpha/HDR, malformed tokens, cold size/work
  * caps, failure-atomic output and destination, borrowed source lifetime.
  * External synchronization only. Allocation fault injection remains a gap. */
 #include "compositor/compositor.h"
 
 #include <assert.h>
-#include <float.h>
+#include <f32.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 // Creates a test surface and asserts that its construction succeeds.
-static CompositorSurface *make(CompositorBounds b, const float rgba[4]) {
+static CompositorSurface *make(CompositorBounds b, const f32 rgba[4]) {
     CompositorSurface *surface = nullptr;
     assert(CompositorSurface_create(b, &surface) == COMPOSITOR_OK);
-    float *p = CompositorSurface_pixels(surface);
-    for (size_t i = 0; i < (size_t) b.width * b.height; ++i)
-        memcpy(p + i * 4, rgba, 4 * sizeof(float));
+    f32 *p = CompositorSurface_pixels(surface);
+    for (bytes i = 0; i < (bytes) b.width * b.height; ++i)
+        memcpy(p + i * 4, rgba, 4 * sizeof(f32));
     return surface;
 }
 
-// Asserts a floating-point result against an explicit tolerance.
-static void near(float actual, double expected, double tolerance) {
+// Asserts a f32ing-point result against an explicit tolerance.
+static void near(f32 actual, d64 expected, d64 tolerance) {
     assert(isfinite(actual));
     assert(fabs(actual - expected) <= tolerance);
 }
@@ -75,11 +75,11 @@ static void surface_contract(void) {
     assert(CompositorSurface_create((CompositorBounds) {0, 0, UINT32_MAX, UINT32_MAX}, &out) == COMPOSITOR_LIMIT);
     assert(CompositorSurface_create((CompositorBounds) {0, 0, COMPOSITOR_MAX_PIXELS + 1, 1}, &out) == COMPOSITOR_LIMIT);
     assert(CompositorSurface_create((CompositorBounds) {0, 0, 1, 1}, nullptr) == COMPOSITOR_INVALID);
-    const float clear[4] = {0};
+    const f32 clear[4] = {0};
     CompositorSurface *one = make((CompositorBounds) {INT32_MIN, -1, 1, 1}, clear);
-    float *p = CompositorSurface_pixels(one);
-    const float invalid[] = {NAN, INFINITY, -1};
-    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; ++i) {
+    f32 *p = CompositorSurface_pixels(one);
+    const f32 invalid[] = {NAN, INFINITY, -1};
+    for (bytes i = 0; i < sizeof invalid / sizeof invalid[0]; ++i) {
         p[0] = invalid[i];
         assert(CompositorSurface_validate(one) == COMPOSITOR_INVALID);
     }
@@ -104,10 +104,10 @@ static void support_and_tokens(void) {
     assert(Compositor_filterBounds(b, stack, 4, &out) == COMPOSITOR_OK);
     assert(out.x == -13 && out.y == 5 && out.width == 8 && out.height == 9);
     CompositorBounds previous = out;
-    FilterToken bad[] = {1, ((uint64_t) FILTER_GAIN << 48) | (UINT64_C(1) << 32),
+    FilterToken bad[] = {1, ((u64) FILTER_GAIN << 48) | (UINT64_C(1) << 32),
         Filter_gain(NAN), Filter_gain(INFINITY), Filter_gain(-1), Filter_scatterBlur(17),
         Filter_scatterBlur(UINT32_MAX), UINT64_C(0x8000000000000000), UINT64_MAX};
-    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; ++i) {
+    for (bytes i = 0; i < sizeof bad / sizeof bad[0]; ++i) {
         CompositorStatus expected = Filter_id(bad[i]) >= 0x8000 ? COMPOSITOR_UNSUPPORTED : COMPOSITOR_INVALID;
         assert(Compositor_filterBounds(b, bad + i, 1, &out) == expected);
         assert(!memcmp(&previous, &out, sizeof out));
@@ -125,21 +125,21 @@ static void support_and_tokens(void) {
     assert(Compositor_filterBounds((CompositorBounds) {0}, bad + 7, 1, &out) == COMPOSITOR_UNSUPPORTED);
     assert(Compositor_filterBounds((CompositorBounds) {0, 0, 257, 257}, &maximum, 1, &out) == COMPOSITOR_LIMIT);
     FilterToken identities[COMPOSITOR_MAX_FILTERS];
-    for (size_t i = 0; i < COMPOSITOR_MAX_FILTERS; ++i)
+    for (bytes i = 0; i < COMPOSITOR_MAX_FILTERS; ++i)
         identities[i] = Filter_identity();
     assert(Compositor_filterBounds(b, identities, COMPOSITOR_MAX_FILTERS, &out) == COMPOSITOR_OK);
 }
 
 // Tests isolated surface composition and source-over color results.
 static void isolation_and_over(void) {
-    const float red[4] = {.5f, 0, 0, .5f}, blue[4] = {0, 0, .5f, .5f};
+    const f32 red[4] = {.5f, 0, 0, .5f}, blue[4] = {0, 0, .5f, .5f};
     CompositorSurface *a = make((CompositorBounds) {-2, 4, 1, 1}, red);
     CompositorSurface *b = make((CompositorBounds) {-2, 4, 1, 1}, blue);
     const CompositorSurface *sources[] = {a, b};
     FilterToken gain = Filter_gain(2);
     CompositorSurface *group = nullptr;
     assert(Compositor_compose(sources, 2, &gain, 1, &group) == COMPOSITOR_OK);
-    const float *p = CompositorSurface_constPixels(group);
+    const f32 *p = CompositorSurface_constPixels(group);
     near(p[0], .5, 0); near(p[2], 1, 0); near(p[3], .75, 0);
     assert(CompositorSurface_bounds(group).x == -2);
     assert(CompositorSurface_constPixels(a)[0] == .5f);
@@ -164,7 +164,7 @@ static void isolation_and_over(void) {
     assert(Compositor_compose(reversed, 2, nullptr, 0, &group) == COMPOSITOR_OK);
     near(CompositorSurface_constPixels(group)[0], .5, 0);
     near(CompositorSurface_constPixels(group)[2], .25, 0);
-    const float clear[4] = {0};
+    const f32 clear[4] = {0};
     CompositorSurface *dest = make((CompositorBounds) {-3, 4, 2, 1}, clear);
     assert(Compositor_sourceOver(result, dest) == COMPOSITOR_OK);
     near(CompositorSurface_constPixels(dest)[0], 0, 0);
@@ -184,7 +184,7 @@ static void isolation_and_over(void) {
     assert(Compositor_compose(nullptr, 0, nullptr, 0, &empty) == COMPOSITOR_OK);
     assert(!CompositorSurface_bounds(empty).width);
     const CompositorSurface *many[COMPOSITOR_MAX_SOURCES];
-    for (size_t i = 0; i < COMPOSITOR_MAX_SOURCES; ++i)
+    for (bytes i = 0; i < COMPOSITOR_MAX_SOURCES; ++i)
         many[i] = empty;
     CompositorSurface *manyOut = nullptr;
     assert(Compositor_compose(many, COMPOSITOR_MAX_SOURCES, nullptr, 0, &manyOut) == COMPOSITOR_OK);
@@ -199,7 +199,7 @@ static void isolation_and_over(void) {
 
 // Verifies bounds union behavior and arithmetic/resource limits.
 static void union_and_limits(void) {
-    const float red[4] = {1, 0, 0, 1}, blue[4] = {0, 0, 1, 1};
+    const f32 red[4] = {1, 0, 0, 1}, blue[4] = {0, 0, 1, 1};
     CompositorSurface *a = make((CompositorBounds) {-2, -3, 1, 1}, red);
     CompositorSurface *b = make((CompositorBounds) {0, -2, 1, 1}, blue);
     const CompositorSurface *sources[] = {a, b};
@@ -207,7 +207,7 @@ static void union_and_limits(void) {
     assert(Compositor_compose(sources, 2, nullptr, 0, &out) == COMPOSITOR_OK);
     CompositorBounds bounds = CompositorSurface_bounds(out);
     assert(bounds.x == -2 && bounds.y == -3 && bounds.width == 3 && bounds.height == 2);
-    const float *p = CompositorSurface_constPixels(out);
+    const f32 *p = CompositorSurface_constPixels(out);
     assert(p[0] == 1 && p[3] == 1 && p[7] == 0);
     assert(p[4 * 5 + 2] == 1 && p[4 * 5 + 3] == 1);
     CompositorSurface_destroy(out);
@@ -221,7 +221,7 @@ static void union_and_limits(void) {
     assert(out == a);
     CompositorSurface_destroy(a);
     CompositorSurface_destroy(b);
-    const float clear[4] = {0};
+    const f32 clear[4] = {0};
     a = make((CompositorBounds) {0, 0, 257, 257}, clear);
     sources[0] = a;
     FilterToken maximum = Filter_scatterBlur(16);
@@ -229,10 +229,10 @@ static void union_and_limits(void) {
     CompositorSurface_destroy(a);
 }
 
-/* Independent double-precision convolution oracle. The implementation under
+/* Independent d64-precision convolution oracle. The implementation under
  * test SCATTERS; this oracle enumerates destination neighborhoods solely to
  * avoid reproducing implementation indexing and accumulation order. */
-static void check_scatter(const CompositorSurface *src, uint32_t radius) {
+static void check_scatter(const CompositorSurface *src, u32 radius) {
     const CompositorSurface *sources[] = {src};
     FilterToken blur = Filter_scatterBlur(radius);
     CompositorSurface *out = nullptr;
@@ -241,32 +241,32 @@ static void check_scatter(const CompositorSurface *src, uint32_t radius) {
     assert((int64_t) d.x == (int64_t) s.x - radius);
     assert((int64_t) d.y == (int64_t) s.y - radius);
     assert(d.width == s.width + 2 * radius && d.height == s.height + 2 * radius);
-    const float *p = CompositorSurface_constPixels(src), *q = CompositorSurface_constPixels(out);
-    uint32_t diameter = radius * 2 + 1;
-    double mass[4] = {0}, expectedMass[4] = {0};
-    for (uint32_t y = 0; y < d.height; ++y) {
-        for (uint32_t x = 0; x < d.width; ++x) {
-            double expected[4] = {0};
-            for (uint32_t sy = 0; sy < s.height; ++sy) {
-                for (uint32_t sx = 0; sx < s.width; ++sx) {
+    const f32 *p = CompositorSurface_constPixels(src), *q = CompositorSurface_constPixels(out);
+    u32 diameter = radius * 2 + 1;
+    d64 mass[4] = {0}, expectedMass[4] = {0};
+    for (u32 y = 0; y < d.height; ++y) {
+        for (u32 x = 0; x < d.width; ++x) {
+            d64 expected[4] = {0};
+            for (u32 sy = 0; sy < s.height; ++sy) {
+                for (u32 sx = 0; sx < s.width; ++sx) {
                     int64_t dx = (int64_t) x - radius - sx, dy = (int64_t) y - radius - sy;
                     if (dx < -(int64_t) radius || dx > radius || dy < -(int64_t) radius || dy > radius)
                         continue;
                     for (unsigned c = 0; c < 4; ++c)
-                        expected[c] += p[4 * ((size_t) sy * s.width + sx) + c] /
-                            ((double) diameter * diameter);
+                        expected[c] += p[4 * ((bytes) sy * s.width + sx) + c] /
+                            ((d64) diameter * diameter);
                 }
             }
             for (unsigned c = 0; c < 4; ++c) {
-                float actual = q[4 * ((size_t) y * d.width + x) + c];
+                f32 actual = q[4 * ((bytes) y * d.width + x) + c];
                 /* Float sum of <=1089 positive terms: conservative precision
-                 * bound scaled to result; independent oracle uses double. */
+                 * bound scaled to result; independent oracle uses d64. */
                 near(actual, expected[c], 4e-5 * fmax(1.0, expected[c]));
                 mass[c] += actual;
             }
         }
     }
-    for (size_t i = 0; i < (size_t) s.width * s.height; ++i)
+    for (bytes i = 0; i < (bytes) s.width * s.height; ++i)
         for (unsigned c = 0; c < 4; ++c)
             expectedMass[c] += p[4 * i + c];
     for (unsigned c = 0; c < 4; ++c)
@@ -277,26 +277,26 @@ static void check_scatter(const CompositorSurface *src, uint32_t radius) {
 
 // Exercises scatter kernels on impulse and constant-field fixtures.
 static void scatter_oracles(void) {
-    const float impulse[4] = {.25f, .125f, 0, .5f};
+    const f32 impulse[4] = {.25f, .125f, 0, .5f};
     CompositorSurface *one = make((CompositorBounds) {-8, 19, 1, 1}, impulse);
     check_scatter(one, 0);
     check_scatter(one, 1);
     check_scatter(one, FILTER_SCATTER_MAX_RADIUS);
-    const float constant[4] = {.3f, .6f, 1.2f, 1};
+    const f32 constant[4] = {.3f, .6f, 1.2f, 1};
     CompositorSurface *square = make((CompositorBounds) {7, -11, 5, 5}, constant);
     check_scatter(square, 1);
     const CompositorSurface *sources[] = {square};
     FilterToken blur = Filter_scatterBlur(1);
     CompositorSurface *out = nullptr;
     assert(Compositor_compose(sources, 1, &blur, 1, &out) == COMPOSITOR_OK);
-    const float *p = CompositorSurface_constPixels(out);
+    const f32 *p = CompositorSurface_constPixels(out);
     near(p[4 * (3 * 7 + 3)], .3, 1e-6);
     near(p[3], 1.0 / 9, 1e-7); /* halo: no edge renormalization */
     CompositorSurface_destroy(out);
-    float *input = CompositorSurface_pixels(square);
-    for (size_t i = 0; i < 25; ++i) {
-        float alpha = (float) (i % 5) / 4;
-        input[4 * i] = alpha * (float) (i + 1) / 25;
+    f32 *input = CompositorSurface_pixels(square);
+    for (bytes i = 0; i < 25; ++i) {
+        f32 alpha = (f32) (i % 5) / 4;
+        input[4 * i] = alpha * (f32) (i + 1) / 25;
         input[4 * i + 1] = alpha * .25f;
         input[4 * i + 2] = alpha * .5f;
         input[4 * i + 3] = alpha;
@@ -313,10 +313,10 @@ static void scatter_oracles(void) {
 
 // Confirms overflow rejection preserves source and destination surfaces.
 static void overflow_atomicity(void) {
-    const float huge[4] = {FLT_MAX, 0, 0, .5f};
+    const f32 huge[4] = {FLT_MAX, 0, 0, .5f};
     CompositorSurface *src = make((CompositorBounds) {0, 0, 1, 1}, huge);
     CompositorSurface *dst = make((CompositorBounds) {0, 0, 1, 1}, huge);
-    float before[4];
+    f32 before[4];
     memcpy(before, CompositorSurface_constPixels(dst), sizeof before);
     assert(Compositor_sourceOver(src, dst) == COMPOSITOR_LIMIT);
     assert(!memcmp(before, CompositorSurface_constPixels(dst), sizeof before));

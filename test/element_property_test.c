@@ -23,7 +23,7 @@ static int g_fail = 0;
 
 // Returns the alpha channel at the requested image pixel.
 static int alpha_at(const Image *img, int x, int y) {
-    return Image_pixels(img)[(size_t)y * Image_stride(img) + (size_t)x * 4 + 3];
+    return Image_pixels(img)[(bytes)y * Image_stride(img) + (bytes)x * 4 + 3];
 }
 
 // Verifies element placement properties affect paint and hit behavior.

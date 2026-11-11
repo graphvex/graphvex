@@ -3,7 +3,7 @@
  * Submission validation is exercised by compositor/compositor_test.c. */
 #include "lang/filter.h"
 #include <assert.h>
-#include <float.h>
+#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 

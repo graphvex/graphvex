@@ -34,19 +34,19 @@ struct SampledImage {
     VkDescriptorSetLayout layout;
     VkDescriptorPool pool;
     VkDescriptorSet set;
-    uint32_t width, height, refs;
+    u32 width, height, refs;
     VkCommandPool commands;
     VkFence fence;
     VkBuffer staging;
     VkDeviceMemory stagingMemory;
     bool pending;
 };
-static const uint64_t SAMPLE_WAIT_NS = UINT64_C(100000000);
+static const u64 SAMPLE_WAIT_NS = UINT64_C(100000000);
 // Selects a compatible physical-device memory type containing every requested property flag.
-static uint32_t memoryType(Device *owner, uint32_t bits, VkMemoryPropertyFlags want) {
+static u32 memoryType(Device *owner, u32 bits, VkMemoryPropertyFlags want) {
     VkPhysicalDeviceMemoryProperties properties;
     vkGetPhysicalDeviceMemoryProperties((VkPhysicalDevice) Device_physical(owner), &properties);
-    for (uint32_t i = 0; i < properties.memoryTypeCount; ++i) {
+    for (u32 i = 0; i < properties.memoryTypeCount; ++i) {
         VkMemoryType *type = &properties.memoryTypes[i];
         if ((bits & (1u << i)) && ((*type).propertyFlags & want) == want)
             return i;
@@ -134,16 +134,16 @@ bool SampledImage_bindImage(SampledImage *self, Image *image) {
     return Image_bindGpu(image, self, (*self).owner, (void*) (*self).set, retainOpaque, releaseOpaque);
 }
 // Returns the sampled image width, or zero for null.
-uint32_t SampledImage_width(const SampledImage *self) { return self ? (*self).width : 0; }
+u32 SampledImage_width(const SampledImage *self) { return self ? (*self).width : 0; }
 // Returns the sampled image height, or zero for null.
-uint32_t SampledImage_height(const SampledImage *self) { return self ? (*self).height : 0; }
+u32 SampledImage_height(const SampledImage *self) { return self ? (*self).height : 0; }
 Device *SampledImage_device(const SampledImage *self) { return self ? (*self).owner : nullptr; }
 void *SampledImage_descriptor(const SampledImage *self) { return self ? (void*) (*self).set : nullptr; }
 SampledImage *SampledImage_0(void) { return nullptr; }
 SampledImage *SampledImage_zero(void) { return SampledImage_0(); }
 
 static SampledImage *adopt(Device *owner, VkImage image, VkDeviceMemory memory,
-                           uint32_t width, uint32_t height) {
+                           u32 width, u32 height) {
     SampledImage *self = calloc(1, sizeof *self);
     if (!self)
         return nullptr;
@@ -189,7 +189,7 @@ failed:
     dispose(self, false);
     return nullptr;
 }
-SampledImage *SampledImage_5(Device *owner, void *image, void *memory, uint32_t width, uint32_t height) {
+SampledImage *SampledImage_5(Device *owner, void *image, void *memory, u32 width, u32 height) {
     if (!Device_isValid(owner) || !image || !memory || !width || !height) {
         THROW("SampledImage adoption requires a completed device-owned texture");
         return nullptr;
@@ -200,11 +200,11 @@ SampledImage *SampledImage_5(Device *owner, void *image, void *memory, uint32_t 
     return self;
 }
 SampledImage *SampledImage_2(Device *owner, const Image *source) {
-    uint32_t w = Image_width(source), h = Image_height(source);
-    size_t stride = Image_stride(source);
+    u32 w = Image_width(source), h = Image_height(source);
+    bytes stride = Image_stride(source);
     if (!Device_isValid(owner) || !Image_isValid(source) || !Image_pixels(source) ||
         Image_format(source) != IMAGE_FORMAT_RGBA8 || !w || !h ||
-        (uint64_t) w * h > SIZE_MAX / 4u || stride < (size_t) w * 4u || stride > SIZE_MAX / h) {
+        (u64) w * h > SIZE_MAX / 4u || stride < (bytes) w * 4u || stride > SIZE_MAX / h) {
         THROW("SampledImage upload rejected invalid RGBA shadow");
         return nullptr;
     }
@@ -228,7 +228,7 @@ SampledImage *SampledImage_2(Device *owner, const Image *source) {
         goto failed;
     VkMemoryRequirements requirements;
     vkGetImageMemoryRequirements(d, image, &requirements);
-    uint32_t type = memoryType(owner, requirements.memoryTypeBits, 0);
+    u32 type = memoryType(owner, requirements.memoryTypeBits, 0);
     VkMemoryAllocateInfo allocation = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = requirements.size, .memoryTypeIndex = type};
     if (type == UINT32_MAX || vkAllocateMemory(d, &allocation, nullptr, &memory) != VK_SUCCESS ||
@@ -253,9 +253,9 @@ SampledImage *SampledImage_2(Device *owner, const Image *source) {
     void *mappedPixelBytes = nullptr;
     if (vkMapMemory(d, (*self).stagingMemory, 0, Bytes, 0, &mappedPixelBytes) != VK_SUCCESS)
         goto failed;
-    for (uint32_t y = 0; y < h; ++y)
-        memcpy((uint8_t*) mappedPixelBytes + (size_t) y * w * 4u,
-            Image_pixels(source) + (size_t) y * stride, (size_t) w * 4u);
+    for (u32 y = 0; y < h; ++y)
+        memcpy((u8*) mappedPixelBytes + (bytes) y * w * 4u,
+            Image_pixels(source) + (bytes) y * stride, (bytes) w * 4u);
     vkUnmapMemory(d, (*self).stagingMemory);
     VkCommandPoolCreateInfo commands = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = Device_queueFamily(owner)};
@@ -309,7 +309,7 @@ failed:
     return nullptr;
 }
 // Writes the bounded value or one-level field projection of a sampled image.
-static void format(const SampledImage *self, bool structure, char *dest, size_t cap, bool *truncated) {
+static void format(const SampledImage *self, bool structure, char *dest, bytes cap, bool *truncated) {
     int n = 0;
     if (!dest || !cap) {
         if (truncated)
@@ -328,9 +328,9 @@ static void format(const SampledImage *self, bool structure, char *dest, size_t 
             (void*) (*self).set, (*self).width, (*self).height, (*self).refs, (void*) (*self).commands,
             (void*) (*self).fence, (void*) (*self).staging, (void*) (*self).stagingMemory, (*self).pending);
     if (truncated)
-        *truncated = n < 0 || (size_t) n >= cap;
+        *truncated = n < 0 || (bytes) n >= cap;
 }
 // Formats a concise bounded summary of the sampled image.
-void SampledImage_toString(const SampledImage *self, char *dest, size_t cap, bool *truncated) { format(self,false,dest,cap,truncated); }
+void SampledImage_toString(const SampledImage *self, char *dest, bytes cap, bool *truncated) { format(self,false,dest,cap,truncated); }
 // Formats the sampled-image fields into caller-provided bounded storage.
-void SampledImage_toStringStruct(const SampledImage *self, char *dest, size_t cap, bool *truncated) { format(self,true,dest,cap,truncated); }
+void SampledImage_toStringStruct(const SampledImage *self, char *dest, bytes cap, bool *truncated) { format(self,true,dest,cap,truncated); }

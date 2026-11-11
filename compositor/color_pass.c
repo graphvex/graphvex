@@ -31,8 +31,8 @@ struct ColorPass {
 
 // Checks supported color-filter IDs and their finite, operation-specific payload ranges.
 static bool tokenValid(FilterToken token) {
-    uint16_t id = Filter_id(token);
-    uint64_t payload = Filter_payload(token);
+    u16 id = Filter_id(token);
+    u64 payload = Filter_payload(token);
     if (id == GRAYSCALE_ID || id == GRAYSCALE_RED_ID || id == GRAYSCALE_GREEN_ID ||
         id == GRAYSCALE_BLUE_ID || id == INVERT_ID)
         return payload == 0;
@@ -40,8 +40,8 @@ static bool tokenValid(FilterToken token) {
         return false;
     if (payload >> 32)
         return false;
-    uint32_t bits = (uint32_t) payload;
-    float amount;
+    u32 bits = (u32) payload;
+    f32 amount;
     memcpy(&amount, &bits, sizeof amount);
     if (!isfinite(amount))
         return false;
@@ -79,8 +79,8 @@ void ColorPass_destroy(ColorPass *self) {
 
 // Builds a Vulkan fullscreen filter pipeline from validated SPIR-V words and render-pass handle.
 ColorPass *ColorPass_6(Device *device, void *nativeRenderPass,
-                       const uint32_t *vertexWords, size_t vertexBytes,
-                       const uint32_t *fragmentWords, size_t fragmentBytes) {
+                       const u32 *vertexWords, bytes vertexBytes,
+                       const u32 *fragmentWords, bytes fragmentBytes) {
     if (!Device_isValid(device) || !nativeRenderPass || !vertexWords || !fragmentWords ||
         vertexBytes < 20 || fragmentBytes < 20 || vertexBytes % 4 || fragmentBytes % 4 ||
         (uintptr_t) vertexWords % 4 || (uintptr_t) fragmentWords % 4 ||
@@ -166,7 +166,7 @@ void *ColorPass_getDescriptorLayout(const ColorPass *self) {
 }
 // Records viewport, bindings, filter constants, and a fullscreen triangle into the command buffer.
 bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
-                      void *nativeDescriptorSet, uint32_t width, uint32_t height,
+                      void *nativeDescriptorSet, u32 width, u32 height,
                       FilterToken token) {
     if (!self || !nativeCommandBuffer || !nativeDescriptorSet || !width || !height || !tokenValid(token)) {
         THROW("ColorPass rejected recording inputs");
@@ -174,8 +174,8 @@ bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
     }
     VkCommandBuffer cmd = (VkCommandBuffer) nativeCommandBuffer;
     VkDescriptorSet ds = (VkDescriptorSet) nativeDescriptorSet;
-    uint32_t push[] = {Filter_id(token), (uint32_t) Filter_payload(token)};
-    VkViewport viewport = {0, 0, (float) width, (float) height, 0, 1};
+    u32 push[] = {Filter_id(token), (u32) Filter_payload(token)};
+    VkViewport viewport = {0, 0, (f32) width, (f32) height, 0, 1};
     VkRect2D scissor = {{0, 0}, {width, height}};
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
@@ -186,7 +186,7 @@ bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
     return true;
 }
 // Writes the bounded concise or field-level ColorPass projection.
-static void format(const ColorPass *self, bool structure, char *dest, size_t cap, bool *outTruncated) {
+static void format(const ColorPass *self, bool structure, char *dest, bytes cap, bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
             *outTruncated = true;
@@ -201,13 +201,13 @@ static void format(const ColorPass *self, bool structure, char *dest, size_t cap
     else
         count = snprintf(dest, cap, "ColorPass(Vulkan texture color)");
     if (outTruncated)
-        *outTruncated = count < 0 || (size_t) count >= cap;
+        *outTruncated = count < 0 || (bytes) count >= cap;
 }
 // Formats a bounded value summary of the color pipeline.
-void ColorPass_toString(const ColorPass *self, char *dest, size_t cap, bool *outTruncated) {
+void ColorPass_toString(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
     format(self, false, dest, cap, outTruncated);
 }
 // Formats the ColorPass fields into caller-provided bounded storage.
-void ColorPass_toStringStruct(const ColorPass *self, char *dest, size_t cap, bool *outTruncated) {
+void ColorPass_toStringStruct(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
     format(self, true, dest, cap, outTruncated);
 }

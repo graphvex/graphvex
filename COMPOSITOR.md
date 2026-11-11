@@ -8,7 +8,7 @@ Compositor Law** and **Absolute Rendering & Event Bound Law** in
 
 ## Implemented contract
 
-`compositor/compositor.h` provides owned CPU float surfaces in linear-light
+`compositor/compositor.h` provides owned CPU f32 surfaces in linear-light
 premultiplied RGBA. Each surface has an integer world origin independent of its
 allocation. `Compositor_compose` source-overs borrowed sources in painter order
 into an isolated group, then filters the assembled result once, left-to-right.
@@ -16,7 +16,7 @@ Group outputs can become sources for parent groups. Calls require external
 synchronization; outputs transfer ownership only on success and remain unchanged
 on failure. Destroy surfaces when their consumers finish.
 
-`filter/filter_functions.h` encodes `ID16 | payload48` in a `uint64_t`;
+`filter/filter_functions.h` encodes `ID16 | payload48` in a `u64`;
 `lang/filter.h` remains a compatibility include. The canonical operation registry
 is `filter/filter_type.h`. See [FILTERS.md](FILTERS.md) for the expanded constructor
 vocabulary, pooled-reference contracts and scatter architecture. New constructors
@@ -76,7 +76,7 @@ prototype's limit). Submit the expanded image at its expanded origin; never
 stretch it back into the event rectangle. Layout padding/margin retain their
 layout meanings and are not repurposed as filter halos.
 
-Image adapters convert straight sRGB RGBA8 to/from linear-premultiplied float.
+Image adapters convert straight sRGB RGBA8 to/from linear-premultiplied f32.
 Conversion back to RGBA8 clamps at that boundary, not during internal gain.
 The display-list bridge borrows a caller-owned exported image; keep it alive and
 unchanged until submission finishes. The existing presentation path is not yet
@@ -93,7 +93,7 @@ RGBA8 quantization but does not claim end-to-end display parity.
   individually with numeric evidence.
 - CPU reference composition is not a GPU pipeline or a performance claim.
   The new texture color pipeline is separate, not a CPU fallback.
-  `GpuScope` now binds the modular scatter shaders to a real additive float
+  `GpuScope` now binds the modular scatter shaders to a real additive f32
   Vulkan pipeline, probes attachment capabilities, and supplies render dependencies
   and bounded fence retirement. General tree/filter scheduling is still unfinished.
 - No independent scene scheduler, completed-image GPU handoff or fence retirement

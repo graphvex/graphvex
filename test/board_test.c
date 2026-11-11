@@ -42,7 +42,7 @@ int main(void) {
 
     // the retained image is the board's own pixels
     Board_fill(b, COLOR_RGBA(1, 2, 3, 4));
-    uint8_t *px = Image_pixels(Board_image(b));
+    u8 *px = Image_pixels(Board_image(b));
     CHECK(px != nullptr);
     CHECK(px[0] == 1 && px[1] == 2 && px[2] == 3 && px[3] == 4);
 
@@ -57,7 +57,7 @@ int main(void) {
     Board_destroy(d);
 
     // revalidation: steps run in registration order, then the board publishes
-    uint64_t genBefore = Board_generation(b);
+    u64 genBefore = Board_generation(b);
     Board_addRevalidator(b, step1, nullptr);
     Board_addRevalidator(b, step2, nullptr);
     Board_revalidate(b);

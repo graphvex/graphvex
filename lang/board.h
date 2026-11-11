@@ -25,24 +25,24 @@
 typedef struct Board Board;
 
 typedef struct BoardDesc {
-    uint32_t width;    // native px (default 1)
-    uint32_t height;   // native px (default 1)
-    uint32_t usage;    // IMAGE_USAGE_* (default RENDER|SAMPLED|TRANSFER)
+    u32 width;    // native px (default 1)
+    u32 height;   // native px (default 1)
+    u32 usage;    // IMAGE_USAGE_* (default RENDER|SAMPLED|TRANSFER)
 } BoardDesc;
 
 Board *Board_0(void);
-Board *Board_2(uint32_t width, uint32_t height);
+Board *Board_2(u32 width, u32 height);
 #define Board(...) CONSTRUCTOR_DISPATCH(Board, __VA_ARGS__)
 Board *Board_new(const BoardDesc *desc);
 void Board_destroy(Board *board);
 
-bool Board_resize(Board *board, uint32_t width, uint32_t height);
+bool Board_resize(Board *board, u32 width, u32 height);
 void Board_publish(Board *board);              // generation++ (drives the demand loop)
 void Board_fill(Board *board, Color color);    // CPU-side clear of the target image
 
-uint32_t Board_width(const Board *board);      // native px
-uint32_t Board_height(const Board *board);
-uint64_t Board_generation(const Board *board); // publishes so far (0 = never)
+u32 Board_width(const Board *board);      // native px
+u32 Board_height(const Board *board);
+u64 Board_generation(const Board *board); // publishes so far (0 = never)
 bool     Board_isValid(const Board *board);
 Image   *Board_image(const Board *board);      // the retained target (borrowed)
 void    *Board_native(const Board *board);     // opaque dialect handle (VkImage)

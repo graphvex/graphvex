@@ -16,19 +16,19 @@
  * Client *clients               owned growable client registry
  * int count                     initialized registry entries
  * int cap                       allocated registry capacity
- * uint32_t targetFps             optional target cadence; zero means uncapped
+ * u32 targetFps             optional target cadence; zero means uncapped
  * _Atomic bool wake              coalesced cross-thread wake request
- * double lastSeconds             previous monotonic step time
+ * d64 lastSeconds             previous monotonic step time
  * FUNCTION REGISTRY
  * Constructors: RenderLoop *RenderLoop_0(void),
- *   RenderLoop *RenderLoop_fps(uint32_t targetFps),
+ *   RenderLoop *RenderLoop_fps(u32 targetFps),
  *   RenderLoop *RenderLoop_default(void)
  * Lifecycle: void RenderLoop_free(RenderLoop *loop)
  * Registry: bool RenderLoop_addClient(RenderLoop *loop,const Client *client)
  *   bool RenderLoop_removeClient(RenderLoop *loop,void *window)
  *   Client *RenderLoop_findClient(RenderLoop *loop,const void *window)
  * Demand: void RenderLoop_markDirty(RenderLoop *loop,void *window)
- *   void RenderLoop_setContentGen(RenderLoop *loop,void *window,uint64_t gen)
+ *   void RenderLoop_setContentGen(RenderLoop *loop,void *window,u64 gen)
  *   void RenderLoop_notify(RenderLoop *loop)
  *   bool RenderLoop_step(RenderLoop *loop)
  * Private helper: now_seconds reads CLOCK_MONOTONIC for elapsed-time callbacks.
@@ -42,23 +42,23 @@ struct RenderLoop {
     Client *clients;
     int count;
     int cap;
-    uint32_t targetFps;   // 0 = pure demand (no cap)
+    u32 targetFps;   // 0 = pure demand (no cap)
     _Atomic bool wake;
-    double lastSeconds;
+    d64 lastSeconds;
 };
 
 // Reads monotonic wall time in seconds for elapsed-frame scheduling.
-static double now_seconds(void) {
+static d64 now_seconds(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+    return (d64)ts.tv_sec + (d64)ts.tv_nsec / 1e9;
 }
 
 // Creates a demand-driven loop without an FPS cap.
 RenderLoop *RenderLoop_0(void) { return RenderLoop_fps(0); }
 
 // Creates a loop with the requested target rate; zero leaves presentation uncapped.
-RenderLoop *RenderLoop_fps(uint32_t targetFps) {
+RenderLoop *RenderLoop_fps(u32 targetFps) {
     RenderLoop *l = calloc(1, sizeof *l);
     if (l) {
         (*l).targetFps = targetFps;
@@ -92,7 +92,7 @@ bool RenderLoop_addClient(RenderLoop *loop, const Client *client) {
     }
     if ((*loop).count == (*loop).cap) {
         (*loop).cap = (*loop).cap ? (*loop).cap * 2 : 8;
-        Client *grown = realloc((*loop).clients, (size_t)((*loop).cap) * sizeof *grown);
+        Client *grown = realloc((*loop).clients, (bytes)((*loop).cap) * sizeof *grown);
         if (!grown) { (*loop).cap = 0; (*loop).count = 0; return false; }
         (*loop).clients = grown;
     }
@@ -128,7 +128,7 @@ void RenderLoop_markDirty(RenderLoop *loop, void *window) {
 }
 
 // Updates the matching client's content generation to trigger demand on the next step.
-void RenderLoop_setContentGen(RenderLoop *loop, void *window, uint64_t gen) {
+void RenderLoop_setContentGen(RenderLoop *loop, void *window, u64 gen) {
     Client *c = RenderLoop_findClient(loop, window);
     if (c) (*c).contentGen = gen;
 }
@@ -141,8 +141,8 @@ void RenderLoop_notify(RenderLoop *loop) {
 // Advances frame callbacks and presents clients with dirty or newly generated content.
 bool RenderLoop_step(RenderLoop *loop) {
     if (!loop) return false;
-    double t = now_seconds();
-    double dt = t - (*loop).lastSeconds;
+    d64 t = now_seconds();
+    d64 dt = t - (*loop).lastSeconds;
     (*loop).lastSeconds = t;
 
     bool presented = false;

@@ -14,19 +14,19 @@
  * CLASS: Pipeline (vulkan/pipeline.c)
  * STRUCT FIELDS (Mirroring Pipeline)
  * void *vert                     owned vertex SPIR-V byte copy
- * uint32_t vertSize              vertex byte length
+ * u32 vertSize              vertex byte length
  * void *frag                     owned fragment SPIR-V byte copy
- * uint32_t fragSize              fragment byte length
- * uint32_t vertexStride          configured bytes per vertex
- * uint32_t pushConstantSize      configured push-constant byte extent
+ * u32 fragSize              fragment byte length
+ * u32 vertexStride          configured bytes per vertex
+ * u32 pushConstantSize      configured push-constant byte extent
  * void *native                   reserved opaque native pipeline handle
  * FUNCTION REGISTRY
  * Constructors: Pipeline *Pipeline_new(const PipelineDesc *desc)
  *   Pipeline *Pipeline_fromFiles(const char *vertSpvPath,
- *     const char *fragSpvPath, uint32_t vertexStride, uint32_t pushConstantSize)
+ *     const char *fragSpvPath, u32 vertexStride, u32 pushConstantSize)
  * Lifecycle: void Pipeline_destroy(Pipeline *pipeline)
  * Projections: bool Pipeline_isValid(const Pipeline *pipeline)
- *   uint32_t Pipeline_vertexStride(const Pipeline *pipeline)
+ *   u32 Pipeline_vertexStride(const Pipeline *pipeline)
  *   void *Pipeline_native(const Pipeline *pipeline)
  * Private helper: slurp reads one nonempty shader file into owned bytes.
  * Admission, failure and ownership contract:
@@ -37,28 +37,28 @@
 
 struct Pipeline {
     void *vert;         // SPIR-V Bytes
-    uint32_t vertSize;
+    u32 vertSize;
     void *frag;
-    uint32_t fragSize;
-    uint32_t vertexStride;
-    uint32_t pushConstantSize;
+    u32 fragSize;
+    u32 vertexStride;
+    u32 pushConstantSize;
     void *native;       // opaque VkPipeline
 };
 
-static void *slurp(const char *path, uint32_t *outSize) {
+static void *slurp(const char *path, u32 *outSize) {
     FILE *f = fopen(path, "rb");
     if (!f) return nullptr;
     fseek(f, 0, SEEK_END);
     long n = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (n <= 0) { fclose(f); return nullptr; }
-    void *buf = malloc((size_t)n);
-    if (buf && fread(buf, 1, (size_t)n, f) != (size_t)n) {
+    void *buf = malloc((bytes)n);
+    if (buf && fread(buf, 1, (bytes)n, f) != (bytes)n) {
         free(buf);
         buf = nullptr;
     }
     fclose(f);
-    if (buf) *outSize = (uint32_t)n;
+    if (buf) *outSize = (u32)n;
     return buf;
 }
 
@@ -82,8 +82,8 @@ Pipeline *Pipeline_new(const PipelineDesc *desc) {
 }
 
 Pipeline *Pipeline_fromFiles(const char *vertSpvPath, const char *fragSpvPath,
-                             uint32_t vertexStride, uint32_t pushConstantSize) {
-    uint32_t vs = 0, fs = 0;
+                             u32 vertexStride, u32 pushConstantSize) {
+    u32 vs = 0, fs = 0;
     void *v = slurp(vertSpvPath, &vs);
     void *f = slurp(fragSpvPath, &fs);
     if (!v || !f) {
@@ -112,7 +112,7 @@ bool Pipeline_isValid(const Pipeline *pipeline) {
 }
 
 // Returns the configured vertex stride, or zero when pipeline is null.
-uint32_t Pipeline_vertexStride(const Pipeline *pipeline) {
+u32 Pipeline_vertexStride(const Pipeline *pipeline) {
     return pipeline ? (*pipeline).vertexStride : 0u;
 }
 

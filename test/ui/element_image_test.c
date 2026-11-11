@@ -9,7 +9,7 @@
 
 // Verifies image-backed elements paint, update, and reject invalid images.
 int main(void) {
-    const uint8_t rgba[] = {255, 0, 0, 255, 0, 255, 0, 255};
+    const u8 rgba[] = {255, 0, 0, 255, 0, 255, 0, 255};
     Image *image = Image_2(2, 1);
     assert(image && Image_upload(rgba, 2, 1, image));
     ElementDesc desc = {.width = 8, .height = 4, .background = COLOR_BLACK};

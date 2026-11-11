@@ -27,16 +27,16 @@ typedef struct Surface Surface;
 // Surface_handle and Surface_presentImage, writes the destination, and returns
 // true only when a frame was actually handed over.
 typedef bool (*SurfacePresentFn)(Surface *surface, void *userdata);
-typedef uint64_t (*SurfaceClockFn)(void *userdata); // monotonic nanoseconds
+typedef u64 (*SurfaceClockFn)(void *userdata); // monotonic nanoseconds
 
 Surface *Surface_0(void);
-Surface *Surface_3(void *native, uint32_t width, uint32_t height);
+Surface *Surface_3(void *native, u32 width, u32 height);
 #define Surface(...) CONSTRUCTOR_DISPATCH(Surface, __VA_ARGS__)
 void Surface_destroy(Surface *surface);
 
-bool Surface_resize(Surface *surface, uint32_t width, uint32_t height);
-uint32_t Surface_width(const Surface *surface);    // native px
-uint32_t Surface_height(const Surface *surface);
+bool Surface_resize(Surface *surface, u32 width, u32 height);
+u32 Surface_width(const Surface *surface);    // native px
+u32 Surface_height(const Surface *surface);
 bool Surface_isValid(const Surface *surface);
 void *Surface_handle(const Surface *surface);      // borrowed native destination
 Image *Surface_presentImage(Surface *surface);     // retained target to render into
@@ -54,7 +54,7 @@ bool Surface_present(Surface *surface);
 // No sleeps, no scene-thread pacing. Deferred invalidations coalesce.
 void Surface_setFPSCap(Surface *surface, int fps);
 int Surface_getFPSCap(const Surface *surface);
-uint64_t Surface_getPresentCount(const Surface *surface);
+u64 Surface_getPresentCount(const Surface *surface);
 void Surface_poll(Surface *surface);
 // Fresh offscreen/capture rendering; host publication still respects the cap.
 void Surface_revalidateNow(Surface *surface);

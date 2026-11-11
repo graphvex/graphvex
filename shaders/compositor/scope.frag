@@ -1,9 +1,9 @@
 #version 450
 // Explicit rectangular gallery/group scopes. Inputs 0..2 are straight sRGB
-// source textures (Vulkan sampling decodes sRGB); input 3 is premultiplied float
+// source textures (Vulkan sampling decodes sRGB); input 3 is premultiplied f32
 // scatter accumulation. Phase 0 isolates decoration+clipped foreground. Phase 1
 // composes: backdrop prefix replacement, clipped foreground, or expanded element.
-// Output phase 0 is float linear; phase 1 targets sRGB with an opaque prior scene.
+// Output phase 0 is f32 linear; phase 1 targets sRGB with an opaque prior scene.
 layout(set=0,binding=0) uniform sampler2D priorImage;
 layout(set=0,binding=1) uniform sampler2D decorationImage;
 layout(set=0,binding=2) uniform sampler2D foregroundImage;
@@ -53,7 +53,7 @@ void main() {
         return;
     }
     if (pc.scope == 0 && inside)
-        prior = readFiltered(pixel+pc.radius); // replace prefix; never double it
+        prior = readFiltered(pixel+pc.radius); // replace prefix; never d64 it
     if (pc.scope == 2)
         group = readFiltered(pixel+pc.radius); // halo not clipped to event rectangle
     outputColor = over(group,prior);

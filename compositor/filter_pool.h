@@ -12,8 +12,8 @@
 #define FILTER_POOL_MAX_CAPACITY 4096u
 typedef struct FilterPool FilterPool;
 typedef struct FilterPoolConfig {
-    uint32_t capacity;
-    uint32_t maxRecipeFilters;
+    u32 capacity;
+    u32 maxRecipeFilters;
 } FilterPoolConfig;
 
 typedef enum FilterPoolStatus {
@@ -46,26 +46,26 @@ FilterPoolStatus FilterPool_2(FilterPoolConfig config, FilterPool **out);
 #define FilterPool(config, out) FilterPool_2(config, out)
 FilterPoolStatus FilterPool_destroy(FilterPool *pool);
 FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
-                                  size_t count, FilterToken *out);
+                                  bytes count, FilterToken *out);
 FilterPoolStatus FilterPool_retain(FilterPool *pool, FilterToken token);
 FilterPoolStatus FilterPool_release(FilterPool *pool, FilterToken token);
 /* Copy-only snapshot. count may be zero; outTokens may then be NULL. Both
  * outputs stay unchanged on failure, including insufficient capacity. */
 FilterPoolStatus FilterPool_snapshot(const FilterPool *pool, FilterToken token,
-                                    FilterToken *outTokens, size_t capacity,
-                                    size_t *outCount);
+                                    FilterToken *outTokens, bytes capacity,
+                                    bytes *outCount);
 FilterPoolStatus FilterPool_compose(const FilterPool *pool,
                                    const CompositorSurface *const *sources,
-                                   size_t sourceCount, const FilterToken *tokens,
-                                   size_t tokenCount, CompositorSurface **out);
-uint32_t FilterPool_capacity(const FilterPool *pool);
-uint32_t FilterPool_maxRecipeFilters(const FilterPool *pool);
-uint32_t FilterPool_live(const FilterPool *pool);
+                                   bytes sourceCount, const FilterToken *tokens,
+                                   bytes tokenCount, CompositorSurface **out);
+u32 FilterPool_capacity(const FilterPool *pool);
+u32 FilterPool_maxRecipeFilters(const FilterPool *pool);
+u32 FilterPool_live(const FilterPool *pool);
 /* Bounded cold strings; NULL pool renders "nullptr". NULL destination is
  * accepted only with cap=0; truncation flag is optional. No allocations. */
-void FilterPool_toString(const FilterPool *pool, char *dest, size_t cap,
+void FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
                          bool *outTruncated);
-void FilterPool_toStringStruct(const FilterPool *pool, char *dest, size_t cap,
+void FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
                                bool *outTruncated);
 
 #endif

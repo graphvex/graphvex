@@ -15,22 +15,22 @@ typedef struct Pipeline Pipeline;
 
 typedef struct PipelineDesc {
     const void *vertSpirv;    // SPIR-V words
-    uint32_t vertSize;        // Bytes
+    u32 vertSize;        // Bytes
     const void *fragSpirv;
-    uint32_t fragSize;
-    uint32_t vertexStride;    // Bytes per vertex (VK_VERTEX_FLOATS * 4)
-    uint32_t pushConstantSize;// e.g. sizeof(vec2 viewport)
+    u32 fragSize;
+    u32 vertexStride;    // Bytes per vertex (VK_VERTEX_FLOATS * 4)
+    u32 pushConstantSize;// e.g. sizeof(vec2 viewport)
 } PipelineDesc;
 
 Pipeline *Pipeline_new(const PipelineDesc *desc);
 
 // Convenience: load the two .spv files produced by `b.sh` (glslangValidator).
 Pipeline *Pipeline_fromFiles(const char *vertSpvPath, const char *fragSpvPath,
-                             uint32_t vertexStride, uint32_t pushConstantSize);
+                             u32 vertexStride, u32 pushConstantSize);
 
 void Pipeline_destroy(Pipeline *pipeline);
 bool Pipeline_isValid(const Pipeline *pipeline);
-uint32_t Pipeline_vertexStride(const Pipeline *pipeline);
+u32 Pipeline_vertexStride(const Pipeline *pipeline);
 void *Pipeline_native(const Pipeline *pipeline);   // opaque VkPipeline (once bound)
 
 #endif // GRAPHICS_PIPELINE_H

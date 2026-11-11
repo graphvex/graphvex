@@ -12,7 +12,7 @@
 // List append uses the existing DisplayList allocation contract; list contents
 // are not promised failure-atomic on its allocation failure. External exclusion
 // is required, as for DisplayList/Graphics. This is a CPU-to-image bridge, not
-// GPU float filtering or end-to-end linear-light presentation.
+// GPU f32 filtering or end-to-end linear-light presentation.
 CompositorStatus Compositor_record(const CompositorSurface *surface,
                                    DisplayList *list, Image **outImage);
 

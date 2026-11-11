@@ -15,20 +15,20 @@
 /** ========================================================================
  * CLASS: Pool (nio/pool.c)
  * STRUCT FIELDS (Mirroring Pool)
- * size_t stride                  bytes in each fixed-size slot
- * uint32_t blockCap              slots admitted per backing block
+ * bytes stride                  bytes in each fixed-size slot
+ * u32 blockCap              slots admitted per backing block
  * void **blocks                  owned directory of Memory_alloc blocks
  * int blockCount                 initialized block directory entries
  * int blocksCap                  block-directory capacity
  * void *freeHead                 head of intrusive free-slot chain
- * uint32_t live                  currently checked-out slot count
+ * u32 live                  currently checked-out slot count
  * FUNCTION REGISTRY
- * Constructors: Pool *Pool_new(size_t stride, uint32_t blockCap)
+ * Constructors: Pool *Pool_new(bytes stride, u32 blockCap)
  * Lifecycle: void Pool_destroy(Pool *pool)
  * Operations: void *Pool_alloc(Pool *pool), void Pool_release(Pool *pool,
  *   void *item), bool Pool_contains(const Pool *pool, const void *item)
- * Projections: uint32_t Pool_live(const Pool *pool),
- *   size_t Pool_stride(const Pool *pool)
+ * Projections: u32 Pool_live(const Pool *pool),
+ *   bytes Pool_stride(const Pool *pool)
  * Private helpers: blocks_push grows the block directory; pool_grow appends
  *   Memory-backed storage and links each slot into the free list.
  * Admission, failure and ownership contract:
@@ -39,19 +39,19 @@
  * ======================================================================== */
 
 struct Pool {
-    size_t stride;
-    uint32_t blockCap;          // slots per block
+    bytes stride;
+    u32 blockCap;          // slots per block
     void **blocks;              // every ForeignMemory block, for teardown
     int blockCount, blocksCap;
     void *freeHead;             // intrusive free list over the slots
-    uint32_t live;
+    u32 live;
 };
 
 // Appends a backing block pointer, growing the block directory when required.
 static bool blocks_push(Pool *p, void *block) {
     if ((*p).blockCount == (*p).blocksCap) {
         int cap = (*p).blocksCap ? (*p).blocksCap * 2 : 4;
-        void **grown = realloc((*p).blocks, (size_t)cap * sizeof *grown);
+        void **grown = realloc((*p).blocks, (bytes)cap * sizeof *grown);
         if (!grown) return false;
         (*p).blocks = grown;
         (*p).blocksCap = cap;
@@ -62,12 +62,12 @@ static bool blocks_push(Pool *p, void *block) {
 
 // Allocates a block of fixed-stride slots and links them onto the intrusive free list.
 static bool pool_grow(Pool *p) {
-    size_t Bytes = (*p).stride * (size_t)(*p).blockCap;
-    uint8_t *mem = Memory_alloc(0, Bytes);
+    bytes Bytes = (*p).stride * (bytes)(*p).blockCap;
+    u8 *mem = Memory_alloc(0, Bytes);
     if (!mem) return false;
     if (!blocks_push(p, mem)) { Memory_free(mem); return false; }
-    for (uint32_t i = 0; i < (*p).blockCap; i++) {
-        void *slot = mem + (size_t)i * (*p).stride;
+    for (u32 i = 0; i < (*p).blockCap; i++) {
+        void *slot = mem + (bytes)i * (*p).stride;
         *(void**) slot = (*p).freeHead;
         (*p).freeHead = slot;
     }
@@ -75,7 +75,7 @@ static bool pool_grow(Pool *p) {
 }
 
 // Creates a pool whose slots have the given stride and per-block capacity.
-Pool *Pool_new(size_t stride, uint32_t blockCap) {
+Pool *Pool_new(bytes stride, u32 blockCap) {
     if (stride < sizeof(void*) || blockCap == 0) return nullptr;
     Pool *p = calloc(1, sizeof *p);
     if (!p) return nullptr;
@@ -114,15 +114,15 @@ void Pool_release(Pool *pool, void *item) {
 // Checks whether an address lies within any allocated slot block (not whether it is slot-aligned).
 bool Pool_contains(const Pool *pool, const void *item) {
     if (!pool || !item) return false;
-    const uint8_t *p = item;
+    const u8 *p = item;
     for (int i = 0; i < (*pool).blockCount; i++) {
-        const uint8_t *base = (*pool).blocks[i];
-        if (p >= base && p < base + (*pool).stride * (size_t)(*pool).blockCap) return true;
+        const u8 *base = (*pool).blocks[i];
+        if (p >= base && p < base + (*pool).stride * (bytes)(*pool).blockCap) return true;
     }
     return false;
 }
 
 // Returns the number of currently allocated slots, or zero for null.
-uint32_t Pool_live(const Pool *pool) { return pool ? (*pool).live : 0u; }
+u32 Pool_live(const Pool *pool) { return pool ? (*pool).live : 0u; }
 // Returns the configured slot stride in bytes, or zero for null.
-size_t Pool_stride(const Pool *pool) { return pool ? (*pool).stride : 0u; }
+bytes Pool_stride(const Pool *pool) { return pool ? (*pool).stride : 0u; }

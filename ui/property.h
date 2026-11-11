@@ -20,27 +20,27 @@
 // radius > 0 is a clip: children are masked to the rounded shape (the corner
 // radius actually means what it says).
 typedef struct Property {
-    float x, y, w, h;
-    float minW, minH;      // size floor (0 = none)
-    float maxW, maxH;      // size ceiling (<= 0 = unbounded)
-    float radius;
+    f32 x, y, w, h;
+    f32 minW, minH;      // size floor (0 = none)
+    f32 maxW, maxH;      // size ceiling (<= 0 = unbounded)
+    f32 radius;
     bool clip;             // clip children to this rect (a scroll viewport)
     Color background, border;
-    float borderWidth;
+    f32 borderWidth;
     Color shadow;
-    float shadowX, shadowY, shadowBlur;
-    float blur;
+    f32 shadowX, shadowY, shadowBlur;
+    f32 blur;
 } Property;
 
 Property Property_default(void);
 
 // Lower/upper size clamps. Setting max <= 0 clears the ceiling.
-void Property_setMinSize(Property *property, float width, float height);
-void Property_setMaxSize(Property *property, float width, float height);
+void Property_setMinSize(Property *property, f32 width, f32 height);
+void Property_setMaxSize(Property *property, f32 width, f32 height);
 
 // The EFFECTIVE size: stored w/h clamped to the min/max above. Every layout,
 // hit-test and query read uses these, never the raw fields.
-float Property_width(const Property *property);
-float Property_height(const Property *property);
+f32 Property_width(const Property *property);
+f32 Property_height(const Property *property);
 
 #endif // GRAPHICS_UI_PROPERTY_H

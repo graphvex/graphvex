@@ -7,7 +7,7 @@
 
 // Numeric fixture/scope proof only: gallery appearance remains user-owned.
 static Color pixel(const Image *image, unsigned x, unsigned y) {
-    const uint8_t *p = Image_pixels(image) + (size_t) y * Image_stride(image) + (size_t) x * 4;
+    const u8 *p = Image_pixels(image) + (bytes) y * Image_stride(image) + (bytes) x * 4;
     return COLOR_RGBA(p[0], p[1], p[2], p[3]);
 }
 

@@ -14,7 +14,7 @@
  * Out unchanged on failure; caller owns/free success via the matching destroy.
  * Same external synchronization/live pointer contract as compositor.h. */
 CompositorStatus CompositorSurface_fromImage(const Image *image,
-                                             int32_t x, int32_t y,
+                                             i32 x, i32 y,
                                              CompositorSurface **out);
 CompositorStatus CompositorSurface_toImage(const CompositorSurface *surface,
                                            Image **out);

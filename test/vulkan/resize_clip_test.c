@@ -22,8 +22,8 @@ static int g_fail = 0;
     } while (0)
 
 // Returns the RGBA byte address for a pixel in the image.
-static const uint8_t *at(const Image *img, int x, int y) {
-    return Image_pixels(img) + (size_t)y * Image_stride(img) + (size_t)x * 4;
+static const u8 *at(const Image *img, int x, int y) {
+    return Image_pixels(img) + (bytes)y * Image_stride(img) + (bytes)x * 4;
 }
 
 // A stiff scene: a 200x200 panel (radius 24) pinned at the top-left, and a
@@ -40,7 +40,7 @@ static void scene(void) {
 // Render the scene at a size THROUGH the resize path a window uses, then grab it.
 // Renders the shared scene at the requested extent and returns its image.
 static Image *render_at(int w, int h) {
-    CHECK(Graphics_resize((uint32_t)w, (uint32_t)h));
+    CHECK(Graphics_resize((u32)w, (u32)h));
     CHECK(Graphics_begin());
     scene();
     CHECK(Graphics_end());
@@ -64,8 +64,8 @@ int main(void) {
     int diff = 0, firstx = -1, firsty = -1;
     for (int y = 0; y < 150; y++) {
         for (int x = 0; x < 150; x++) {
-            const uint8_t *a = at(big, x, y);
-            const uint8_t *b = at(small, x, y);
+            const u8 *a = at(big, x, y);
+            const u8 *b = at(small, x, y);
             if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3]) {
                 if (diff == 0) { firstx = x; firsty = y; }
                 diff++;
@@ -78,10 +78,10 @@ int main(void) {
     // Directly: the 200-wide panel's straight top edge reaches x=176 (radius 24).
     // A shrink-to-fit 150 box would curl that away before x=126 — so (146,4)
     // must still be panel fill, not background.
-    const uint8_t *p = at(small, 146, 4);
+    const u8 *p = at(small, 146, 4);
     CHECK(p[0] > 180 && p[1] < 170);              // the red panel, not the 10,12,16 bg
     // ...and the same point in the big frame, proving consistency.
-    const uint8_t *q = at(big, 146, 4);
+    const u8 *q = at(big, 146, 4);
     CHECK(p[0] == q[0] && p[1] == q[1] && p[2] == q[2]);
 
     // Beyond the window there is nothing to draw — the crop simply ends.

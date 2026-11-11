@@ -23,11 +23,11 @@ typedef struct RenderLoop RenderLoop;
 
 // Frame probe: called each step BEFORE the demand decision. Draws nothing;
 // a client whose content changed calls RenderLoop_markDirty here.
-typedef void (*FrameFn)(void *userdata, double dtSeconds);
+typedef void (*FrameFn)(void *userdata, d64 dtSeconds);
 
 // Present hook: build the display list, Graphics_submit it, present. Returns true
 // only when a frame was actually presented.
-typedef bool (*PresentFn)(void *window, double dtSeconds, void *userdata);
+typedef bool (*PresentFn)(void *window, d64 dtSeconds, void *userdata);
 
 typedef struct Client {
     void *window;              // identity key (an R1 window handle)
@@ -35,13 +35,13 @@ typedef struct Client {
     PresentFn presentFn;     // composite + present (nullable = never presents)
     void *userdata;
     _Atomic bool dirty;
-    uint64_t lastContentGen;   // last presented board generation
-    uint64_t contentGen;       // current board generation
+    u64 lastContentGen;   // last presented board generation
+    u64 contentGen;       // current board generation
     bool hasPresented;
 } Client;
 
 RenderLoop *RenderLoop_0(void);
-RenderLoop *RenderLoop_fps(uint32_t targetFps);   // 0 = pure demand
+RenderLoop *RenderLoop_fps(u32 targetFps);   // 0 = pure demand
 #define RenderLoop(...) CONSTRUCTOR_DISPATCH(RenderLoop, __VA_ARGS__)
 void RenderLoop_free(RenderLoop *loop);
 RenderLoop *RenderLoop_default(void);             // process singleton
@@ -51,7 +51,7 @@ bool RenderLoop_removeClient(RenderLoop *loop, void *window);
 Client *RenderLoop_findClient(RenderLoop *loop, const void *window);
 
 void RenderLoop_markDirty(RenderLoop *loop, void *window);
-void RenderLoop_setContentGen(RenderLoop *loop, void *window, uint64_t gen);
+void RenderLoop_setContentGen(RenderLoop *loop, void *window, u64 gen);
 void RenderLoop_notify(RenderLoop *loop);         // thread-safe wake
 
 // One demand-driven step. Returns true when at least one client presented.

@@ -39,7 +39,7 @@
  * STRUCT FIELDS:
  * ----------------------------------------------------------------------------
  *   void    *native;      // borrowed CAMetalLayer / HWND / xcb window
- *   uint32_t width, height; // native px
+ *   u32 width, height; // native px
  *   Image   *present;     // the retained target we render into (owned)
  *   bool     presented;   // diagnostic: did the last present succeed
  *   SurfacePresentFn presentFn; // borrowed host blit (NULL = offscreen)
@@ -63,8 +63,8 @@
 
 struct Surface {
     void *native;      // borrowed CAMetalLayer / HWND / xcb window
-    uint32_t width;
-    uint32_t height;
+    u32 width;
+    u32 height;
     Image *present;    // the retained target we render into
     bool presented;    // diagnostic
     SurfacePresentFn presentFn;   // borrowed host blit (nullable = offscreen)
@@ -72,7 +72,7 @@ struct Surface {
     Board **boards;    // borrowed layers composited into the present image
     int boardCount, boardCap;
     int fpsCap;
-    uint64_t lastPresent, presentCount;
+    u64 lastPresent, presentCount;
     bool pending;
     SurfaceClockFn clockFn;
     void *clockUser;
@@ -82,7 +82,7 @@ struct Surface {
 Surface *Surface_0(void) { return Surface_3(nullptr, 0, 0); }
 
 // Creates a surface around a borrowed native handle and allocates its retained image.
-Surface *Surface_3(void *native, uint32_t width, uint32_t height) {
+Surface *Surface_3(void *native, u32 width, u32 height) {
     Surface *s = calloc(1, sizeof *s);
     if (!s) return nullptr;
     (*s).native = native;
@@ -108,7 +108,7 @@ void Surface_destroy(Surface *surface) {
 }
 
 // Updates native-pixel dimensions and resizes the retained image, using at least 1x1 backing.
-bool Surface_resize(Surface *surface, uint32_t width, uint32_t height) {
+bool Surface_resize(Surface *surface, u32 width, u32 height) {
     if (!surface || !(*surface).present) return false;
     (*surface).width = width;
     (*surface).height = height;
@@ -116,9 +116,9 @@ bool Surface_resize(Surface *surface, uint32_t width, uint32_t height) {
 }
 
 // Returns the configured native-pixel width, or zero for null.
-uint32_t Surface_width(const Surface *surface) { return surface ? (*surface).width : 0u; }
+u32 Surface_width(const Surface *surface) { return surface ? (*surface).width : 0u; }
 // Returns the configured native-pixel height, or zero for null.
-uint32_t Surface_height(const Surface *surface) { return surface ? (*surface).height : 0u; }
+u32 Surface_height(const Surface *surface) { return surface ? (*surface).height : 0u; }
 // Reports whether the retained presentation image exists.
 bool Surface_isValid(const Surface *surface) { return surface && (*surface).present != nullptr; }
 // Returns the borrowed native host handle.
@@ -134,17 +134,17 @@ void Surface_onPresent(Surface *surface, SurfacePresentFn fn, void *userdata) {
 }
 
 // Reads time from the configured clock callback or the monotonic system clock.
-static uint64_t surfaceNow(Surface *surface) {
+static u64 surfaceNow(Surface *surface) {
     if ((*surface).clockFn) return (*surface).clockFn((*surface).clockUser);
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+    return (u64)ts.tv_sec * 1000000000ULL + (u64)ts.tv_nsec;
 }
 
 // Reports whether the FPS cap permits another presentation at the current time.
 static bool surfaceDue(Surface *surface) {
     return (*surface).fpsCap == -1 || !(*surface).presentCount ||
         surfaceNow(surface) - (*surface).lastPresent >=
-        (1000000000ULL + (uint64_t)(*surface).fpsCap - 1) / (uint64_t)(*surface).fpsCap;
+        (1000000000ULL + (u64)(*surface).fpsCap - 1) / (u64)(*surface).fpsCap;
 }
 
 // Sets the presentation cap; -1 disables it and nonpositive alternatives are ignored.
@@ -155,7 +155,7 @@ void Surface_setFPSCap(Surface *surface, int fps) {
 // Returns the configured cap, or zero when surface is null.
 int Surface_getFPSCap(const Surface *surface) { return surface ? (*surface).fpsCap : 0; }
 // Returns the count of successful host presentation callbacks.
-uint64_t Surface_getPresentCount(const Surface *surface) { return surface ? (*surface).presentCount : 0; }
+u64 Surface_getPresentCount(const Surface *surface) { return surface ? (*surface).presentCount : 0; }
 // Installs a clock callback and resets present timing and count for deterministic scheduling.
 void Surface_setClock(Surface *surface, SurfaceClockFn fn, void *userdata) {
     if (!surface) return;
@@ -186,7 +186,7 @@ void Surface_addBoard(Surface *surface, Board *board) {
     if (!surface || !board) return;
     if ((*surface).boardCount == (*surface).boardCap) {
         int cap = (*surface).boardCap ? (*surface).boardCap * 2 : 2;
-        Board **grown = realloc((*surface).boards, (size_t)cap * sizeof *grown);
+        Board **grown = realloc((*surface).boards, (bytes)cap * sizeof *grown);
         if (!grown) return;
         (*surface).boards = grown;
         (*surface).boardCap = cap;
@@ -200,7 +200,7 @@ void Surface_removeBoard(Surface *surface, Board *board) {
     for (int i = 0; i < (*surface).boardCount; i++) {
         if ((*surface).boards[i] != board) continue;
         memmove(&(*surface).boards[i], &(*surface).boards[i + 1],
-                (size_t)((*surface).boardCount - i - 1) * sizeof *(*surface).boards);
+                (bytes)((*surface).boardCount - i - 1) * sizeof *(*surface).boards);
         (*surface).boardCount--;
         return;
     }

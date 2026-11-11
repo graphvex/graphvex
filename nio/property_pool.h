@@ -22,6 +22,6 @@ void PropertyPool_destroy(PropertyPool *pool);
 // A zeroed, defaulted Property (init NULL => Property_default()), or NULL on OOM.
 Property *PropertyPool_alloc(PropertyPool *pool, const Property *init);
 void PropertyPool_release(PropertyPool *pool, Property *property);
-uint32_t PropertyPool_live(const PropertyPool *pool);
+u32 PropertyPool_live(const PropertyPool *pool);
 
 #endif // GRAPHICS_NIO_PROPERTY_POOL_H

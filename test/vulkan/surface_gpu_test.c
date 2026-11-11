@@ -47,12 +47,12 @@ int main(void) {
     CHECK(Graphics_present());   // renders INTO the IOSurface, no readback
 
     // read the IOSurface exactly as CoreAnimation/WindowServer would
-    size_t stride = 0;
-    const uint8_t *base = IosHost_lockRead(surf, &stride);
+    bytes stride = 0;
+    const u8 *base = IosHost_lockRead(surf, &stride);
     CHECK(base != nullptr);
     if (base) {
-        const uint8_t *left = base + (size_t)16 * stride + (size_t)8 * 4;
-        const uint8_t *right = base + (size_t)16 * stride + (size_t)24 * 4;
+        const u8 *left = base + (bytes)16 * stride + (bytes)8 * 4;
+        const u8 *right = base + (bytes)16 * stride + (bytes)24 * 4;
         CHECK(left[0] == 255 && left[1] == 0 && left[2] == 0);       // red
         CHECK(right[0] == 0 && right[1] == 0 && right[2] == 255);    // blue
     }

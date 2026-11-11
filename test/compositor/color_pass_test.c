@@ -1,5 +1,5 @@
 /* Owner: compositor/color_pass.{c,h}, shaders/compositor/color.frag.
- * Actual Vulkan sampled-texture -> float attachment -> readback numeric proof.
+ * Actual Vulkan sampled-texture -> f32 attachment -> readback numeric proof.
  * No CPU filter execution. CPU arithmetic below is a test-only independent
  * oracle. Shader/descriptor/barrier/record paths execute on the real device.
  * Legal use is externally synchronized; 100ms fence bound + runner watchdog.
@@ -9,7 +9,7 @@
 #include "test_support.h"
 #include <vulkan/vulkan.h>
 #include <assert.h>
-#include <float.h>
+#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +18,7 @@
 
 #define VK(call) assert((call) == VK_SUCCESS)
 enum { WIDTH = 8, HEIGHT = 2, COMPONENTS = WIDTH * HEIGHT * 4 };
-static const VkDeviceSize BYTES = COMPONENTS * sizeof(float);
+static const VkDeviceSize BYTES = COMPONENTS * sizeof(f32);
 static VkDevice device;
 static VkPhysicalDevice physical;
 
@@ -30,10 +30,10 @@ typedef struct TestImage {
 } TestImage;
 
 // Finds a compatible Vulkan memory type for the requested properties.
-static uint32_t memoryType(uint32_t bits, VkMemoryPropertyFlags flags) {
+static u32 memoryType(u32 bits, VkMemoryPropertyFlags flags) {
     VkPhysicalDeviceMemoryProperties properties;
     vkGetPhysicalDeviceMemoryProperties(physical, &properties);
-    for (uint32_t i = 0; i < properties.memoryTypeCount; ++i) {
+    for (u32 i = 0; i < properties.memoryTypeCount; ++i) {
         VkMemoryType *type = &properties.memoryTypes[i];
         if ((bits & (1u << i)) && ((*type).propertyFlags & flags) == flags)
             return i;
@@ -102,7 +102,7 @@ static void transition(VkCommandBuffer cmd, VkImage target, VkImageLayout old,
     vkCmdPipelineBarrier(cmd, fromStage, toStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 // Loads a staged SPIR-V module into an owned word buffer.
-static uint32_t *words(const char *name, size_t *size) {
+static u32 *words(const char *name, bytes *size) {
     const char *home = getenv("B_HOME");
     char path[2048];
     if (home)
@@ -116,33 +116,33 @@ static uint32_t *words(const char *name, size_t *size) {
     long length = ftell(file);
     assert(length > 0 && length % 4 == 0);
     rewind(file);
-    uint32_t *data = malloc((size_t) length);
-    assert(data && fread(data, 1, (size_t) length, file) == (size_t) length);
-    fclose(file); *size = (size_t) length;
+    u32 *data = malloc((bytes) length);
+    assert(data && fread(data, 1, (bytes) length, file) == (bytes) length);
+    fclose(file); *size = (bytes) length;
     return data;
 }
 // Computes the independent CPU reference for one color-filter token.
-static void oracle(const float *p, FilterToken token, float *out) {
-    double alpha = p[3];
-    double rgb[3] = {0};
+static void oracle(const f32 *p, FilterToken token, f32 *out) {
+    d64 alpha = p[3];
+    d64 rgb[3] = {0};
     for (unsigned c = 0; c < 3; ++c)
         rgb[c] = alpha > 0 ? p[c] / alpha : 0;
-    uint32_t bits = (uint32_t) Filter_payload(token);
-    float amount; memcpy(&amount, &bits, sizeof amount);
-    uint16_t id = Filter_id(token);
-    double gray = (2126 * rgb[0] + 7152 * rgb[1] + 722 * rgb[2]) / 10000;
+    u32 bits = (u32) Filter_payload(token);
+    f32 amount; memcpy(&amount, &bits, sizeof amount);
+    u16 id = Filter_id(token);
+    d64 gray = (2126 * rgb[0] + 7152 * rgb[1] + 722 * rgb[2]) / 10000;
     if (id == GRAYSCALE_RED_ID) gray = rgb[0];
     if (id == GRAYSCALE_GREEN_ID) gray = rgb[1];
     if (id == GRAYSCALE_BLUE_ID) gray = rgb[2];
     if (id == BLACK_AND_WHITE_ID) gray = gray >= amount ? 1 : 0;
     for (unsigned c = 0; c < 3; ++c) {
-        double value = gray;
+        d64 value = gray;
         if (id == BRIGHTNESS_ID) value = rgb[c] + amount;
         if (id == CONTRAST_ID) value = (rgb[c] - .5) * amount + .5;
         if (id == INVERT_ID) value = 1 - rgb[c];
         if (id == BRIGHTNESS_ID || id == CONTRAST_ID || id == INVERT_ID)
             value = fmin(1, fmax(0, value));
-        out[c] = (float) (alpha > 0 ? fmin(FLT_MAX, value * alpha) : 0);
+        out[c] = (f32) (alpha > 0 ? fmin(FLT_MAX, value * alpha) : 0);
     }
     out[3] = p[3];
 }
@@ -174,7 +174,7 @@ int main(void) {
     vkGetPhysicalDeviceFormatProperties(physical, VK_FORMAT_R32G32B32A32_SFLOAT, &properties);
     VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
     if ((properties.optimalTilingFeatures & required) != required) {
-        fprintf(stderr, "color_pass_test: SKIP sampled float target unsupported\n");
+        fprintf(stderr, "color_pass_test: SKIP sampled f32 target unsupported\n");
         Device_destroy(session); return B_TEST_SKIP;
     }
     VkAttachmentDescription attachment = {.format = VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -195,8 +195,8 @@ int main(void) {
         .attachmentCount = 1, .pAttachments = &attachment, .subpassCount = 1,
         .pSubpasses = &subpass, .dependencyCount = 2, .pDependencies = dependencies};
     VkRenderPass render; VK(vkCreateRenderPass(device, &rp, nullptr, &render));
-    size_t vertexSize, fragmentSize;
-    uint32_t *vertex = words("resolve.vert", &vertexSize), *fragment = words("color.frag", &fragmentSize);
+    bytes vertexSize, fragmentSize;
+    u32 *vertex = words("resolve.vert", &vertexSize), *fragment = words("color.frag", &fragmentSize);
     ColorPass *pass = ColorPass(session, (void*) render, vertex, vertexSize, fragment, fragmentSize);
     assert(pass);
     ColorPass *independent = ColorPass_6(session, (void*) render, vertex, vertexSize, fragment, fragmentSize);
@@ -214,7 +214,7 @@ int main(void) {
     VkBuffer upload, readback; VkDeviceMemory uploadMemory, readbackMemory;
     buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &upload, &uploadMemory);
     buffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT, &readback, &readbackMemory);
-    const float pixels[COMPONENTS] = {
+    const f32 pixels[COMPONENTS] = {
         0,0,0,0, .125f,.375f,.875f,1, .125f,.25f,.375f,.5f, 1,0,0,1,
         0,1,0,1, 0,0,1,1, 2,1,.5f,.5f, .5f,.5f,.5f,1,
         .25f,0,0,.25f, 0,.25f,0,.25f, 0,0,.25f,.25f, 1,1,1,1,
@@ -261,7 +261,7 @@ int main(void) {
         Filter_blackAndWhite(0), Filter_blackAndWhite(.5f), Filter_blackAndWhite(1)};
     VkBufferImageCopy copy = {.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
         .imageExtent = {WIDTH, HEIGHT, 1}};
-    for (size_t iteration = 0; iteration < sizeof tokens / sizeof tokens[0] + 2; ++iteration) {
+    for (bytes iteration = 0; iteration < sizeof tokens / sizeof tokens[0] + 2; ++iteration) {
         bool ordered = iteration >= sizeof tokens / sizeof tokens[0];
         bool reverse = iteration == sizeof tokens / sizeof tokens[0] + 1;
         FilterToken first = ordered ? (reverse ? Filter_contrast(2) : Filter_brightness(.25f)) : tokens[iteration];
@@ -299,16 +299,16 @@ int main(void) {
         VK(vkQueueSubmit((VkQueue) Device_queue(session), 1, &submit, fence));
         VK(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_C(100000000)));
         VK(vkMapMemory(device, readbackMemory, 0, BYTES, 0, &mapped));
-        const float *actual = mapped;
+        const f32 *actual = mapped;
         for (unsigned p = 0; p < WIDTH * HEIGHT; ++p) {
-            float expected[4], temporary[4];
+            f32 expected[4], temporary[4];
             oracle(pixels + 4 * p, first, expected);
             if (ordered) {
                 memcpy(temporary, expected, sizeof temporary);
                 oracle(temporary, last, expected);
             }
             for (unsigned c = 0; c < 4; ++c) {
-                double tolerance = fmax(1e-14, fabs(expected[c]) * 3e-6);
+                d64 tolerance = fmax(1e-14, fabs(expected[c]) * 3e-6);
                 assert(isfinite(actual[p * 4 + c]) && fabs(actual[p * 4 + c] - expected[c]) <= tolerance);
             }
             assert(actual[p * 4 + 3] == pixels[p * 4 + 3]);
@@ -322,7 +322,7 @@ int main(void) {
         Filter_contrast(-1), Filter_contrast(INFINITY), Filter_blackAndWhite(-1),
         Filter_blackAndWhite(2), Filter_grayscale() | 1,
         Filter_brightness(0) | (UINT64_C(1) << 32), Filter_hsl(1,1)};
-    for (size_t i = 0; i < sizeof invalid / sizeof invalid[0]; ++i)
+    for (bytes i = 0; i < sizeof invalid / sizeof invalid[0]; ++i)
         assert(!ColorPass_validateToken(invalid[i]));
     assert(!ColorPass_record(nullptr, (void*) cmd, (void*) descriptors[0], WIDTH, HEIGHT, tokens[0]));
     assert(!ColorPass_record(pass, nullptr, (void*) descriptors[0], WIDTH, HEIGHT, tokens[0]));
@@ -335,7 +335,7 @@ int main(void) {
     assert(!ColorPass(session, (void*) render, vertex, vertexSize, nullptr, fragmentSize));
     assert(!ColorPass(session, (void*) render, vertex, 0, fragment, fragmentSize));
     assert(!ColorPass(session, (void*) render, vertex, vertexSize, fragment, fragmentSize - 1));
-    uint32_t badWords[5] = {0};
+    u32 badWords[5] = {0};
     assert(!ColorPass(session, (void*) render, badWords, sizeof badWords, fragment, fragmentSize));
     fflush(stderr); assert(dup2(saved, STDERR_FILENO) >= 0); close(saved);
     rewind(diagnostics); unsigned lines = 0;
@@ -362,9 +362,9 @@ int main(void) {
     VK(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_C(100000000)));
 
     VK(vkMapMemory(device, readbackMemory, 0, BYTES, 0, &mapped));
-    const float *recovered = mapped;
+    const f32 *recovered = mapped;
     for (unsigned p = 0; p < WIDTH * HEIGHT; ++p) {
-        float expected[4];
+        f32 expected[4];
         oracle(pixels + 4 * p, Filter_grayscale(), expected);
         for (unsigned c = 0; c < 4; ++c)
             assert(fabs(recovered[p * 4 + c] - expected[c]) <= fmax(1e-14, fabs(expected[c]) * 3e-6));

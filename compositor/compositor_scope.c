@@ -1,7 +1,7 @@
 #include "compositor/compositor_scope.h"
 #include "util/annotation.h"
 
-#include <float.h>
+#include <f32.h>
 #include <string.h>
 
 ;;DEFINITION
@@ -44,13 +44,13 @@ CompositorStatus Compositor_crop(const CompositorSurface *source,
     int64_t sx1 = (int64_t) s.x + s.width, dx1 = (int64_t) bounds.x + bounds.width;
     int64_t sy1 = (int64_t) s.y + s.height, dy1 = (int64_t) bounds.y + bounds.height;
     int64_t x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
-    const float *sp = CompositorSurface_constPixels(source);
-    float *dp = CompositorSurface_pixels(crop);
+    const f32 *sp = CompositorSurface_constPixels(source);
+    f32 *dp = CompositorSurface_pixels(crop);
     if (x1 > x0) {
-        size_t Bytes = (size_t) (x1 - x0) * 4 * sizeof(float);
+        bytes Bytes = (bytes) (x1 - x0) * 4 * sizeof(f32);
         for (int64_t y = y0; y < y1; ++y) {
-            const float *row = sp + 4 * ((size_t) (y - s.y) * s.width + (size_t) (x0 - s.x));
-            float *dest = dp + 4 * ((size_t) (y - bounds.y) * bounds.width + (size_t) (x0 - bounds.x));
+            const f32 *row = sp + 4 * ((bytes) (y - s.y) * s.width + (bytes) (x0 - s.x));
+            f32 *dest = dp + 4 * ((bytes) (y - bounds.y) * bounds.width + (bytes) (x0 - bounds.x));
             memcpy(dest, row, Bytes);
         }
     }
@@ -73,8 +73,8 @@ static CompositorStatus sceneCheck(const CompositorScopeDesc *desc) {
     CompositorBounds panel = (*desc).panelBounds;
     if (!prior.width || !panel.width || !panel.height)
         return COMPOSITOR_INVALID;
-    const float *pixels = CompositorSurface_constPixels((*desc).priorScene);
-    for (size_t i = 0; i < (size_t) prior.width * prior.height; ++i)
+    const f32 *pixels = CompositorSurface_constPixels((*desc).priorScene);
+    for (bytes i = 0; i < (bytes) prior.width * prior.height; ++i)
         if (pixels[4 * i + 3] != 1)
             return COMPOSITOR_UNSUPPORTED;
     CompositorBounds support;
@@ -113,17 +113,17 @@ static CompositorStatus replacementCopy(const CompositorSurface *group,
     int64_t sx1 = (int64_t) s.x + s.width, dx1 = (int64_t) d.x + d.width;
     int64_t sy1 = (int64_t) s.y + s.height, dy1 = (int64_t) d.y + d.height;
     int64_t x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
-    const float *sp = CompositorSurface_constPixels(group);
-    float *dp = CompositorSurface_pixels(scene);
+    const f32 *sp = CompositorSurface_constPixels(group);
+    f32 *dp = CompositorSurface_pixels(scene);
     for (int64_t y = y0; y < y1; ++y) {
         for (int64_t x = x0; x < x1; ++x) {
-            const float *p = sp + 4 * ((size_t) (y - s.y) * s.width + (size_t) (x - s.x));
-            float *q = dp + 4 * ((size_t) (y - d.y) * d.width + (size_t) (x - d.x));
+            const f32 *p = sp + 4 * ((bytes) (y - s.y) * s.width + (bytes) (x - s.x));
+            f32 *q = dp + 4 * ((bytes) (y - d.y) * d.width + (bytes) (x - d.x));
             for (unsigned c = 0; c < 3; ++c) {
-                double value = p[c] + q[c] * (1.0 - p[3]);
+                d64 value = p[c] + q[c] * (1.0 - p[3]);
                 if (value > FLT_MAX)
                     return COMPOSITOR_LIMIT;
-                q[c] = (float) value;
+                q[c] = (f32) value;
             }
             q[3] = 1;
         }
@@ -167,9 +167,9 @@ CompositorStatus Compositor_scopedScene(const CompositorScopeDesc *desc,
         /* Prior snapshot is opaque and includes all taps. Fixed scatter's
          * alpha sum can round slightly below one; enforce exact coverage 1
          * in the proven fully supported crop, not edge renormalization. */
-        float *p = CompositorSurface_pixels(snapshot);
+        f32 *p = CompositorSurface_pixels(snapshot);
         CompositorBounds b = (*desc).panelBounds;
-        for (size_t i = 0; i < (size_t) b.width * b.height; ++i)
+        for (bytes i = 0; i < (bytes) b.width * b.height; ++i)
             p[4 * i + 3] = 1;
         CompositorSurface_destroy(panel);
         panel = snapshot;

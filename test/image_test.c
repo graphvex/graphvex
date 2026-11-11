@@ -86,12 +86,12 @@ int main(void) {
 
     // fill uses monotonic 0xRRGGBBAA byte order
     Image_fill(img, COLOR_RGBA(10, 20, 30, 255));
-    const uint8_t *p = Image_pixels(img);
+    const u8 *p = Image_pixels(img);
     CHECK(p[0] == 10 && p[1] == 20 && p[2] == 30 && p[3] == 255);
 
     // upload replaces content and dims
-    uint8_t src[2 * 2 * 4];
-    for (int i = 0; i < 16; i++) src[i] = (uint8_t)i;
+    u8 src[2 * 2 * 4];
+    for (int i = 0; i < 16; i++) src[i] = (u8)i;
     CHECK(Image_upload(src, 2, 2, img));
     CHECK(Image_width(img) == 2 && Image_height(img) == 2);
     CHECK(Image_pixels(img)[3] == 3);

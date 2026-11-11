@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <float.h>
+#include <f32.h>
 #include "filter/filter_type.h"
 
 /* Header-only token vocabulary, not an owning object or allocator.
@@ -15,74 +15,74 @@
  * belong to the Vulkan shader pass, never a CPU fallback.
  * All functions are pure/thread-independent; token copies do not acquire owners.
  */
-typedef uint64_t FilterToken;
+typedef u64 FilterToken;
 #define FILTER_PAYLOAD_MASK UINT64_C(0x0000ffffffffffff)
 /* Existing CPU prototype work bound; not a semantic maximum for future blur. */
 #define FILTER_SCATTER_MAX_RADIUS 16u
 
 _Static_assert(sizeof(FilterToken) == 8, "filter token ABI");
-_Static_assert(sizeof(float) == 4, "scalar payload requires binary32");
+_Static_assert(sizeof(f32) == 4, "scalar payload requires binary32");
 _Static_assert(FLT_RADIX == 2 && FLT_MANT_DIG == 24 && FLT_MAX_EXP == 128,
                "scalar payload requires IEEE binary32");
 
-static inline uint16_t Filter_id(FilterToken token) {
-    return (uint16_t) (token >> 48);
+static inline u16 Filter_id(FilterToken token) {
+    return (u16) (token >> 48);
 }
-static inline uint64_t Filter_payload(FilterToken token) {
+static inline u64 Filter_payload(FilterToken token) {
     return token & FILTER_PAYLOAD_MASK;
 }
 static inline FilterToken Filter_identity(void) { return 0; }
 /* Private encoding helpers: no validity or ownership assertion. */
-static inline FilterToken filterScalar(uint16_t id, float value) {
-    uint32_t bits;
+static inline FilterToken filterScalar(u16 id, f32 value) {
+    u32 bits;
     memcpy(&bits, &value, sizeof bits);
-    return ((uint64_t) id << 48) | bits;
+    return ((u64) id << 48) | bits;
 }
-static inline FilterToken filterReference(uint16_t id, uint32_t index,
-                                          uint16_t generation) {
-    return ((uint64_t) id << 48) | ((uint64_t) generation << 32) | index;
+static inline FilterToken filterReference(u16 id, u32 index,
+                                          u16 generation) {
+    return ((u64) id << 48) | ((u64) generation << 32) | index;
 }
 /* Gain scales linear premultiplied RGB, preserves alpha and permits HDR.
  * CPU submission requires finite nonnegative gain, reserved bits zero. */
-static inline FilterToken Filter_gain(float gain) {
+static inline FilterToken Filter_gain(f32 gain) {
     return filterScalar(GAIN_ID, gain);
 }
 /* Uniform square scatter: transparent outside, full kernel denominator.
  * Zero is identity. Values above the prototype radius bound remain encoded. */
-static inline FilterToken Filter_scatterBlur(uint32_t radius) {
-    return ((uint64_t) SCATTER_BLUR_ID << 48) | radius;
+static inline FilterToken Filter_scatterBlur(u32 radius) {
+    return ((u64) SCATTER_BLUR_ID << 48) | radius;
 }
 /* GPU straight-linear color: brightness finite [-1,1] additive amount;
  * contrast finite >=0 multiplier around 0.5; both clamp RGB to [0,1].
  * B&W finite [0,1] threshold against Rec.709 luminance; equality selects white.
  * All preserve alpha. Constructors preserve invalid input for cold rejection. */
-static inline FilterToken Filter_brightness(float amount) {
+static inline FilterToken Filter_brightness(f32 amount) {
     return filterScalar(BRIGHTNESS_ID, amount);
 }
-static inline FilterToken Filter_contrast(float amount) {
+static inline FilterToken Filter_contrast(f32 amount) {
     return filterScalar(CONTRAST_ID, amount);
 }
-static inline FilterToken Filter_blackAndWhite(float threshold) {
+static inline FilterToken Filter_blackAndWhite(f32 threshold) {
     return filterScalar(BLACK_AND_WHITE_ID, threshold);
 }
 /* Packed color is 0xRRGGBBAA; low 32 payload bits, upper 16 reserved zero. */
-static inline FilterToken Filter_monocolor(uint32_t color) {
-    return ((uint64_t) MONOCOLOR_ID << 48) | color;
+static inline FilterToken Filter_monocolor(u32 color) {
+    return ((u64) MONOCOLOR_ID << 48) | color;
 }
 static inline FilterToken Filter_grayscale(void) {
-    return (uint64_t) GRAYSCALE_ID << 48;
+    return (u64) GRAYSCALE_ID << 48;
 }
 static inline FilterToken Filter_grayscaleRed(void) {
-    return (uint64_t) GRAYSCALE_RED_ID << 48;
+    return (u64) GRAYSCALE_RED_ID << 48;
 }
 static inline FilterToken Filter_grayscaleGreen(void) {
-    return (uint64_t) GRAYSCALE_GREEN_ID << 48;
+    return (u64) GRAYSCALE_GREEN_ID << 48;
 }
 static inline FilterToken Filter_grayscaleBlue(void) {
-    return (uint64_t) GRAYSCALE_BLUE_ID << 48;
+    return (u64) GRAYSCALE_BLUE_ID << 48;
 }
 static inline FilterToken Filter_invert(void) {
-    return (uint64_t) INVERT_ID << 48;
+    return (u64) INVERT_ID << 48;
 }
 /* Parameter reference payload: generation16 | index32. Generation zero encodes
  * an invalid reference; it does not turn into identity. These functions accept
@@ -91,7 +91,7 @@ static inline FilterToken Filter_invert(void) {
  * Modes (e.g. extrude parallel/perspective, pixelate shape) belong in that record.
  */
 #define GRAPHVEX_FILTER_REFERENCE(name, id) \
-    static inline FilterToken Filter_##name(uint32_t index, uint16_t generation) { \
+    static inline FilterToken Filter_##name(u32 index, u16 generation) { \
         return filterReference(id, index, generation); \
     }
 GRAPHVEX_FILTER_REFERENCE(toneCurve, TONE_CURVE_ID)

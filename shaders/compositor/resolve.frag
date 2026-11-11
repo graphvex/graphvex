@@ -16,7 +16,7 @@ void main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     vec4 color = texelFetch(accumulatedColor, pixel, 0);
     if (pc.normalizationMode == 1u) {
-        float weight = texelFetch(accumulatedWeight, pixel, 0).r;
+        f32 weight = texelFetch(accumulatedWeight, pixel, 0).r;
         color = weight > 0.0 ? color / weight : vec4(0);
     }
     // Fixed kernels/valid sources guarantee alpha <= 1 mathematically. Clamp

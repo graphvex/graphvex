@@ -23,7 +23,7 @@
  * CLASS: Element (ui/element.c)
  * Fields in declaration order:
  *   Property *property; bool ownsProperty, dirty;
- *   float offsetX, offsetY; int anchor, pivot; const char *tag;
+ *   f32 offsetX, offsetY; int anchor, pivot; const char *tag;
  *   bool pressed, visible; int cursorPreference; const Image *image; // borrowed
  *   struct Element *parent; struct Element **children; int count, cap;
  * Public API (ui/element.h):
@@ -43,7 +43,7 @@ struct Element {
     bool ownsProperty;
     bool dirty;
 
-    float offsetX, offsetY;
+    f32 offsetX, offsetY;
     int anchor, pivot;
     const char *tag;
     bool pressed;
@@ -62,7 +62,7 @@ Point Part_point(Rect r, int part) {
     if (part < 0 || part >= PART_COUNT) part = PART_TOP_LEFT;
     int col = part % 3;   // 0 left, 1 centre, 2 right
     int row = part / 3;   // 0 top,  1 middle, 2 bottom
-    return (Point){r.x + (float)col * 0.5f * r.w, r.y + (float)row * 0.5f * r.h};
+    return (Point){r.x + (f32)col * 0.5f * r.w, r.y + (f32)row * 0.5f * r.h};
 }
 
 // Creates an element with a pooled property record initialized from d or the default style.
@@ -162,13 +162,13 @@ bool Element_isDirty(const Element *e) { return e && (*e).dirty; }
 static void child_insert(Element *parent, Element *child, int index) {
     if ((*parent).count == (*parent).cap) {
         (*parent).cap = (*parent).cap ? (*parent).cap * 2 : 8;
-        Element **grown = realloc((*parent).children, (size_t)((*parent).cap) * sizeof *grown);
+        Element **grown = realloc((*parent).children, (bytes)((*parent).cap) * sizeof *grown);
         if (!grown) return;
         (*parent).children = grown;
     }
     if (index < 0 || index > (*parent).count) index = (*parent).count;
     memmove(&(*parent).children[index + 1], &(*parent).children[index],
-            (size_t)((*parent).count - index) * sizeof *(*parent).children);
+            (bytes)((*parent).count - index) * sizeof *(*parent).children);
     (*parent).children[index] = child;
     (*parent).count++;
     (*child).parent = parent;
@@ -195,7 +195,7 @@ bool Element_remove(Element *child) {
     Element *p = (*child).parent;
     for (int i = 0; i < (*p).count; i++) {
         if ((*p).children[i] != child) continue;
-        memmove(&(*p).children[i], &(*p).children[i + 1], (size_t)((*p).count - i - 1) * sizeof *(*p).children);
+        memmove(&(*p).children[i], &(*p).children[i + 1], (bytes)((*p).count - i - 1) * sizeof *(*p).children);
         (*p).count--;
         (*child).parent = nullptr;
         Element_markDirty(p);
@@ -236,16 +236,16 @@ Element *Element_find(Element *root, const char *tag) {
 
 // ── hit-test (deepest top-most element under the point) ─────────────────────
 // Tests visible descendants in reverse paint order while honoring ancestor clip shapes.
-static Element *hit_rec(Element *e, Rect absolute, float x, float y) {
+static Element *hit_rec(Element *e, Rect absolute, f32 x, f32 y) {
     if (!e || !(*e).visible || !(*e).property) return nullptr;
     const Property *property = (*e).property;
     // Descendants cannot receive input where an ancestor masks their paint.
     if ((*property).clip || (*property).radius > 0.0f) {
         if (!Rect_contains(absolute, x, y)) return nullptr;
-        float radius = fminf((*property).radius, fminf(absolute.w, absolute.h) * 0.5f);
+        f32 radius = fminf((*property).radius, fminf(absolute.w, absolute.h) * 0.5f);
         if (radius > 0.0f) {
-            float qx = fmaxf(fabsf(x - absolute.x - absolute.w * 0.5f) - (absolute.w * 0.5f - radius), 0.0f);
-            float qy = fmaxf(fabsf(y - absolute.y - absolute.h * 0.5f) - (absolute.h * 0.5f - radius), 0.0f);
+            f32 qx = fmaxf(fabsf(x - absolute.x - absolute.w * 0.5f) - (absolute.w * 0.5f - radius), 0.0f);
+            f32 qy = fmaxf(fabsf(y - absolute.y - absolute.h * 0.5f) - (absolute.h * 0.5f - radius), 0.0f);
             if (qx * qx + qy * qy > radius * radius) return nullptr;
         }
     }
@@ -262,7 +262,7 @@ static Element *hit_rec(Element *e, Rect absolute, float x, float y) {
 }
 
 // Returns the deepest topmost element hit by the point, or nullptr when none qualifies.
-Element *Element_hit(Element *root, float x, float y) {
+Element *Element_hit(Element *root, f32 x, f32 y) {
     if (!root) return nullptr;
     Rect self = {0, 0, Property_width((*root).property), Property_height((*root).property)};
     return hit_rec(root, self, x, y);
@@ -272,8 +272,8 @@ Element *Element_hit(Element *root, float x, float y) {
 // Resolves the layout/hit rectangle from parent anchor, element offset, pivot, and clamped size.
 Rect Element_eventBound(const Element *e, Rect parent) {
     if (!e || !(*e).property) return (Rect){0, 0, 0, 0};
-    float w = Property_width((*e).property);
-    float h = Property_height((*e).property);
+    f32 w = Property_width((*e).property);
+    f32 h = Property_height((*e).property);
     Point anchor = Part_point(parent, (*e).anchor);
     Rect self = {0.0f, 0.0f, w, h};
     Point pivot = Part_point(self, (*e).pivot);
@@ -288,23 +288,23 @@ Rect Element_resolve(const Element *e, Rect parent) {
 }
 
 // Sets stored dimensions on the bound and marks the element tree dirty.
-Element *Element_setSize(Element *e, float w, float h) {
+Element *Element_setSize(Element *e, f32 w, f32 h) {
     Property *property = e ? (*e).property : nullptr;
     if (property) { (*property).w = w; (*property).h = h; Element_markDirty(e); }
     return e;
 }
 // Sets nonnegative minimum dimensions on the shared bound and marks it dirty.
-Element *Element_setMinimumSize(Element *e, float w, float h) {
+Element *Element_setMinimumSize(Element *e, f32 w, f32 h) {
     if (e && (*e).property) { Property_setMinSize((*e).property, w, h); Element_markDirty(e); }
     return e;
 }
 // Sets nonnegative maximum dimensions on the shared bound and marks it dirty.
-Element *Element_setMaximumSize(Element *e, float w, float h) {
+Element *Element_setMaximumSize(Element *e, f32 w, f32 h) {
     if (e && (*e).property) { Property_setMaxSize((*e).property, w, h); Element_markDirty(e); }
     return e;
 }
 // Sets the element's anchor-relative offset and marks its ancestors dirty.
-Element *Element_setOffset(Element *e, float x, float y) {
+Element *Element_setOffset(Element *e, f32 x, f32 y) {
     if (e) { (*e).offsetX = x; (*e).offsetY = y; Element_markDirty(e); }
     return e;
 }
@@ -326,7 +326,7 @@ Element *Element_setTag(Element *e, const char *tag) {
 
 // ── visual ──────────────────────────────────────────────────────────────────
 // Sets the corner radius, clamping negative values to zero, and marks the tree dirty.
-Element *Element_setRadius(Element *e, float radius) {
+Element *Element_setRadius(Element *e, f32 radius) {
     Property *property = e ? (*e).property : nullptr;
     if (property) { (*property).radius = radius < 0.0f ? 0.0f : radius; Element_markDirty(e); }
     return e;
@@ -338,7 +338,7 @@ Element *Element_setBackground(Element *e, Color color) {
     return e;
 }
 // Sets border color and nonnegative width on the bound.
-Element *Element_setBorder(Element *e, Color color, float width) {
+Element *Element_setBorder(Element *e, Color color, f32 width) {
     Property *property = e ? (*e).property : nullptr;
     if (property) {
         (*property).border = color;
@@ -348,7 +348,7 @@ Element *Element_setBorder(Element *e, Color color, float width) {
     return e;
 }
 // Sets shadow offset and nonnegative blur, assigning a default translucent black if unset.
-Element *Element_setShadow(Element *e, float offsetX, float offsetY, float blur) {
+Element *Element_setShadow(Element *e, f32 offsetX, f32 offsetY, f32 blur) {
     Property *property = e ? (*e).property : nullptr;
     if (!property) return e;
     (*property).shadowX = offsetX;
@@ -367,7 +367,7 @@ Element *Element_setShadowColor(Element *e, Color color) {
     return e;
 }
 // Sets nonnegative element-edge blur on the bound and marks the tree dirty.
-Element *Element_setBlur(Element *e, float blur) {
+Element *Element_setBlur(Element *e, f32 blur) {
     Property *property = e ? (*e).property : nullptr;
     if (property) { (*property).blur = blur < 0.0f ? 0.0f : blur; Element_markDirty(e); }
     return e;
@@ -412,11 +412,11 @@ Element *Element_setCursorPreference(Element *e, int cursor) {
 // Returns the stored cursor preference, or -1 when no element is supplied.
 int Element_cursorPreference(const Element *e) { return e ? (*e).cursorPreference : -1; }
 // Returns the effective clamped property width, or zero without a bound.
-float Element_width(const Element *e) { return (e && (*e).property) ? Property_width((*e).property) : 0.0f; }
+f32 Element_width(const Element *e) { return (e && (*e).property) ? Property_width((*e).property) : 0.0f; }
 // Returns the effective clamped property height, or zero without a bound.
-float Element_height(const Element *e) { return (e && (*e).property) ? Property_height((*e).property) : 0.0f; }
+f32 Element_height(const Element *e) { return (e && (*e).property) ? Property_height((*e).property) : 0.0f; }
 // Returns the bound's corner radius, or zero when unavailable.
-float Element_radius(const Element *e) {
+f32 Element_radius(const Element *e) {
     const Property *property = e ? (*e).property : nullptr;
     return property ? (*property).radius : 0.0f;
 }
@@ -442,14 +442,14 @@ void Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
     if (!e || !dl || !(*e).visible || !(*e).property) return;
     const Property *p = (*e).property;
 
-    float eb = (*p).blur > 0.0f ? (*p).blur : 0.0f;   // the element's own soft edge
+    f32 eb = (*p).blur > 0.0f ? (*p).blur : 0.0f;   // the element's own soft edge
     bool paints = Color_alpha((*p).background) != 0u ||
                   (Color_alpha((*p).border) != 0u && (*p).borderWidth > 0.0f) ||
                   Color_alpha((*p).shadow) != 0u;
     if (paints) {
         if (Color_alpha((*p).shadow) != 0u) {
             // shadow = the shape, offset, with a blur margin to fit the falloff
-            float sb = (*p).shadowBlur > 0.0f ? (*p).shadowBlur : 0.0f;
+            f32 sb = (*p).shadowBlur > 0.0f ? (*p).shadowBlur : 0.0f;
             Rect sr = {absolute.x + (*p).shadowX - sb, absolute.y + (*p).shadowY - sb,
                        absolute.w + 2.0f * sb, absolute.h + 2.0f * sb};
             Brush shadow = {(*p).shadow, (*p).radius, 0u, 0.0f, sb};
@@ -473,7 +473,7 @@ void Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
         bool rounded = (*p).radius > 0.0f;
         if (rounded)
             DisplayList_clipRounded(dl, absolute, (*p).radius);
-        Rect source = {0, 0, (float) Image_width(image), (float) Image_height(image)};
+        Rect source = {0, 0, (f32) Image_width(image), (f32) Image_height(image)};
         DisplayList_image(dl, image, source, absolute);
         if (rounded)
             DisplayList_unclip(dl);
@@ -497,13 +497,13 @@ Rect Element_absoluteBound(const Element *e, Rect parent) {
     Rect base = Element_eventBound(e, parent);
     // Current styles affect the node's own shape, not the assembled subtree.
     // Ordered group-filter support will be integrated at the compositor seam.
-    float eb = (*property).blur > 0.0f ? (*property).blur : 0.0f;
-    float x0 = base.x - eb, y0 = base.y - eb;
-    float x1 = base.x + base.w + eb, y1 = base.y + base.h + eb;
+    f32 eb = (*property).blur > 0.0f ? (*property).blur : 0.0f;
+    f32 x0 = base.x - eb, y0 = base.y - eb;
+    f32 x1 = base.x + base.w + eb, y1 = base.y + base.h + eb;
     if (Color_alpha((*property).shadow) != 0u) {
-        float sb = (*property).shadowBlur > 0.0f ? (*property).shadowBlur : 0.0f;
-        float sx0 = base.x + (*property).shadowX - sb, sy0 = base.y + (*property).shadowY - sb;
-        float sx1 = base.x + base.w + (*property).shadowX + sb, sy1 = base.y + base.h + (*property).shadowY + sb;
+        f32 sb = (*property).shadowBlur > 0.0f ? (*property).shadowBlur : 0.0f;
+        f32 sx0 = base.x + (*property).shadowX - sb, sy0 = base.y + (*property).shadowY - sb;
+        f32 sx1 = base.x + base.w + (*property).shadowX + sb, sy1 = base.y + base.h + (*property).shadowY + sb;
         if (sx0 < x0) x0 = sx0;
         if (sy0 < y0) y0 = sy0;
         if (sx1 > x1) x1 = sx1;
@@ -516,10 +516,10 @@ Rect Element_absoluteBound(const Element *e, Rect parent) {
         if (clips) child = Rect_intersect(child, base);
         if (Rect_isEmpty(child)) continue;
         if (Rect_isEmpty(result)) { result = child; continue; }
-        float left = fminf(result.x, child.x);
-        float top = fminf(result.y, child.y);
-        float right = fmaxf(result.x + result.w, child.x + child.w);
-        float bottom = fmaxf(result.y + result.h, child.y + child.h);
+        f32 left = fminf(result.x, child.x);
+        f32 top = fminf(result.y, child.y);
+        f32 right = fmaxf(result.x + result.w, child.x + child.w);
+        f32 bottom = fmaxf(result.y + result.h, child.y + child.h);
         result = (Rect){left, top, right - left, bottom - top};
     }
     return result;

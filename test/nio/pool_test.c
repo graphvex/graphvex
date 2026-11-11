@@ -36,7 +36,7 @@ int main(void) {
 
     // STABLE: block growth never moved the first slot
     for (int i = 0; i < 10; i++) {
-        const uint8_t *b = items[i];
+        const u8 *b = items[i];
         CHECK(b[0] == 0xAB && b[31] == 0xAB);
     }
     // every slot is distinct and contained
@@ -50,7 +50,7 @@ int main(void) {
     CHECK(Pool_live(p) == 9);
     void *reused = Pool_alloc(p);
     CHECK(reused == items[3]);
-    CHECK(((uint8_t*) reused)[0] == 0);
+    CHECK(((u8*) reused)[0] == 0);
     CHECK(Pool_live(p) == 10);
 
     // a foreign pointer is not ours

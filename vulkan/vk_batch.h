@@ -23,28 +23,28 @@
 
 typedef struct VkQuad {
     // destination, native px
-    float x, y, w, h;
+    f32 x, y, w, h;
     // source UVs in [0,1] (image); rects use 0..1 solid
-    float u0, v0, u1, v1;
+    f32 u0, v0, u1, v1;
     Color fill;
     Color border;
-    float radius;    // corner radius, px
-    float stroke;    // border width, px (0 = none)
-    float blur;      // soft-edge falloff, px (0 = hard)
-    float mode;      // -1 = pre-sampled pixels (no shape AA), 0 solid, 1 image, 2 glyph
-    uint32_t texture; // atlas/layer id (0 = white)
+    f32 radius;    // corner radius, px
+    f32 stroke;    // border width, px (0 = none)
+    f32 blur;      // soft-edge falloff, px (0 = hard)
+    f32 mode;      // -1 = pre-sampled pixels (no shape AA), 0 solid, 1 image, 2 glyph
+    u32 texture; // atlas/layer id (0 = white)
     // clip window in the quad's LOCAL space (0..w, 0..h). The shape keeps its
     // true size; fragments outside this window are discarded, never resized.
-    float cx0, cy0, cx1, cy1;
-    float clipRadius;  // clip corner radius (0 = rectangular)
+    f32 cx0, cy0, cx1, cy1;
+    f32 clipRadius;  // clip corner radius (0 = rectangular)
 } VkQuad;
 
 typedef struct VkBatch {
     VkQuad *quads;
-    size_t count;
-    size_t cap;
+    bytes count;
+    bytes cap;
     Rect clip;       // clip applied to every quad recorded (native px)
-    float clipRadius; // corner radius of that clip (0 = rectangular)
+    f32 clipRadius; // corner radius of that clip (0 = rectangular)
 } VkBatch;
 
 // One interleaved vertex: pos(2) uv(2) fill(4) border(4) params(4) quadSize(2)
@@ -52,15 +52,15 @@ typedef struct VkBatch {
 #define VK_VERTEX_FLOATS 24u
 
 typedef struct VkVertex {
-    float x, y;
-    float u, v;
-    float r, g, b, a;         // fill
-    float br, bg, bb, ba;     // border
-    float radius, stroke, mode, layer;
-    float qw, qh;             // quad size in px (for the rounded-rect SDF)
-    float c0, c1, c2, c3;     // local-space clip bounds (x0,y0,x1,y1)
-    float clipRadius;         // clip corner radius (0 = rectangular)
-    float blur;               // soft-edge falloff, px
+    f32 x, y;
+    f32 u, v;
+    f32 r, g, b, a;         // fill
+    f32 br, bg, bb, ba;     // border
+    f32 radius, stroke, mode, layer;
+    f32 qw, qh;             // quad size in px (for the rounded-rect SDF)
+    f32 c0, c1, c2, c3;     // local-space clip bounds (x0,y0,x1,y1)
+    f32 clipRadius;         // clip corner radius (0 = rectangular)
+    f32 blur;               // soft-edge falloff, px
 } VkVertex;
 
 VkBatch *VkBatch_0(void);
@@ -71,15 +71,15 @@ void VkBatch_clear(VkBatch *b);
 // Set the clip recorded into every quad from here on (native px). Quads keep
 // their geometry; the clip only cuts fragments.
 void VkBatch_setClip(VkBatch *b, Rect clip);
-void VkBatch_setClipRadius(VkBatch *b, float radius);   // 0 = rectangular clip
+void VkBatch_setClipRadius(VkBatch *b, f32 radius);   // 0 = rectangular clip
 
 void VkBatch_rect(VkBatch *b, Rect dst, const Brush *brush);
 void VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst);
-void VkBatch_glyph(VkBatch *b, Rect dst, uint32_t atlasLayer, Color color);
+void VkBatch_glyph(VkBatch *b, Rect dst, u32 atlasLayer, Color color);
 
 // Expand to 6 vertices per quad. Returns the number of vertices written; if
 // `out` is null or `capacity` is too small, returns the required count and
 // writes nothing (caller sizes the upload).
-size_t VkBatch_vertices(const VkBatch *b, VkVertex *out, size_t capacity);
+bytes VkBatch_vertices(const VkBatch *b, VkVertex *out, bytes capacity);
 
 #endif // GRAPHICS_VK_BATCH_H

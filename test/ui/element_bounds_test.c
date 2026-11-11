@@ -15,14 +15,14 @@ static int failures;
     fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); failures++; \
 } } while (0)
 
-// Compares rectangles component-wise with the test float tolerance.
+// Compares rectangles component-wise with the test f32 tolerance.
 static bool same(Rect a, Rect b) {
     return fabsf(a.x - b.x) < 0.001f && fabsf(a.y - b.y) < 0.001f &&
            fabsf(a.w - b.w) < 0.001f && fabsf(a.h - b.h) < 0.001f;
 }
 
 // Creates a test element with explicit size and position properties.
-static Element *node(float w, float h, float x, float y) {
+static Element *node(f32 w, f32 h, f32 x, f32 y) {
     ElementDesc desc = {.width = w, .height = h,
         .offsetX = x, .offsetY = y, .background = COLOR_WHITE};
     Element *e = Element(&desc);

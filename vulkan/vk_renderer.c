@@ -50,7 +50,7 @@ static VkInstance s_inst = VK_NULL_HANDLE;
 static VkPhysicalDevice s_phys = VK_NULL_HANDLE;
 static VkDevice s_device = VK_NULL_HANDLE;
 static VkQueue s_queue = VK_NULL_HANDLE;
-static uint32_t s_qfam = 0;
+static u32 s_qfam = 0;
 
 static VkImage s_img = VK_NULL_HANDLE;
 static VkDeviceMemory s_imgMem = VK_NULL_HANDLE;
@@ -60,7 +60,7 @@ static VkRenderPass s_rp = VK_NULL_HANDLE;          // private target (readback)
 static VkRenderPass s_rpPresent = VK_NULL_HANDLE;   // imported IOSurface (present)
 static VkExtent2D s_ext = {0, 0};
 
-// A small pool of imported IOSurface targets. The seam is double-buffered, so
+// A small pool of imported IOSurface targets. The seam is d64-buffered, so
 // two slots are live (render the back, publish it, swap); the rest is headroom.
 #define VK_SURFACE_MAX 16
 typedef struct VkSurfaceSlot {
@@ -68,7 +68,7 @@ typedef struct VkSurfaceSlot {
     VkImage image;
     VkImageView view;
     VkFramebuffer fb;
-    uint32_t w, h;
+    u32 w, h;
     bool used;
 } VkSurfaceSlot;
 static VkSurfaceSlot s_surfaces[VK_SURFACE_MAX];
@@ -115,14 +115,14 @@ static Color s_clear = COLOR_BLACK;
 static bool s_rendered = false;
 static char s_err[256] = "ok";
 typedef struct VkImageDraw {
-    size_t quad;
+    bytes quad;
     SampledImage *sampled;
 } VkImageDraw;
 static VkImageDraw *s_imageDraws = nullptr;
-static size_t s_imageDrawCount, s_imageDrawCap;
+static bytes s_imageDrawCount, s_imageDrawCap;
 static bool s_pending;
 static SampledImage *s_uploadPending = nullptr;
-static const uint64_t RENDER_WAIT_NS = UINT64_C(100000000);
+static const u64 RENDER_WAIT_NS = UINT64_C(100000000);
 enum { IMAGE_DRAW_INITIAL_CAPACITY = 16 };
 
 // Waits for the previous submission within the renderer's fixed timeout.
@@ -137,7 +137,7 @@ static bool retire_frame(void) {
 }
 // Releases references held by recorded sampled-image draw commands.
 static void release_image_draws(void) {
-    for (size_t i = 0; i < s_imageDrawCount; ++i)
+    for (bytes i = 0; i < s_imageDrawCount; ++i)
         SampledImage_release(s_imageDraws[i].sampled);
     s_imageDrawCount = 0;
 }
@@ -147,14 +147,14 @@ const char *VulkanBackend_lastError(void) { return s_err; }
 // Returns the active CPU batch, or null when no frame batch is open.
 const VkBatch *VulkanBackend_batch(void) { return s_batch; }
 // Returns allocated vertex-buffer capacity in bytes.
-size_t VulkanBackend_vertexBytes(void) { return (size_t) s_vboCap; }
+bytes VulkanBackend_vertexBytes(void) { return (bytes) s_vboCap; }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 // Selects the first physical-device memory type satisfying the requirements.
-static uint32_t mem_type(uint32_t bits, VkMemoryPropertyFlags want) {
+static u32 mem_type(u32 bits, VkMemoryPropertyFlags want) {
     VkPhysicalDeviceMemoryProperties mp;
     vkGetPhysicalDeviceMemoryProperties(s_phys, &mp);
-    for (uint32_t i = 0; i < mp.memoryTypeCount; i++)
+    for (u32 i = 0; i < mp.memoryTypeCount; i++)
         if ((bits & (1u << i)) && (mp.memoryTypes[i].propertyFlags & want) == want) return i;
     return UINT32_MAX;
 }
@@ -189,7 +189,7 @@ static void destroy_target(void) {
 }
 
 // Recreates the private RGBA target, image view, and framebuffer for the requested extent.
-static bool create_target(uint32_t w, uint32_t h) {
+static bool create_target(u32 w, u32 h) {
     destroy_target();
     VkImageCreateInfo ii = {0}; ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     ii.imageType = VK_IMAGE_TYPE_2D;
@@ -255,7 +255,7 @@ static void surface_slot_destroy(int i) {
 }
 
 // Imports and registers an IOSurface-backed target, returning its slot or a negative error.
-static int surface_slot_add(void *iosurface, uint32_t w, uint32_t h) {
+static int surface_slot_add(void *iosurface, u32 w, u32 h) {
     if (!s_device || !s_rpPresent || !iosurface || w == 0 || h == 0) return -1;
     int i = -1;
     for (int k = 0; k < VK_SURFACE_MAX; k++)
@@ -426,12 +426,12 @@ static bool create_texture(void) {
 static bool create_pipeline(void) {
     VkShaderModuleCreateInfo vci = {0}; vci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     vci.codeSize = quad_vert_spv_len;
-    vci.pCode = (const uint32_t*) quad_vert_spv;
+    vci.pCode = (const u32*) quad_vert_spv;
     VkShaderModule vs;
     VK_ERR(vkCreateShaderModule(s_device, &vci, nullptr, &vs));
     VkShaderModuleCreateInfo fci = {0}; fci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     fci.codeSize = quad_frag_spv_len;
-    fci.pCode = (const uint32_t*) quad_frag_spv;
+    fci.pCode = (const u32*) quad_frag_spv;
     VkShaderModule fs;
     VK_ERR(vkCreateShaderModule(s_device, &fci, nullptr, &fs));
 
@@ -486,7 +486,7 @@ static bool create_pipeline(void) {
     ds.dynamicStateCount = 2;
     ds.pDynamicStates = dyn;
 
-    VkPushConstantRange pcr = {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 2};
+    VkPushConstantRange pcr = {VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(f32) * 2};
     VkPipelineLayoutCreateInfo pl = {0}; pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pl.setLayoutCount = 1;
     pl.pSetLayouts = &s_dsl;
@@ -577,7 +577,7 @@ bool VulkanBackend_prepareImage(Image *image) {
 }
 
 // ── the batch render pass ───────────────────────────────────────────────────
-static float cf(Color c) { return (float)((c >> 24) & 0xFFu) / 255.0f; }
+static f32 cf(Color c) { return (f32)((c >> 24) & 0xFFu) / 255.0f; }
 
 // Records and submits the current batch, retaining sampled resources until its fence retires.
 static bool render(void) {
@@ -592,7 +592,7 @@ static bool render(void) {
 
     VkFramebuffer fb;
     VkRenderPass rp;
-    uint32_t rw, rh;
+    u32 rw, rh;
     bool imported;
     if (slot) {
         fb = (*slot).fb;
@@ -602,17 +602,17 @@ static bool render(void) {
         imported = true;
     } else {
         if (s_w <= 0 || s_h <= 0) return false;
-        if (!s_fb || s_ext.width != (uint32_t)s_w || s_ext.height != (uint32_t)s_h) {
-            if (!create_target((uint32_t)s_w, (uint32_t)s_h)) return false;
+        if (!s_fb || s_ext.width != (u32)s_w || s_ext.height != (u32)s_h) {
+            if (!create_target((u32)s_w, (u32)s_h)) return false;
         }
         if (!s_fb) return false;
         fb = s_fb;
         rp = s_rp;
-        rw = (uint32_t)s_w;
-        rh = (uint32_t)s_h;
+        rw = (u32)s_w;
+        rh = (u32)s_h;
         imported = false;
     }
-    size_t vcount = VkBatch_vertices(s_batch, nullptr, 0);
+    bytes vcount = VkBatch_vertices(s_batch, nullptr, 0);
     if (vcount == 0) vcount = 6;   // need at least something; draw 0 anyway
     VkDeviceSize vbytes = (VkDeviceSize)vcount * sizeof(VkVertex);
     if (vbytes > s_vboCap) {
@@ -621,7 +621,7 @@ static bool render(void) {
         if (!make_buffer(vbytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, &s_vbo, &s_vboMem)) return false;
         s_vboCap = vbytes;
     }
-    size_t written = 0;
+    bytes written = 0;
     if (vcount > 0) {
         void *map = nullptr;
         VK_ERR(vkMapMemory(s_device, s_vboMem, 0, vbytes, 0, &map));
@@ -637,10 +637,10 @@ static bool render(void) {
 
     VkClearValue clear;
     memset(&clear, 0, sizeof clear);
-    clear.color.float32[0] = cf(s_clear);
-    clear.color.float32[1] = cf(s_clear << 8);
-    clear.color.float32[2] = cf(s_clear << 16);
-    clear.color.float32[3] = (float)(s_clear & 0xFFu) / 255.0f;
+    clear.color.f3232[0] = cf(s_clear);
+    clear.color.f3232[1] = cf(s_clear << 8);
+    clear.color.f3232[2] = cf(s_clear << 16);
+    clear.color.f3232[3] = (f32)(s_clear & 0xFFu) / 255.0f;
     VkRenderPassBeginInfo rpBegin = {0}; rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpBegin.renderPass = rp;
     rpBegin.framebuffer = fb;
@@ -648,23 +648,23 @@ static bool render(void) {
     rpBegin.clearValueCount = 1;
     rpBegin.pClearValues = &clear;
     vkCmdBeginRenderPass(s_cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
-    VkViewport viewport = {0, 0, (float)rw, (float)rh, 0.0f, 1.0f};
+    VkViewport viewport = {0, 0, (f32)rw, (f32)rh, 0.0f, 1.0f};
     VkRect2D scissor = {{0, 0}, {rw, rh}};
     vkCmdSetViewport(s_cmd, 0, 1, &viewport);
     vkCmdSetScissor(s_cmd, 0, 1, &scissor);
     if (written > 0) {
         vkCmdBindPipeline(s_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_pipe);
         vkCmdBindDescriptorSets(s_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_pl, 0, 1, &s_ds, 0, nullptr);
-        float push[2] = {(float)rw, (float)rh};
+        f32 push[2] = {(f32)rw, (f32)rh};
         vkCmdPushConstants(s_cmd, s_pl, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof push, push);
         VkDeviceSize off = 0;
         vkCmdBindVertexBuffers(s_cmd, 0, 1, &s_vbo, &off);
         // Preserve painter order. Per-image descriptors are structural layout
         // matches, not an atlas allocation or a per-pixel geometry expansion.
-        size_t imageIndex = 0;
-        for (size_t quad = 0; quad < written / 6u;) {
+        bytes imageIndex = 0;
+        for (bytes quad = 0; quad < written / 6u;) {
             VkDescriptorSet descriptor = s_ds;
-            size_t count = 1;
+            bytes count = 1;
             if (imageIndex < s_imageDrawCount && s_imageDraws[imageIndex].quad == quad) {
                 SampledImage *sampled = s_imageDraws[imageIndex++].sampled;
                 descriptor = (VkDescriptorSet) SampledImage_descriptor(sampled);
@@ -672,7 +672,7 @@ static bool render(void) {
                 count = (imageIndex < s_imageDrawCount ? s_imageDraws[imageIndex].quad : written / 6u) - quad;
             vkCmdBindDescriptorSets(s_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_pl, 0, 1,
                 &descriptor, 0, nullptr);
-            vkCmdDraw(s_cmd, (uint32_t) (count * 6u), 1, (uint32_t) (quad * 6u), 0);
+            vkCmdDraw(s_cmd, (u32) (count * 6u), 1, (u32) (quad * 6u), 0);
             quad += count;
         }
     }
@@ -715,17 +715,17 @@ static bool vk_end(void) { return s_batch != nullptr; }
 static bool vk_present(void) { return render(); }
 
 // Updates native-pixel renderer extent and resets the default clip.
-static bool vk_resize(uint32_t w, uint32_t h) {
+static bool vk_resize(u32 w, u32 h) {
     s_w = (int)w;
     s_h = (int)h;
-    s_clip = (Rect){0, 0, (float)w, (float)h};
+    s_clip = (Rect){0, 0, (f32)w, (f32)h};
     return true;
 }
 // Stores the clear color used when the next frame target is initialized.
 static bool vk_clear(Color color) { s_clear = color; return true; }
 // Sets the rounded base clip for subsequent renderer draw commands.
-static bool vk_clip(const Rect *rect, float radius) {
-    s_clip = rect ? *rect : (Rect){0, 0, (float)s_w, (float)s_h};
+static bool vk_clip(const Rect *rect, f32 radius) {
+    s_clip = rect ? *rect : (Rect){0, 0, (f32)s_w, (f32)s_h};
     if (s_batch) {
         VkBatch_setClip(s_batch, s_clip);
         VkBatch_setClipRadius(s_batch, radius);   // rounded mask in the shader
@@ -748,14 +748,14 @@ static bool vk_drawImage(const Image *image, const Rect *dst) {
         return true;
     // One completed sampled image -> one quad. First CPU-shadow admission is
     // cold; gallery resources are prepared explicitly before showing the frame.
-    Rect viewport = {0, 0, (float) s_w, (float) s_h};
+    Rect viewport = {0, 0, (f32) s_w, (f32) s_h};
     Rect clip = Rect_intersect(s_clip, viewport);
     if (Rect_isEmpty(clip))
         return true;
     if (!VulkanBackend_prepareImage((Image*) image))
         return false;
     if (s_imageDrawCount == s_imageDrawCap) {
-        size_t capacity = s_imageDrawCap ? s_imageDrawCap * 2u : IMAGE_DRAW_INITIAL_CAPACITY;
+        bytes capacity = s_imageDrawCap ? s_imageDrawCap * 2u : IMAGE_DRAW_INITIAL_CAPACITY;
         if (capacity < s_imageDrawCap || capacity > SIZE_MAX / sizeof *s_imageDraws)
             return false;
         VkImageDraw *grown = realloc(s_imageDraws, capacity * sizeof *grown);
@@ -767,8 +767,8 @@ static bool vk_drawImage(const Image *image, const Rect *dst) {
     SampledImage *sampled = Image_gpuResource(image);
     if (!SampledImage_retain(sampled))
         return false;
-    size_t before = (*s_batch).count;
-    VkBatch_image(s_batch, image, (Rect){0,0,(float) Image_width(image),(float) Image_height(image)}, *dst);
+    bytes before = (*s_batch).count;
+    VkBatch_image(s_batch, image, (Rect){0,0,(f32) Image_width(image),(f32) Image_height(image)}, *dst);
     if ((*s_batch).count != before + 1u) {
         SampledImage_release(sampled);
         return false;
@@ -791,14 +791,14 @@ static bool vk_capture(Image *dest) {
     if (!dest) return false;
     if (s_targetKind == VK_SURFACE_SLOT) return false;   // an imported surface is read by the host
     if (!s_rendered && !render()) return false;
-    if (!Image_ensureShadow(dest, (uint32_t)s_w, (uint32_t)s_h)) return false;
+    if (!Image_ensureShadow(dest, (u32)s_w, (u32)s_h)) return false;
     void *map = nullptr;
     VkDeviceSize size = (VkDeviceSize)s_w * s_h * 4u;
     VK_ERR(vkMapMemory(s_device, s_rboMem, 0, size, 0, &map));
-    uint8_t *out = Image_pixels(dest);
-    size_t stride = Image_stride(dest);
+    u8 *out = Image_pixels(dest);
+    bytes stride = Image_stride(dest);
     for (int y = 0; y < s_h; y++)
-        memcpy(out + (size_t)y * stride, (uint8_t*) map + (size_t)y * (size_t)s_w * 4u, (size_t)s_w * 4u);
+        memcpy(out + (bytes)y * stride, (u8*) map + (bytes)y * (bytes)s_w * 4u, (bytes)s_w * 4u);
     vkUnmapMemory(s_device, s_rboMem);
     return true;
 }
@@ -813,7 +813,7 @@ const Backend *VulkanBackend_row(void) {
 }
 
 // Binds the host's native presentation layer and configures the renderer in native pixels.
-bool VulkanBackend_bind(void *nativeLayer, uint32_t widthPx, uint32_t heightPx) {
+bool VulkanBackend_bind(void *nativeLayer, u32 widthPx, u32 heightPx) {
     (void)nativeLayer;
     if (!init_vulkan()) return false;
     return vk_resize(widthPx, heightPx);
@@ -823,7 +823,7 @@ bool VulkanBackend_bind(void *nativeLayer, uint32_t widthPx, uint32_t heightPx) 
 // renders straight into it — the host's layer composites those very Bytes, no
 // readback. Apple only (VK_EXT_metal_objects); false elsewhere or if absent.
 // Imports an IOSurface as the presentation target when the active device supports it.
-bool VulkanBackend_bindSurface(void *iosurface, uint32_t widthPx, uint32_t heightPx) {
+bool VulkanBackend_bindSurface(void *iosurface, u32 widthPx, u32 heightPx) {
     if (!init_vulkan()) return false;
     if (!Device_hasMetalObjects(s_dev)) {
         snprintf(s_err, sizeof s_err, "VK_EXT_metal_objects unavailable");
@@ -837,7 +837,7 @@ bool VulkanBackend_bindSurface(void *iosurface, uint32_t widthPx, uint32_t heigh
     s_boundSlot = i;
     s_w = (int)widthPx;
     s_h = (int)heightPx;
-    s_clip = (Rect){0, 0, (float)widthPx, (float)heightPx};
+    s_clip = (Rect){0, 0, (f32)widthPx, (f32)heightPx};
     s_rendered = false;
     return true;
 }
@@ -852,9 +852,9 @@ void VulkanBackend_unbindSurface(void) {
     s_boundSlot = VK_SURFACE_NO_SLOT;
 }
 
-// ── surface-target pool (double buffering; the seam swaps slots) ────────────
+// ── surface-target pool (d64 buffering; the seam swaps slots) ────────────
 // Adds an IOSurface target to the renderer's reusable surface pool.
-int VulkanBackend_addSurface(void *iosurface, uint32_t widthPx, uint32_t heightPx) {
+int VulkanBackend_addSurface(void *iosurface, u32 widthPx, u32 heightPx) {
     if (!init_vulkan() || !Device_hasMetalObjects(s_dev)) return -1;
     return surface_slot_add(iosurface, widthPx, heightPx);
 }
@@ -865,7 +865,7 @@ bool VulkanBackend_useSurface(int slot) {
     if (!surfaceTargetSelect(slot)) return false;
     s_w = (int)s_surfaces[slot].w;
     s_h = (int)s_surfaces[slot].h;
-    s_clip = (Rect){0, 0, (float)s_surfaces[slot].w, (float)s_surfaces[slot].h};
+    s_clip = (Rect){0, 0, (f32)s_surfaces[slot].w, (f32)s_surfaces[slot].h};
     s_rendered = false;
     return true;
 }

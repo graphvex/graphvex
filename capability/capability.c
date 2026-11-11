@@ -72,16 +72,16 @@ static bool deviceExtension(const Device *device, const char *name) {
     VkPhysicalDevice physical = (VkPhysicalDevice) Device_physical(device);
     if (physical == nullptr)
         return false;
-    uint32_t total = 0;
+    u32 total = 0;
     if (vkEnumerateDeviceExtensionProperties(physical, nullptr, &total, nullptr) != VK_SUCCESS)
         return false;
     if (total == 0 || total > CAPABILITY_EXTENSION_CAP)
         return false;
     VkExtensionProperties props[CAPABILITY_EXTENSION_CAP];
-    uint32_t count = total;
+    u32 count = total;
     if (vkEnumerateDeviceExtensionProperties(physical, nullptr, &count, props) != VK_SUCCESS)
         return false;
-    for (uint32_t i = 0; i < count; i++)
+    for (u32 i = 0; i < count; i++)
         if (strcmp(props[i].extensionName, name) == 0)
             return true;
     return false;
@@ -157,7 +157,7 @@ GpuFamily GpuCapability_family(const Device *device) {
 HostChip GpuCapability_chip(void) {
     #if defined(VEX_PLATFORM_APPLE)
     char brand[128];
-    size_t size = sizeof brand;
+    bytes size = sizeof brand;
     if (sysctlbyname("machdep.cpu.brand_string", brand, &size, nullptr, 0) != 0)
         return HOST_CHIP_UNKNOWN;
     brand[sizeof brand - 1] = '\0';

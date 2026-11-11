@@ -20,7 +20,7 @@
  * VkPhysicalDevice physical     selected physical device handle
  * VkDevice device               owned logical device
  * VkQueue queue                 borrowed queue retrieved from logical device
- * uint32_t queueFamily          selected graphics queue-family index
+ * u32 queueFamily          selected graphics queue-family index
  * bool metalObjects             optional VK_EXT_metal_objects admission result
  * char deviceName[256]          bounded physical-device name projection
  * char error[256]               bounded last construction diagnostic
@@ -32,7 +32,7 @@
  *   const char *Device_name(const Device *device)
  *   void *Device_native(const Device *device), Device_instance,
  *   Device_physical, Device_queue (opaque Vulkan handles)
- *   uint32_t Device_queueFamily(const Device *device)
+ *   u32 Device_queueFamily(const Device *device)
  *   bool Device_hasMetalObjects(const Device *device)
  * Private helper: set_err copies a bounded cold-path failure description.
  * Admission, failure and ownership contract:
@@ -46,7 +46,7 @@ struct Device {
     VkPhysicalDevice physical;
     VkDevice device;
     VkQueue queue;
-    uint32_t queueFamily;
+    u32 queueFamily;
     bool metalObjects;      // VK_EXT_metal_objects enabled (IOSurface/MTL interop)
     char deviceName[256];
     char error[256];
@@ -73,7 +73,7 @@ Device *Device_create(bool enableValidation) {
 
     // MoltenVK needs the portability enumeration extension + flag.
     const char *exts[1];
-    uint32_t extCount = 0;
+    u32 extCount = 0;
     exts[extCount++] = "VK_KHR_portability_enumeration";
 
     VkInstanceCreateInfo ici = {0};
@@ -88,7 +88,7 @@ Device *Device_create(bool enableValidation) {
         return nullptr;
     }
 
-    uint32_t count = 0;
+    u32 count = 0;
     if (vkEnumeratePhysicalDevices((*c).instance, &count, nullptr) != VK_SUCCESS || count == 0) {
         set_err(c, "no Vulkan physical devices");
         Device_destroy(c);
@@ -104,13 +104,13 @@ Device *Device_create(bool enableValidation) {
     vkGetPhysicalDeviceProperties((*c).physical, &props);
     snprintf((*c).deviceName, sizeof (*c).deviceName, "%s", props.deviceName);
 
-    uint32_t qn = 0;
+    u32 qn = 0;
     vkGetPhysicalDeviceQueueFamilyProperties((*c).physical, &qn, nullptr);
     VkQueueFamilyProperties *qf = calloc(qn ? qn : 1, sizeof *qf);
     if (!qf) { Device_destroy(c); return nullptr; }
     vkGetPhysicalDeviceQueueFamilyProperties((*c).physical, &qn, qf);
     int chosen = -1;
-    for (uint32_t i = 0; i < qn; i++) {
+    for (u32 i = 0; i < qn; i++) {
         if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { chosen = (int)i; break; }
     }
     free(qf);
@@ -119,9 +119,9 @@ Device *Device_create(bool enableValidation) {
         Device_destroy(c);
         return nullptr;
     }
-    (*c).queueFamily = (uint32_t)chosen;
+    (*c).queueFamily = (u32)chosen;
 
-    float prio = 1.0f;
+    f32 prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {0};
     qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     qci.queueFamilyIndex = (*c).queueFamily;
@@ -136,14 +136,14 @@ Device *Device_create(bool enableValidation) {
     // MoltenVK advertises VK_KHR_portability_subset; the spec requires enabling
     // it when present. VK_EXT_metal_objects (Apple) lets us import an IOSurface
     // as a render target — the zero-copy seam. Both are enabled only if present.
-    uint32_t extN = 0;
+    u32 extN = 0;
     vkEnumerateDeviceExtensionProperties((*c).physical, nullptr, &extN, nullptr);
     VkExtensionProperties *devExts = calloc(extN ? extN : 1, sizeof *devExts);
     const char *want[2];
-    uint32_t wantN = 0;
+    u32 wantN = 0;
     if (devExts) {
         vkEnumerateDeviceExtensionProperties((*c).physical, nullptr, &extN, devExts);
-        for (uint32_t i = 0; i < extN; i++) {
+        for (u32 i = 0; i < extN; i++) {
             if (!strcmp(devExts[i].extensionName, "VK_KHR_portability_subset"))
                 want[wantN++] = "VK_KHR_portability_subset";
             else if (!strcmp(devExts[i].extensionName, "VK_EXT_metal_objects")) {
@@ -182,6 +182,6 @@ void *Device_instance(const Device *c) { return c ? (void*) ((*c).instance) : nu
 void *Device_physical(const Device *c) { return c ? (void*) ((*c).physical) : nullptr; }
 void *Device_queue(const Device *c) { return c ? (void*) ((*c).queue) : nullptr; }
 // Returns the selected graphics queue-family index, or zero for null.
-uint32_t Device_queueFamily(const Device *c) { return c ? (*c).queueFamily : 0u; }
+u32 Device_queueFamily(const Device *c) { return c ? (*c).queueFamily : 0u; }
 // Reports whether the device enabled VK_EXT_metal_objects.
 bool Device_hasMetalObjects(const Device *c) { return c && (*c).metalObjects; }
