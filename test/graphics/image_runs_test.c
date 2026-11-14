@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "graphics/image_runs.h"
 #include "graphvex/lang/image.h"
 

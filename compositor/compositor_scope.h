@@ -1,6 +1,7 @@
 #ifndef GRAPHVEX_COMPOSITOR_SCOPE_H
 #define GRAPHVEX_COMPOSITOR_SCOPE_H
 
+#include "vex.h"
 #include "compositor/compositor.h"
 
 /* Cold submission record, not a retained class: every pointer is borrowed only

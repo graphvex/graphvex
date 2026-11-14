@@ -5,6 +5,8 @@
 // shared Property edits, visibility, min/max, null/property-less and zero sizes.
 // Finite acyclic owner-thread trees only; GPU pixels, ordered ElementFilter
 // support, allocation failures and concurrent mutation are outside this seam.
+
+#include "vex.h"
 #include <math.h>
 #include <stdio.h>
 

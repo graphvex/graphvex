@@ -1,6 +1,5 @@
+#include "vex.h"
 #include "vulkan/sampled_image.h"
-#include "util/annotation.h"
-#include "util/throw.h"
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -3,6 +3,7 @@
 // Renders quads through the Vulkan backend (offscreen + readback) and verifies
 // the pixels came out of the GPU, with the SDF shader's Y-down orientation.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

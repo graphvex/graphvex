@@ -1,6 +1,6 @@
+#include "vex.h"
 #include "vulkan/vulkan_backend.h"
 
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +12,6 @@
 
 #include "graphvex/lang/image.h"
 #include "vulkan/sampled_image.h"
-#include "util/annotation.h"
-#include "util/throw.h"
 #include "quad_vert_spv.h"
 #include "quad_frag_spv.h"
 #include "vulkan/device.h"

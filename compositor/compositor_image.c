@@ -1,7 +1,7 @@
+#include "vex.h"
 #include "compositor/compositor_image.h"
 
 #include <math.h>
-#include "util/annotation.h"
 
 ;;DEFINITION
 /* Explicit Image boundary for the CPU compositor. Borrowed

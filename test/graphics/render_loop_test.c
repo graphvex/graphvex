@@ -3,6 +3,7 @@
 // Present-on-demand: a client presents only when it has demand (dirty or a
 // newer generation). A resting client presents ZERO times.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/render_loop.h"

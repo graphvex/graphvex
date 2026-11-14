@@ -1,9 +1,9 @@
 #ifndef GRAPHVEX_FILTER_FUNCTIONS_H
 #define GRAPHVEX_FILTER_FUNCTIONS_H
 
-#include <stdint.h>
+#include "vex.h"
+#include <float.h>
 #include <string.h>
-#include <f32.h>
 #include "filter/filter_type.h"
 
 /* Header-only token vocabulary, not an owning object or allocator.

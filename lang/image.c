@@ -1,6 +1,5 @@
+#include "vex.h"
 #include "graphvex/lang/image.h"
-#include "util/annotation.h"
-#include "util/throw.h"
 
 #include <stdlib.h>
 #include <string.h>

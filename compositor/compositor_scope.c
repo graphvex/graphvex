@@ -1,7 +1,6 @@
+#include "vex.h"
 #include "compositor/compositor_scope.h"
-#include "util/annotation.h"
 
-#include <f32.h>
 #include <string.h>
 
 ;;DEFINITION

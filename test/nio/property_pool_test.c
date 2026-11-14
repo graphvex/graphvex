@@ -3,6 +3,7 @@
 // The bound pool. Every Element's Property comes from here, and the SAME record
 // can be shared by many Elements (aliasing the address is the bind).
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "nio/property_pool.h"

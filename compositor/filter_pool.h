@@ -1,7 +1,7 @@
 #ifndef GRAPHVEX_FILTER_POOL_H
 #define GRAPHVEX_FILTER_POOL_H
 
-#include <stdbool.h>
+#include "vex.h"
 #include "compositor/compositor.h"
 
 /* Pool-local operation: ID16 | generation16 | index32. No pointer payload.

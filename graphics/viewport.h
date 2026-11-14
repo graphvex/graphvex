@@ -1,11 +1,7 @@
 #ifndef GRAPHICS_VIEWPORT_H
 #define GRAPHICS_VIEWPORT_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
-#include "util/constructor.h"
-
+#include "vex.h"
 #include "graphics/graphics.h"
 
 // graphvex R3 — graphics/viewport.h

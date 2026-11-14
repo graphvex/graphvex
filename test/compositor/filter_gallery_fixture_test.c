@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "darling/test/compositor/filter_gallery_fixture.h"
 
 #include <assert.h>

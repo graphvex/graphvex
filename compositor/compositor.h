@@ -1,9 +1,7 @@
 #ifndef GRAPHVEX_COMPOSITOR_H
 #define GRAPHVEX_COMPOSITOR_H
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
+#include "vex.h"
 #include "lang/filter.h"
 
 typedef enum CompositorStatus {

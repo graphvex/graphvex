@@ -1,8 +1,7 @@
 #ifndef GRAPHICS_PIPELINE_H
 #define GRAPHICS_PIPELINE_H
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "vex.h"
 
 // graphvex R3 — vulkan/pipeline.h
 //

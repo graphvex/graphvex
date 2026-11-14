@@ -3,6 +3,7 @@
 // The rect-first core: backend registry, the raster (headless) backend, solid
 // fill, rounded corners, alpha blend, clip, and the display list → submit path.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

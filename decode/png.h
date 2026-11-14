@@ -1,9 +1,7 @@
 #ifndef GRAPHVEX_DECODE_PNG_H
 #define GRAPHVEX_DECODE_PNG_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 
 // decode/png.h — decode a PNG byte stream into RGBA8.
 //

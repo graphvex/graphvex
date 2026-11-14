@@ -1,11 +1,7 @@
 #ifndef GRAPHICS_SURFACE_H
 #define GRAPHICS_SURFACE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
-#include "util/constructor.h"
-
+#include "vex.h"
 #include "graphvex/lang/image.h"
 #include "graphvex/lang/board.h"
 

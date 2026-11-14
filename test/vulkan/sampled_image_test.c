@@ -3,6 +3,8 @@
 // sampling proves orientation, alpha, clips, painter order, frame ownership and
 // repeated-frame bounded geometry. Adoption is exercised by the gallery fixture.
 // Owner-thread only; real device loss/OOM and other platforms remain unproved.
+
+#include "vex.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

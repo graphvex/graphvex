@@ -3,6 +3,7 @@
 // The UI node (Element): anchor/pivot placement across ALL 9 parts x 9 pivots,
 // plus offsets, styles (radius/border/shadow) and the paint path.
 
+#include "vex.h"
 #include <math.h>
 #include <stdio.h>
 

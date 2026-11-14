@@ -1,6 +1,7 @@
 #ifndef GRAPHVEX_COMPOSITOR_SUBMIT_H
 #define GRAPHVEX_COMPOSITOR_SUBMIT_H
 
+#include "vex.h"
 #include "compositor/compositor.h"
 #include "graphics/graphics.h"
 

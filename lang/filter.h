@@ -3,6 +3,8 @@
 
 /* Compatibility vocabulary include. Canonical IDs and token functions now live
  * in filter/; existing callers keep their numeric ABI and include spelling. */
+
+#include "vex.h"
 #include "filter/filter_functions.h"
 
 #endif

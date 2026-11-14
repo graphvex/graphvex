@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "decode/png.h"
 
 #include <stdlib.h>
@@ -5,9 +6,7 @@
 #include <zlib.h>
 
 #include "nio/mem.h"
-#include "oop/type.h"
-#include "util/throw.h"
-#include "util/annotation.h"
+#include "oop/oop.h"
 
 ;;DEFINITION
 /**

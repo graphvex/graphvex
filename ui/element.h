@@ -1,9 +1,7 @@
 #ifndef GRAPHICS_ELEMENT_H
 #define GRAPHICS_ELEMENT_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "graphics/graphics.h"
 #include "ui/property.h"
 

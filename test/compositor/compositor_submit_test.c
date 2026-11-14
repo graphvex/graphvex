@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "compositor/compositor_submit.h"
 #include "../../compositor/compositor_image.h"
 #include "graphvex/lang/image.h"

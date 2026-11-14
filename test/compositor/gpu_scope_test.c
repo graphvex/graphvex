@@ -6,6 +6,8 @@
  * GPU waits bounded by production 100ms fence and b.sh runner watchdog. Gaps:
  * genuine stalled queue/device loss/OOM, validation layer and non-macOS hosts.
  * Injected public wait-timeout returns prove retained-job/destroy/retry safety. */
+
+#include "vex.h"
 #include "compositor/gpu_scope.h"
 #include "darling/test/compositor/filter_gallery_fixture.h"
 #include "test_support.h"

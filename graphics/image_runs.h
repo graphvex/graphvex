@@ -1,6 +1,7 @@
 #ifndef GRAPHVEX_IMAGE_RUNS_H
 #define GRAPHVEX_IMAGE_RUNS_H
 
+#include "vex.h"
 #include "graphics/graphics.h"
 
 // Correctness-first CPU-shadow image adapter shared by raster and Vulkan.

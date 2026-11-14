@@ -1,10 +1,9 @@
 #ifndef GRAPHVEX_GPU_SCOPE_H
 #define GRAPHVEX_GPU_SCOPE_H
+
+#include "vex.h"
 #include "vulkan/device.h"
 #include "graphvex/lang/image.h"
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
 
 typedef struct GpuScope GpuScope;
 enum { GPU_SCOPE_BACKDROP, GPU_SCOPE_FOREGROUND, GPU_SCOPE_ELEMENT };

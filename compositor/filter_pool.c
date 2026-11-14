@@ -1,10 +1,9 @@
+#include "vex.h"
 #include "compositor/filter_pool.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "util/annotation.h"
-#include "util/throw.h"
 
 ;;DEFINITION
 /**

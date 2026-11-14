@@ -1,10 +1,9 @@
+#include "vex.h"
 #include "capability/capability.h"
 #include "vulkan/device.h"
 
 // following the directory going forward:
 // worktree > organization > repository > <directory tree> > file
-#include "util/annotation.h"
-#include "util/platform.h"
 
 #include <string.h>
 #include <vulkan/vulkan.h>

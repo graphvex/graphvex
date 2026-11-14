@@ -1,7 +1,7 @@
+#include "vex.h"
 #include "compositor/compositor_submit.h"
 #include "compositor/compositor_image.h"
 #include "graphvex/lang/image.h"
-#include "util/annotation.h"
 
 ;;DEFINITION
 /* CompositorSubmit preserves a filtered group's world origin while bridging

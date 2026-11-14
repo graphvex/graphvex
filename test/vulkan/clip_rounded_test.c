@@ -4,6 +4,7 @@
 // fragments outside the parent's rounded rect. Prove it on the GPU: a square
 // fill clipped to a circle loses its corners, not just its overflow.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

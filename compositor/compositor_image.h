@@ -1,6 +1,7 @@
 #ifndef GRAPHVEX_COMPOSITOR_IMAGE_H
 #define GRAPHVEX_COMPOSITOR_IMAGE_H
 
+#include "vex.h"
 #include "compositor/compositor.h"
 #include "graphvex/lang/image.h"
 

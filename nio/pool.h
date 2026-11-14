@@ -1,9 +1,7 @@
 #ifndef GRAPHICS_NIO_POOL_H
 #define GRAPHICS_NIO_POOL_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 
 // graphvex R3 — nio/pool.h
 //

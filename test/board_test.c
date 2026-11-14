@@ -3,6 +3,7 @@
 // A retained offscreen target: owns its Image, publishes an atomic generation
 // (the thing that wakes the render loop). NOT a swapchain.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphvex/lang/board.h"

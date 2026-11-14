@@ -4,8 +4,8 @@
 // must not move a live item, because an Element may hold the pointer for the
 // pool's life and share it with others.
 
+#include "vex.h"
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 
 #include "nio/pool.h"

@@ -3,6 +3,7 @@
 // Points <-> native pixels. There is NO virtual canvas: the UI works in logical
 // points at 1x and the backing scale converts to native pixels at the boundary.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/viewport.h"

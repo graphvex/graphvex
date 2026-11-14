@@ -5,12 +5,12 @@
 // creating a GPU session. A live-device feature scan needs a Vulkan loader and is
 // covered by the Device-owned tests, which construct one.
 
+#include "vex.h"
 #include "capability/capability.h"
 #include "vulkan/device.h"
 
 // following the directory going forward:
 // worktree > organization > repository > <directory tree> > file
-#include "util/platform.h"
 
 #include <stdio.h>
 

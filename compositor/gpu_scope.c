@@ -1,8 +1,7 @@
+#include "vex.h"
 #include "compositor/gpu_scope.h"
 #include "vulkan/sampled_image.h"
 #include "filter/filter_functions.h"
-#include "util/annotation.h"
-#include "util/throw.h"
 #include <vulkan/vulkan.h>
 #include <stdio.h>
 #include <stdlib.h>

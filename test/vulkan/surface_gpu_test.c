@@ -5,8 +5,8 @@
 // it on the GPU, and read the IOSurface the way CoreAnimation would. No
 // swapchain, no staging readback in the path.
 
+#include "vex.h"
 #include <stdio.h>
-#include <stdint.h>
 
 #include "graphics/graphics.h"
 #include "test_support.h"

@@ -1,12 +1,7 @@
 #ifndef GRAPHICS_VK_BATCH_H
 #define GRAPHICS_VK_BATCH_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#include "util/constructor.h"
-
+#include "vex.h"
 #include "graphics/graphics.h"
 #include "graphvex/lang/image.h"
 

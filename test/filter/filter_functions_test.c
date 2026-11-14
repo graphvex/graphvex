@@ -3,16 +3,17 @@
  * all new operations must reject in CPU submission without touching output.
  * No allocator, owned entries, renderer effects or legal shared state offered.
  * Recipe pool lifecycle belongs to filter_pool_test, not these reference bits. */
+
+#include "vex.h"
 #include "filter/filter_functions.h"
 #include "lang/filter.h"
 #include "compositor/compositor.h"
 #include <assert.h>
-#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 
 // Asserts unsupported tokens return the documented filter-bounds status.
-static void unsupported(FilterToken token) {
+static fn unsupported(FilterToken token) {
     CompositorBounds before = {42, 43, 7, 9};
     CompositorBounds out = before;
     assert(Compositor_filterBounds((CompositorBounds) {0}, &token, 1, &out) == COMPOSITOR_UNSUPPORTED);

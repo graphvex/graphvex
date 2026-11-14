@@ -1,11 +1,7 @@
 #ifndef GRAPHICS_RENDER_LOOP_H
 #define GRAPHICS_RENDER_LOOP_H
 
-#include <stdbool.h>
-#include <stdatomic.h>
-#include <stdint.h>
-
-#include "util/constructor.h"
+#include "vex.h"
 
 // graphvex R3 — graphics/render_loop.h
 //

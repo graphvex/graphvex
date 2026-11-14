@@ -1,13 +1,11 @@
+#include "vex.h"
 #include "compositor/compositor.h"
 
-#include <f32.h>
 #include <limits.h>
 #include <math.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "util/annotation.h"
 
 ;;DEFINITION
 /* CPU reference compositor: own linear-premultiplied f32

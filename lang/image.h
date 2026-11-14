@@ -1,10 +1,7 @@
 #ifndef GRAPHICS_IMAGE_H
 #define GRAPHICS_IMAGE_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "graphics/graphics.h"
 
 // graphvex R3 — image.h

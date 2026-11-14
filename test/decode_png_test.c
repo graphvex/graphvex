@@ -1,5 +1,7 @@
 // Owner: Png — pure PNG bytes → RGBA8. Real streams built in memory via zlib,
 // plus the adversarial matrix (signature, CRC, truncation, unsupported, null).
+
+#include "vex.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

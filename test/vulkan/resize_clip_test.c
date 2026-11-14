@@ -6,6 +6,7 @@
 // 300x300 — pixel for pixel. If the backend "shrinks to fit" (clamps the quad
 // to the window and recomputes the corner), this crop equality breaks.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

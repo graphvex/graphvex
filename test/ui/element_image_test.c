@@ -2,13 +2,15 @@
 // own rounded/ancestor clips, body-only effects and borrowed-image lifetime.
 // Raster pixel checks require the real RGBA shadow draw backend, not a mock.
 // No GPU, fit modes, filter application or asynchronous lifetime proof implied.
+
+#include "vex.h"
 #include <assert.h>
 #include <stdio.h>
 #include "graphvex/lang/image.h"
 #include "ui/element.h"
 
 // Verifies image-backed elements paint, update, and reject invalid images.
-int main(void) {
+int main() {
     const u8 rgba[] = {255, 0, 0, 255, 0, 255, 0, 255};
     Image *image = Image_2(2, 1);
     assert(image && Image_upload(rgba, 2, 1, image));

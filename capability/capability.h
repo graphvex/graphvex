@@ -1,8 +1,7 @@
 #ifndef GRAPHVEX_CAPABILITY_CAPABILITY_H
 #define GRAPHVEX_CAPABILITY_CAPABILITY_H
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "vex.h"
 
 // graphvex R3 — capability/capability.h
 //

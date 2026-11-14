@@ -5,10 +5,11 @@
  * d64-precision convolution, alpha/HDR, malformed tokens, cold size/work
  * caps, failure-atomic output and destination, borrowed source lifetime.
  * External synchronization only. Allocation fault injection remains a gap. */
+
+#include "vex.h"
 #include "compositor/compositor.h"
 
 #include <assert.h>
-#include <f32.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>

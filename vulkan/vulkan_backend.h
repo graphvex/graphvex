@@ -1,9 +1,7 @@
 #ifndef GRAPHICS_VULKAN_BACKEND_H
 #define GRAPHICS_VULKAN_BACKEND_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
+#include "vex.h"
 #include "graphics/graphics.h"
 #include "vulkan/vk_batch.h"
 #include "vulkan/device.h"

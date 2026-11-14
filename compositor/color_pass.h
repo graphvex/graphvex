@@ -1,8 +1,7 @@
 #ifndef GRAPHVEX_COLOR_PASS_H
 #define GRAPHVEX_COLOR_PASS_H
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+
+#include "vex.h"
 #include "filter/filter_functions.h"
 #include "vulkan/device.h"
 

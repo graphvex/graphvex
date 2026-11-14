@@ -1,8 +1,7 @@
 #ifndef GRAPHICS_DEVICE_H
 #define GRAPHICS_DEVICE_H
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "vex.h"
 
 // graphvex R3 — vulkan/device.h
 //

@@ -4,13 +4,14 @@
 // so no Apple header (which defines the Carbon `Rect`) meets graphvex's `Rect`.
 // Mirrors what hotcwap (R1) will own for real.
 
+#include "vex.h"
 #include "iosurface_host.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOSurface/IOSurface.h>
 
 /** Creates an RGBA IOSurface with Metal-aligned row storage; invalid dimensions return nullptr. */
-void *IosHost_create(int width, int height) {
+any IosHost_create(int width, int height) {
     if (width <= 0 || height <= 0) return nullptr;
     CFMutableDictionaryRef d = CFDictionaryCreateMutable(nullptr, 0,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);

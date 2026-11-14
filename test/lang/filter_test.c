@@ -1,14 +1,15 @@
 /* Owner: lang/filter.h. Numeric token ABI/constructors/getters including high
  * ID16, low payload48, binary32 gain bits, out-of-range radius preservation.
  * Submission validation is exercised by compositor/compositor_test.c. */
+
+#include "vex.h"
 #include "lang/filter.h"
 #include <assert.h>
-#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 
 // Verifies the public filter-language compatibility surface.
-int main(void) {
+int main() {
     assert(sizeof(FilterToken) == 8);
     assert(Filter_identity() == 0);
     assert(Filter_id(Filter_identity()) == FILTER_IDENTITY);

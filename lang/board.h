@@ -1,12 +1,7 @@
 #ifndef GRAPHICS_BOARD_H
 #define GRAPHICS_BOARD_H
 
-#include <stdbool.h>
-#include <stdatomic.h>
-#include <stdint.h>
-
-#include "util/constructor.h"
-
+#include "vex.h"
 #include "graphics/graphics.h"
 #include "graphvex/lang/image.h"
 

@@ -3,6 +3,7 @@
 // Renders into the raster target, then CAPTURE(&image) copies the frame into an
 // Image so a test (or an agent) can inspect the actual pixels.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

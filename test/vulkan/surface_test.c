@@ -3,6 +3,7 @@
 // A Surface is a host-borrowed destination + ONE retained present Image.
 // There is NO swapchain; present() invokes the host-installed blit seam.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "vulkan/surface.h"

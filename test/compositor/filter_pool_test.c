@@ -6,6 +6,8 @@
 // compose equivalence, and exactly one cold diagnostic per detected rejection.
 // Gaps: allocation-fault injection and uint32 refcount saturation (billions of
 // calls); no concurrency, cross-pool provenance, GPU or steady-state claims.
+
+#include "vex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

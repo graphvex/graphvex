@@ -4,6 +4,7 @@
 // capture renders them ON THE GPU (offscreen) + reads back. clear() is the
 // render-pass clear (no quad); clip() intersects into the recorded quad.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

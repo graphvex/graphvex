@@ -5,11 +5,12 @@
  * Legal use is externally synchronized; 100ms fence bound + runner watchdog.
  * Covers supported forms/alpha/HDR/order/rejection/retry/borrowed lifetime.
  * Gaps: OOM injection, automatic tree/scope planner and other platforms. */
+
+#include "vex.h"
 #include "../../compositor/color_pass.h"
 #include "test_support.h"
 #include <vulkan/vulkan.h>
 #include <assert.h>
-#include <f32.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

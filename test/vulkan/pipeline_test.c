@@ -3,6 +3,7 @@
 // The one quad pipeline: it owns the vertex/fragment SPIR-V Bytes and the fixed
 // state. It records shaders; the VkPipeline is created once a Device is bound.
 
+#include "vex.h"
 #include <stdio.h>
 #include <stdlib.h>
 

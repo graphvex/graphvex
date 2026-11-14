@@ -3,6 +3,7 @@
 // The quad batcher: pure CPU data, so it is fully testable headless. Every
 // rect/image/glyph becomes one quad = two triangles = six vertices.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "vulkan/vk_batch.h"

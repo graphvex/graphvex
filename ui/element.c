@@ -1,3 +1,4 @@
+#include "vex.h"
 #include "ui/element.h"
 
 #include <math.h>
@@ -6,7 +7,6 @@
 
 #include "nio/property_pool.h"
 #include "graphvex/lang/image.h"
-#include "util/annotation.h"
 
 ;;DEFINITION
 /**

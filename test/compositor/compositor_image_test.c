@@ -3,13 +3,15 @@
  * stride reuse, explicit BGRA rejection, missing shadows/invalid/null/empty,
  * source borrowing and owned output teardown. CPU-only, no GPU integration.
  * Allocation failure injection and platform alternatives remain gaps. */
+
+#include "vex.h"
 #include "../../compositor/compositor_image.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 
 // Verifies image upload and sampling preserve a complete pixel round trip.
-static void round_trip(void) {
+static fn round_trip() {
     Image *image = Image_2(256, 2);
     assert(image && Image_ensureShadow(image, 256, 2));
     u8 *pixels = Image_pixels(image);

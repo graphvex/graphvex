@@ -3,6 +3,7 @@
 // RGBA8 pixel buffer with a CPU shadow: construct, resize, upload, fill,
 // stride, layer, and the opaque native/IOSurface slots.
 
+#include "vex.h"
 #include <stdio.h>
 #include <string.h>
 

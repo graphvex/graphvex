@@ -4,6 +4,7 @@
 // may point at one bound (a write is seen by both); owning detaches; revalidate
 // clears only the dirty branches; a radius>0 parent clips its children.
 
+#include "vex.h"
 #include <stdio.h>
 
 #include "graphics/graphics.h"

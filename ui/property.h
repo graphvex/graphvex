@@ -1,8 +1,7 @@
 #ifndef GRAPHICS_UI_PROPERTY_H
 #define GRAPHICS_UI_PROPERTY_H
 
-#include <stdbool.h>
-
+#include "vex.h"
 #include "graphics/graphics.h"   // Color
 
 // graphvex R3 — ui/property.h

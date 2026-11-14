@@ -1,8 +1,8 @@
+#include "vex.h"
 #include "graphics/graphics.h"
 #include "graphics/image_runs.h"
 
 #include "graphvex/lang/image.h"
-#include "util/annotation.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -1,8 +1,7 @@
 #ifndef IOSURFACE_HOST_H
 #define IOSURFACE_HOST_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include "vex.h"
 
 // graphvex/test/vulkan/iosurface_host.h
 //

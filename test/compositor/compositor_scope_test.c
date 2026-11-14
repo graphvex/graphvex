@@ -5,10 +5,11 @@
  * on all premult channels, rejection/failure-atomic outputs, borrowed lifetime.
  * Rectangle-only opaque-prefix prototype. No GPU/window/appearance claims.
  * Allocation fault injection and rounded/translucent scenes remain gaps. */
+
+#include "vex.h"
 #include "../../compositor/compositor_scope.h"
 
 #include <assert.h>
-#include <f32.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>

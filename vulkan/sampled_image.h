@@ -1,5 +1,7 @@
 #ifndef GRAPHVEX_SAMPLED_IMAGE_H
 #define GRAPHVEX_SAMPLED_IMAGE_H
+
+#include "vex.h"
 #include "vulkan/device.h"
 #include "graphvex/lang/image.h"
 

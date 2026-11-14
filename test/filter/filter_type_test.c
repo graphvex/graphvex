@@ -1,13 +1,14 @@
 /* Owner: filter/filter_type.h. Pure registry: exact legacy values, unique IDs
  * for every declared effect, fit in ID16, distinct recipe operation. No pixels,
  * allocation, callbacks, pointer validation or concurrency state to exercise. */
+
+#include "vex.h"
 #include "filter/filter_type.h"
 #include <assert.h>
-#include <stdint.h>
 #include <stdio.h>
 
 // Checks canonical filter IDs, aliases, and operation-table consistency.
-int main(void) {
+int main() {
     const u32 ids[] = {
         IDENTITY_ID, GAIN_ID, SCATTER_BLUR_ID, BRIGHTNESS_ID,
         CONTRAST_ID, TONE_CURVE_ID, HSL_ID, HSV_ID,

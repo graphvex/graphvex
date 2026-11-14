@@ -1,10 +1,7 @@
 #ifndef GRAPHICS_NIO_PROPERTY_POOL_H
 #define GRAPHICS_NIO_PROPERTY_POOL_H
 
-#include <stdint.h>
-
-#include "util/constructor.h"
-
+#include "vex.h"
 #include "ui/property.h"
 
 // graphvex R3 — nio/property_pool.h

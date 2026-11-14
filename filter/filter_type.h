@@ -1,6 +1,8 @@
 #ifndef GRAPHVEX_FILTER_TYPE_H
 #define GRAPHVEX_FILTER_TYPE_H
 
+#include "vex.h"
+
 /* Canonical ID16 operation registry. IDs are numeric ABI: never renumber/reuse.
  * Declaration is vocabulary, not backend support. 0x8000 remains the existing
  * immutable recipe-pool operation, distinct from typed parameter references. */
