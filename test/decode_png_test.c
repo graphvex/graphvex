@@ -62,7 +62,7 @@ static bytes buildPng(u8 *out, u32 width, u32 height, u8 colorType,
 // line naming its cause, and admitted paths must stay quiet.
 static FILE *diagnostics;
 static int savedStderr;
-static void beginDiagnostics(void) {
+static fn beginDiagnostics() {
     fflush(stderr);
     diagnostics = tmpfile();
     assert(diagnostics != nullptr);
@@ -70,7 +70,7 @@ static void beginDiagnostics(void) {
     assert(savedStderr >= 0);
     assert(dup2(fileno(diagnostics), STDERR_FILENO) >= 0);
 }
-static void endDiagnostics(bytes expected, const char *fragment) {
+static fn endDiagnostics(bytes expected, const char *fragment) {
     fflush(stderr);
     assert(dup2(savedStderr, STDERR_FILENO) >= 0);
     close(savedStderr);
@@ -90,7 +90,7 @@ static void endDiagnostics(bytes expected, const char *fragment) {
     fclose(diagnostics);
 }
 
-int main(void) {
+int main() {
     static const u8 sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
     assert(Png_isPng(sig, sizeof sig));
     assert(!Png_isPng(nullptr, 8) && !Png_isPng(sig, 4));

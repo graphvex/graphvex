@@ -53,14 +53,14 @@ typedef struct ElementDesc {
     const char *tag;          // optional name for Element_find
 } ElementDesc;
 
-Element *Element_0(void);
+Element *Element_0();
 Element *Element_1(const ElementDesc *desc);
 // Public construction is `Element(...)` — the arity chooser picks _0/_1 by
 // argument count. The `_N` spellings are implementation, not call sites.
 #define ELEMENT_CHOOSER(_0, _1, NAME, ...) NAME
 #define Element(...) ELEMENT_CHOOSER(dummy __VA_OPT__(,) __VA_ARGS__, Element_1, Element_0)(__VA_ARGS__)
 
-void Element_destroy(Element *element);      // frees the subtree
+fn Element_destroy(Element *element);      // frees the subtree
 
 // ── the bound (a pooled, shareable Property) ────────────────────────────────
 Property *Element_property(const Element *element);         // borrowed view
@@ -68,8 +68,8 @@ Element  *Element_setProperty(Element *element, Property *property);  // bind: b
 Element  *Element_ownProperty(Element *element);            // re-own: allocate a private copy
 
 // ── revalidation (dirty subtree) ────────────────────────────────────────────
-void Element_markDirty(Element *element);    // this node + its ancestors
-void Element_revalidate(Element *root);      // reflect the dirty branches; prunes clean ones
+fn Element_markDirty(Element *element);    // this node + its ancestors
+fn Element_revalidate(Element *root);      // reflect the dirty branches; prunes clean ones
 bool Element_isDirty(const Element *element);
 
 // ── tree ────────────────────────────────────────────────────────────────────
@@ -154,6 +154,6 @@ int Element_cursorPreference(const Element *element);
 // Paint this element at an ABSOLUTE rect, then its children (resolved against
 // that rect). A parent with radius > 0 clips its children to the rounded shape.
 // A fully transparent element paints nothing but still walks.
-void Element_paint(const Element *element, Rect absolute, DisplayList *dl);
+fn Element_paint(const Element *element, Rect absolute, DisplayList *dl);
 
 #endif // GRAPHICS_ELEMENT_H

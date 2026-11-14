@@ -62,7 +62,7 @@ static const Backend *s_current = nullptr;
 static DrawCmd s_baseClip;
 static bool s_hasBaseClip = false; // explicit clip outside a display-list scope
 
-const Backend *RasterGraphics_row(void);   // defined below
+const Backend *RasterGraphics_row();   // defined below
 
 // Registers or replaces a backend descriptor by ID.
 bool Graphics_register(const Backend *row) {
@@ -90,15 +90,15 @@ bool Graphics_use(u32 backendId) {
 }
 
 // Returns the active backend ID, or BACKEND_NONE when no backend is selected.
-u32 Graphics_backendId(void) { return s_current ? (*s_current).id : BACKEND_NONE; }
-const Backend *Graphics_current(void) { return s_current; }
+u32 Graphics_backendId() { return s_current ? (*s_current).id : BACKEND_NONE; }
+const Backend *Graphics_current() { return s_current; }
 
 // ── forwarders (call through the active row; false when none) ───────────────
-bool Graphics_begin(void)   { return s_current && (*s_current).begin   ? (*s_current).begin()   : false; }
+bool Graphics_begin()   { return s_current && (*s_current).begin   ? (*s_current).begin()   : false; }
 // Forwards frame completion to the active backend when provided.
-bool Graphics_end(void)     { return s_current && (*s_current).end     ? (*s_current).end()     : false; }
+bool Graphics_end()     { return s_current && (*s_current).end     ? (*s_current).end()     : false; }
 // Forwards presentation to the active backend when provided.
-bool Graphics_present(void) { return s_current && (*s_current).present ? (*s_current).present() : false; }
+bool Graphics_present() { return s_current && (*s_current).present ? (*s_current).present() : false; }
 // Resizes the active backend and updates graphics clip state on success.
 bool Graphics_resize(u32 w, u32 h) {
     bool ok = s_current && (*s_current).resize ? (*s_current).resize(w, h) : false;
@@ -144,13 +144,13 @@ struct DisplayList {
     bytes clipCap, clipDepth; // reserved nesting depth and recording depth
 };
 
-DisplayList *DisplayList_0(void) {
+DisplayList *DisplayList_0() {
     DisplayList *dl = calloc(1, sizeof *dl);
     return dl;
 }
 
 // Frees the command array and display-list record.
-void DisplayList_free(DisplayList *dl) {
+fn DisplayList_free(DisplayList *dl) {
     if (!dl) return;
     free((*dl).items);
     free((*dl).clipStack);
@@ -158,7 +158,7 @@ void DisplayList_free(DisplayList *dl) {
 }
 
 // Resets the command count and clip stack while retaining allocated capacity.
-void DisplayList_clear(DisplayList *dl) {
+fn DisplayList_clear(DisplayList *dl) {
     if (dl) { (*dl).count = 0; (*dl).clipDepth = 0; }
 }
 
@@ -174,7 +174,7 @@ static DrawCmd *dl_push(DisplayList *dl) {
 }
 
 // Appends a rectangle draw command with a copied brush value.
-void DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush) {
+fn DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush) {
     if (!dl || !brush || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
@@ -188,7 +188,7 @@ void DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush) {
 }
 
 // Appends an image draw command and retains its image for deferred submission.
-void DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst) {
+fn DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst) {
     if (!dl || !image || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
@@ -199,7 +199,7 @@ void DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst) 
 }
 
 // Appends a text command with copied text and color data.
-void DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color) {
+fn DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color) {
     if (!dl || !text || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
@@ -210,12 +210,12 @@ void DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color) 
 }
 
 // Pushes a rectangular clip command and records its stack entry.
-void DisplayList_clip(DisplayList *dl, Rect rect) {
+fn DisplayList_clip(DisplayList *dl, Rect rect) {
     DisplayList_clipRounded(dl, rect, 0.0f);
 }
 
 // Pushes a rounded clip command and records its stack entry.
-void DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius) {
+fn DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius) {
     if (!dl) return;
     if ((*dl).clipDepth == (*dl).clipCap) {
         bytes cap = (*dl).clipCap ? (*dl).clipCap * 2 : 8;
@@ -233,7 +233,7 @@ void DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius) {
 }
 
 // Pops one nested clip when present and appends the matching unclip command.
-void DisplayList_unclip(DisplayList *dl) {
+fn DisplayList_unclip(DisplayList *dl) {
     if (!dl) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
@@ -394,7 +394,7 @@ bool Raster_configure(u32 width, u32 height) {
     return true;
 }
 
-const u32 *Raster_pixels(void) { return s_px; }
+const u32 *Raster_pixels() { return s_px; }
 
 // Returns the packed pixel at x,y, or transparent black outside the configured extent.
 u32 Raster_pixelAt(u32 x, u32 y) {
@@ -402,9 +402,9 @@ u32 Raster_pixelAt(u32 x, u32 y) {
     return s_px[(bytes)y * (bytes)s_capW + (bytes)x];
 }
 
-static bool raster_begin(void) { return s_px != nullptr; }
-static bool raster_end(void) { return true; }
-static bool raster_present(void) { return true; }
+static bool raster_begin() { return s_px != nullptr; }
+static bool raster_end() { return true; }
+static bool raster_present() { return true; }
 
 static bool raster_resize(u32 w, u32 h) { return Raster_configure(w, h); }
 
@@ -509,8 +509,8 @@ static bool raster_fillRect(const Rect *rect, const Brush *brush) {
     return true;
 }
 
-static bool raster_imageRun(Rect run, Color color, void *context) {
-    (void) context;
+static bool raster_imageRun(Rect run, Color color, any context) {
+    (fn) context;
     Brush brush = {color, 0, 0, 0, 0};
     return raster_fillRect(&run, &brush);
 }
@@ -527,9 +527,9 @@ static bool raster_drawImage(const Image *image, const Rect *dst) {
 
 static bool raster_drawText(const Rect *rect, const char *text, const Brush *brush) {
     // Text metrics/glyphs are a later slice; the core records intent only.
-    (void)rect;
-    (void)text;
-    (void)brush;
+    (fn)rect;
+    (fn)text;
+    (fn)brush;
     return true;
 }
 
@@ -554,7 +554,7 @@ static bool raster_capture(Image *dest) {
     return true;
 }
 
-const Backend *RasterGraphics_row(void) {
+const Backend *RasterGraphics_row() {
     static const Backend row = {
         BACKEND_RASTER, raster_begin,   raster_end,     raster_present,
         raster_resize,  raster_clear,   raster_clip,    raster_fillRect,

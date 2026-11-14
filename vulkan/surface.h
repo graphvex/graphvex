@@ -26,24 +26,24 @@ typedef struct Surface Surface;
 // Image into it — a CAMetalLayer contents update on Apple. The callback reads
 // Surface_handle and Surface_presentImage, writes the destination, and returns
 // true only when a frame was actually handed over.
-typedef bool (*SurfacePresentFn)(Surface *surface, void *userdata);
-typedef u64 (*SurfaceClockFn)(void *userdata); // monotonic nanoseconds
+typedef bool (*SurfacePresentFn)(Surface *surface, any userdata);
+typedef u64 (*SurfaceClockFn)(any userdata); // monotonic nanoseconds
 
-Surface *Surface_0(void);
-Surface *Surface_3(void *native, u32 width, u32 height);
+Surface *Surface_0();
+Surface *Surface_3(any native, u32 width, u32 height);
 #define Surface(...) CONSTRUCTOR_DISPATCH(Surface, __VA_ARGS__)
-void Surface_destroy(Surface *surface);
+fn Surface_destroy(Surface *surface);
 
 bool Surface_resize(Surface *surface, u32 width, u32 height);
 u32 Surface_width(const Surface *surface);    // native px
 u32 Surface_height(const Surface *surface);
 bool Surface_isValid(const Surface *surface);
-void *Surface_handle(const Surface *surface);      // borrowed native destination
+any Surface_handle(const Surface *surface);      // borrowed native destination
 Image *Surface_presentImage(Surface *surface);     // retained target to render into
 
 // Register the host blit. The callback + userdata are borrowed, never owned;
 // passing NULL clears the seam. Idempotent (re-register replaces).
-void Surface_onPresent(Surface *surface, SurfacePresentFn fn, void *userdata);
+fn Surface_onPresent(Surface *surface, SurfacePresentFn fn, any userdata);
 
 // Hand the completed present image to the host seam: invoke the registered
 // blit. Returns false when no seam is installed (an offscreen surface has
@@ -52,22 +52,22 @@ void Surface_onPresent(Surface *surface, SurfacePresentFn fn, void *userdata);
 bool Surface_present(Surface *surface);
 // Owner-thread policy. -1 = no imposed ceiling; positive = FPS ceiling.
 // No sleeps, no scene-thread pacing. Deferred invalidations coalesce.
-void Surface_setFPSCap(Surface *surface, int fps);
+fn Surface_setFPSCap(Surface *surface, int fps);
 int Surface_getFPSCap(const Surface *surface);
 u64 Surface_getPresentCount(const Surface *surface);
-void Surface_poll(Surface *surface);
+fn Surface_poll(Surface *surface);
 // Fresh offscreen/capture rendering; host publication still respects the cap.
-void Surface_revalidateNow(Surface *surface);
+fn Surface_revalidateNow(Surface *surface);
 // Optional deterministic clock; NULL restores CLOCK_MONOTONIC and resets deadline.
-void Surface_setClock(Surface *surface, SurfaceClockFn fn, void *userdata);
+fn Surface_setClock(Surface *surface, SurfaceClockFn fn, any userdata);
 
 // ── revalidation (the render cascade) ───────────────────────────────────────
 // A surface may own several boards (scene + content). Surface_revalidate is the
 // one call a Frame makes: revalidate every attached board (which renders its
 // scene/content into the board), then hand the completed present image to the
 // host. Boards are BORROWED — the surface never frees one.
-void Surface_addBoard(Surface *surface, Board *board);
-void Surface_removeBoard(Surface *surface, Board *board);
-void Surface_revalidate(Surface *surface);   // Boards_revalidate, then present
+fn Surface_addBoard(Surface *surface, Board *board);
+fn Surface_removeBoard(Surface *surface, Board *board);
+fn Surface_revalidate(Surface *surface);   // Boards_revalidate, then present
 
 #endif // GRAPHICS_SURFACE_H

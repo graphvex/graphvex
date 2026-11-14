@@ -19,7 +19,7 @@ const vec2 corners[6] = vec2[6](
     vec2(0, 0), vec2(1, 0), vec2(1, 1),
     vec2(0, 0), vec2(1, 1), vec2(0, 1));
 
-void main() {
+fn main() {
     ivec2 source = ivec2(gl_InstanceIndex % pc.sourceExtent.x,
                         gl_InstanceIndex / pc.sourceExtent.x);
     f32 diameter = f32(2 * pc.radius + 1);

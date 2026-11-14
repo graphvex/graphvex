@@ -25,13 +25,13 @@ static CompositorSurface *make(CompositorBounds b, const f32 rgba[4]) {
 }
 
 // Asserts a f32ing-point result against an explicit tolerance.
-static void near(f32 actual, d64 expected, d64 tolerance) {
+static fn near(f32 actual, d64 expected, d64 tolerance) {
     assert(isfinite(actual));
     assert(fabs(actual - expected) <= tolerance);
 }
 
 // Verifies surface creation, pixel access, limits, and invalid arguments.
-static void surface_contract(void) {
+static fn surface_contract() {
     CompositorSurface *zero = CompositorSurface();
     assert(zero && !CompositorSurface_bounds(zero).width);
     CompositorSurface_destroy(zero);
@@ -98,7 +98,7 @@ static void surface_contract(void) {
 }
 
 // Checks filter support bounds and token validation outcomes.
-static void support_and_tokens(void) {
+static fn support_and_tokens() {
     CompositorBounds b = {-10, 8, 2, 3}, out = {100, 101, 4, 5};
     FilterToken stack[] = {Filter_identity(), Filter_gain(2), Filter_scatterBlur(1), Filter_scatterBlur(2)};
     assert(Compositor_filterBounds(b, stack, 4, &out) == COMPOSITOR_OK);
@@ -131,7 +131,7 @@ static void support_and_tokens(void) {
 }
 
 // Tests isolated surface composition and source-over color results.
-static void isolation_and_over(void) {
+static fn isolation_and_over() {
     const f32 red[4] = {.5f, 0, 0, .5f}, blue[4] = {0, 0, .5f, .5f};
     CompositorSurface *a = make((CompositorBounds) {-2, 4, 1, 1}, red);
     CompositorSurface *b = make((CompositorBounds) {-2, 4, 1, 1}, blue);
@@ -198,7 +198,7 @@ static void isolation_and_over(void) {
 }
 
 // Verifies bounds union behavior and arithmetic/resource limits.
-static void union_and_limits(void) {
+static fn union_and_limits() {
     const f32 red[4] = {1, 0, 0, 1}, blue[4] = {0, 0, 1, 1};
     CompositorSurface *a = make((CompositorBounds) {-2, -3, 1, 1}, red);
     CompositorSurface *b = make((CompositorBounds) {0, -2, 1, 1}, blue);
@@ -232,7 +232,7 @@ static void union_and_limits(void) {
 /* Independent d64-precision convolution oracle. The implementation under
  * test SCATTERS; this oracle enumerates destination neighborhoods solely to
  * avoid reproducing implementation indexing and accumulation order. */
-static void check_scatter(const CompositorSurface *src, u32 radius) {
+static fn check_scatter(const CompositorSurface *src, u32 radius) {
     const CompositorSurface *sources[] = {src};
     FilterToken blur = Filter_scatterBlur(radius);
     CompositorSurface *out = nullptr;
@@ -276,7 +276,7 @@ static void check_scatter(const CompositorSurface *src, u32 radius) {
 }
 
 // Exercises scatter kernels on impulse and constant-field fixtures.
-static void scatter_oracles(void) {
+static fn scatter_oracles() {
     const f32 impulse[4] = {.25f, .125f, 0, .5f};
     CompositorSurface *one = make((CompositorBounds) {-8, 19, 1, 1}, impulse);
     check_scatter(one, 0);
@@ -312,7 +312,7 @@ static void scatter_oracles(void) {
 }
 
 // Confirms overflow rejection preserves source and destination surfaces.
-static void overflow_atomicity(void) {
+static fn overflow_atomicity() {
     const f32 huge[4] = {FLT_MAX, 0, 0, .5f};
     CompositorSurface *src = make((CompositorBounds) {0, 0, 1, 1}, huge);
     CompositorSurface *dst = make((CompositorBounds) {0, 0, 1, 1}, huge);
@@ -343,7 +343,7 @@ static void overflow_atomicity(void) {
 }
 
 // Runs compositor surface, filtering, scatter, and atomicity contracts.
-int main(void) {
+int main() {
     surface_contract();
     support_and_tokens();
     isolation_and_over();

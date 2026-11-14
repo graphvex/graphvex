@@ -20,13 +20,13 @@ static int g_fail = 0;
     } while (0)
 
 // Tests pool growth, stable item storage, release, and rejected operations.
-int main(void) {
+int main() {
     Pool *p = Pool_new(32, 4);       // 4 slots per block -> 10 allocs force growth
     CHECK(p != nullptr);
     CHECK(Pool_stride(p) == 32);
     CHECK(Pool_live(p) == 0);
 
-    void *items[10];
+    any items[10];
     for (int i = 0; i < 10; i++) {
         items[i] = Pool_alloc(p);
         CHECK(items[i] != nullptr);
@@ -48,7 +48,7 @@ int main(void) {
     // release is LIFO-reused and re-zeroed
     Pool_release(p, items[3]);
     CHECK(Pool_live(p) == 9);
-    void *reused = Pool_alloc(p);
+    any reused = Pool_alloc(p);
     CHECK(reused == items[3]);
     CHECK(((u8*) reused)[0] == 0);
     CHECK(Pool_live(p) == 10);

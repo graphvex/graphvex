@@ -17,7 +17,7 @@ static int g_fail = 0;
     } while (0)
 
 // Checks viewport mapping, clipping, and boundary coordinate behavior.
-int main(void) {
+int main() {
     Viewport v = Viewport();
     CHECK(Viewport_isEmpty(&v));          // 0x0
 

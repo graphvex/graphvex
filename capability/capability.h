@@ -68,8 +68,8 @@ bool      GpuCapability_has(const Device *device, GpuFeature feature);
 GpuFamily GpuCapability_family(const Device *device);
 
 // --- Host facts (no device; pure, side-effect free) -------------------------
-HostChip        GpuCapability_chip(void);
-HostMediaEngine GpuCapability_mediaEngine(void);
+HostChip        GpuCapability_chip();
+HostMediaEngine GpuCapability_mediaEngine();
 
 // --- Stable symbolic names (cold path; never null) --------------------------
 const char *GpuCapability_featureName(GpuFeature feature);

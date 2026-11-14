@@ -63,9 +63,9 @@ u32 FilterPool_maxRecipeFilters(const FilterPool *pool);
 u32 FilterPool_live(const FilterPool *pool);
 /* Bounded cold strings; NULL pool renders "nullptr". NULL destination is
  * accepted only with cap=0; truncation flag is optional. No allocations. */
-void FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
+fn FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
                          bool *outTruncated);
-void FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
+fn FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
                                bool *outTruncated);
 
 #endif

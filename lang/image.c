@@ -33,17 +33,17 @@ struct Image {
     u32 format;
     u32 usage;
     u8 *pixels;       // CPU shadow (RGBA8)
-    void *native;          // opaque dialect handle
-    void *ioSurface;       // opaque IOSurfaceRef
+    any native;          // opaque dialect handle
+    any ioSurface;       // opaque IOSurfaceRef
     u32 layer;        // atlas layer / sampler index
-    void *gpuResource; // owned opaque texture; renderer retains independently
-    void *gpuDevice; // borrowed driver/device identity
-    void *gpuDescriptor; // borrowed descriptor from owned resource
+    any gpuResource; // owned opaque texture; renderer retains independently
+    any gpuDevice; // borrowed driver/device identity
+    any gpuDescriptor; // borrowed descriptor from owned resource
     ImageGpuRefFn gpuRetain;
     ImageGpuRefFn gpuRelease;
 };
 
-static void clamp_dims(u32 *w, u32 *h) {
+static fn clamp_dims(u32 *w, u32 *h) {
     if (*w == 0) *w = 1;
     if (*h == 0) *h = 1;
 }
@@ -61,7 +61,7 @@ Image *Image_new(const ImageDesc *desc) {
 }
 
 // Creates an empty 1x1 RGBA image descriptor with no usage flags.
-Image *Image_0(void) { return Image_new(nullptr); }
+Image *Image_0() { return Image_new(nullptr); }
 // Creates an RGBA image descriptor with the requested dimensions and no usage flags.
 Image *Image_2(u32 width, u32 height) {
     ImageDesc d = {width, height, IMAGE_FORMAT_RGBA8, IMAGE_USAGE_NONE};
@@ -74,7 +74,7 @@ Image *Image_4(u32 width, u32 height, u32 format, u32 usage) {
 }
 
 // Releases GPU binding and owned CPU pixels, then frees metadata; a failed GPU release preserves the image.
-void Image_destroy(Image *image) {
+fn Image_destroy(Image *image) {
     if (!image) return;
     if (!Image_clearGpu(image))
         return;
@@ -130,7 +130,7 @@ bool Image_upload(const u8 *rgba, u32 width, u32 height, Image *dest) {
 }
 
 // Fills the current logical extent of the CPU shadow with one RGBA color.
-void Image_fill(Image *image, Color color) {
+fn Image_fill(Image *image, Color color) {
     if (!image) return;
     if (!Image_clearGpu(image))
         return;
@@ -167,24 +167,24 @@ u8 *Image_pixels(const Image *image) { return image ? (*image).pixels : nullptr;
 bool Image_isValid(const Image *image) { return image && (*image).width > 0 && (*image).height > 0; }
 
 // Returns the borrowed opaque backend-native handle.
-void *Image_native(const Image *image) { return image ? (*image).native : nullptr; }
+any Image_native(const Image *image) { return image ? (*image).native : nullptr; }
 // Returns the borrowed opaque IOSurface handle.
-void *Image_iosurface(const Image *image) { return image ? (*image).ioSurface : nullptr; }
+any Image_iosurface(const Image *image) { return image ? (*image).ioSurface : nullptr; }
 // Stores a borrowed opaque backend-native handle without taking ownership.
-void Image_setNative(Image *image, void *native) { if (image) (*image).native = native; }
+fn Image_setNative(Image *image, any native) { if (image) (*image).native = native; }
 // Stores a borrowed opaque IOSurface handle without taking ownership.
-void Image_setIOSurface(Image *image, void *ioSurface) { if (image) (*image).ioSurface = ioSurface; }
+fn Image_setIOSurface(Image *image, any ioSurface) { if (image) (*image).ioSurface = ioSurface; }
 // Returns the image's atlas or sampler layer index.
 u32 Image_layer(const Image *image) { return image ? (*image).layer : 0u; }
 // Sets the image's atlas or sampler layer index.
-void Image_setLayer(Image *image, u32 layer) { if (image) (*image).layer = layer; }
+fn Image_setLayer(Image *image, u32 layer) { if (image) (*image).layer = layer; }
 
 // Returns the owned opaque GPU resource pointer.
-void *Image_gpuResource(const Image *image) { return image ? (*image).gpuResource : nullptr; }
+any Image_gpuResource(const Image *image) { return image ? (*image).gpuResource : nullptr; }
 // Returns the borrowed identity of the GPU device that owns the resource.
-void *Image_gpuDevice(const Image *image) { return image ? (*image).gpuDevice : nullptr; }
+any Image_gpuDevice(const Image *image) { return image ? (*image).gpuDevice : nullptr; }
 // Returns the borrowed GPU sampling descriptor.
-void *Image_gpuDescriptor(const Image *image) { return image ? (*image).gpuDescriptor : nullptr; }
+any Image_gpuDescriptor(const Image *image) { return image ? (*image).gpuDescriptor : nullptr; }
 // Reports whether the image has a valid extent and either CPU pixels or a GPU descriptor.
 bool Image_isDrawable(const Image *image) {
     return Image_isValid(image) && (Image_pixels(image) || Image_gpuDescriptor(image));
@@ -203,7 +203,7 @@ bool Image_clearGpu(Image *image) {
     return true;
 }
 // Retains and installs a complete GPU binding, replacing the previous binding only after admission.
-bool Image_bindGpu(Image *image, void *resource, void *device, void *descriptor,
+bool Image_bindGpu(Image *image, any resource, any device, any descriptor,
                    ImageGpuRefFn retain, ImageGpuRefFn release) {
     if (!image || !resource || !device || !descriptor || !retain || !release) {
         THROW("Image GPU binding requires a complete validated resource");

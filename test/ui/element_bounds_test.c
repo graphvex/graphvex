@@ -31,7 +31,7 @@ static Element *node(f32 w, f32 h, f32 x, f32 y) {
 }
 
 // Checks event and absolute bounds for placement and style changes.
-static void placement_and_styles(void) {
+static fn placement_and_styles() {
     Rect parent = {100, 50, 200, 100};
     Element *e = node(20, 10, 5, -7);
     for (int a = 0; a < PART_COUNT; a++) {
@@ -63,7 +63,7 @@ static void placement_and_styles(void) {
 }
 
 // Verifies descendant paint bounds honor clipping and subtree changes.
-static void descendants_and_clips(void) {
+static fn descendants_and_clips() {
     Rect parent = {100, 50, 400, 300};
     Element *root = node(40, 30, 0, 0);
     Element *child = node(10, 10, 60, -20);
@@ -97,7 +97,7 @@ static void descendants_and_clips(void) {
 }
 
 // Checks effect-expanded paint bounds do not expand event hit bounds.
-static void halo_and_hit(void) {
+static fn halo_and_hit() {
     Element *root = node(40, 30, 0, 0);
     Element *child = node(10, 10, 35, 10);
     Element_add(root, child);
@@ -116,7 +116,7 @@ static void halo_and_hit(void) {
 }
 
 // Tests empty trees, shared properties, and null-safe bound queries.
-static void empty_and_shared(void) {
+static fn empty_and_shared() {
     Rect parent = {10, 20, 50, 50};
     CHECK(same(Element_eventBound(nullptr, parent), (Rect){0}));
     CHECK(same(Element_absoluteBound(nullptr, parent), (Rect){0}));
@@ -141,7 +141,7 @@ static void empty_and_shared(void) {
 }
 
 // Runs element bound placement, descendant, halo, and sharing scenarios.
-int main(void) {
+int main() {
     placement_and_styles();
     descendants_and_clips();
     halo_and_hit();

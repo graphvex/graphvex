@@ -9,7 +9,7 @@
 // lifetime, blur halo and raster submission. No GPU, OOM
 // injection, concurrency or end-to-end linear-light presentation proof.
 // Exercises compositor submission recording and preserved-state failures.
-int main(void) {
+int main() {
     DisplayList *list = DisplayList_0();
 
     assert(list);

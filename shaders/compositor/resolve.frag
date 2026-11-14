@@ -12,7 +12,7 @@ layout(push_constant) uniform ResolvePush {
 } pc;
 layout(location = 0) out vec4 resolvedColor;
 
-void main() {
+fn main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     vec4 color = texelFetch(accumulatedColor, pixel, 0);
     if (pc.normalizationMode == 1u) {

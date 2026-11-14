@@ -14,9 +14,9 @@
 typedef struct Pipeline Pipeline;
 
 typedef struct PipelineDesc {
-    const void *vertSpirv;    // SPIR-V words
+    const_any vertSpirv;    // SPIR-V words
     u32 vertSize;        // Bytes
-    const void *fragSpirv;
+    const_any fragSpirv;
     u32 fragSize;
     u32 vertexStride;    // Bytes per vertex (VK_VERTEX_FLOATS * 4)
     u32 pushConstantSize;// e.g. sizeof(vec2 viewport)
@@ -28,9 +28,9 @@ Pipeline *Pipeline_new(const PipelineDesc *desc);
 Pipeline *Pipeline_fromFiles(const char *vertSpvPath, const char *fragSpvPath,
                              u32 vertexStride, u32 pushConstantSize);
 
-void Pipeline_destroy(Pipeline *pipeline);
+fn Pipeline_destroy(Pipeline *pipeline);
 bool Pipeline_isValid(const Pipeline *pipeline);
 u32 Pipeline_vertexStride(const Pipeline *pipeline);
-void *Pipeline_native(const Pipeline *pipeline);   // opaque VkPipeline (once bound)
+any Pipeline_native(const Pipeline *pipeline);   // opaque VkPipeline (once bound)
 
 #endif // GRAPHICS_PIPELINE_H

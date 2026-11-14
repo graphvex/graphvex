@@ -21,16 +21,16 @@ static int g_probed = 0;
 static int g_window = 0;
 
 // Counts each render-loop probe callback invocation.
-static void probe(void *ud, d64 dt) { (void)ud; (void)dt; g_probed++; }
+static fn probe(any ud, d64 dt) { (fn)ud; (fn)dt; g_probed++; }
 // Counts presentation callbacks and returns the configured test result.
-static bool present(void *window, d64 dt, void *ud) {
-    (void)window; (void)dt; (void)ud;
+static bool present(any window, d64 dt, any ud) {
+    (fn)window; (fn)dt; (fn)ud;
     g_presented++;
     return true;
 }
 
 // Verifies render-loop callbacks, demand scheduling, and stop behavior.
-int main(void) {
+int main() {
     RenderLoop *loop = RenderLoop();
     CHECK(loop != nullptr);
     CHECK(RenderLoop_findClient(loop, &g_window) == nullptr);

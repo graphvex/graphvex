@@ -47,7 +47,7 @@
  */
 
 // Returns a zeroed bound with an opaque white background and no size clamps.
-Property Property_default(void) {
+Property Property_default() {
     Property p = {0};
     p.background = COLOR_WHITE;
     return p;
@@ -62,14 +62,14 @@ static f32 property_clamp(f32 value, f32 min, f32 max) {
 }
 
 // Sets nonnegative minimum dimensions; zero disables each minimum.
-void Property_setMinSize(Property *property, f32 width, f32 height) {
+fn Property_setMinSize(Property *property, f32 width, f32 height) {
     if (!property) return;
     (*property).minW = width > 0.0f ? width : 0.0f;
     (*property).minH = height > 0.0f ? height : 0.0f;
 }
 
 // Sets nonnegative maximum dimensions; zero means no upper bound.
-void Property_setMaxSize(Property *property, f32 width, f32 height) {
+fn Property_setMaxSize(Property *property, f32 width, f32 height) {
     if (!property) return;
     (*property).maxW = width > 0.0f ? width : 0.0f;
     (*property).maxH = height > 0.0f ? height : 0.0f;

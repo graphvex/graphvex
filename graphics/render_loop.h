@@ -23,36 +23,36 @@ typedef struct RenderLoop RenderLoop;
 
 // Frame probe: called each step BEFORE the demand decision. Draws nothing;
 // a client whose content changed calls RenderLoop_markDirty here.
-typedef void (*FrameFn)(void *userdata, d64 dtSeconds);
+typedef fn (*FrameFn)(any userdata, d64 dtSeconds);
 
 // Present hook: build the display list, Graphics_submit it, present. Returns true
 // only when a frame was actually presented.
-typedef bool (*PresentFn)(void *window, d64 dtSeconds, void *userdata);
+typedef bool (*PresentFn)(any window, d64 dtSeconds, any userdata);
 
 typedef struct Client {
-    void *window;              // identity key (an R1 window handle)
+    any window;              // identity key (an R1 window handle)
     FrameFn frameFn;         // demand probe (nullable)
     PresentFn presentFn;     // composite + present (nullable = never presents)
-    void *userdata;
+    any userdata;
     _Atomic bool dirty;
     u64 lastContentGen;   // last presented board generation
     u64 contentGen;       // current board generation
     bool hasPresented;
 } Client;
 
-RenderLoop *RenderLoop_0(void);
+RenderLoop *RenderLoop_0();
 RenderLoop *RenderLoop_fps(u32 targetFps);   // 0 = pure demand
 #define RenderLoop(...) CONSTRUCTOR_DISPATCH(RenderLoop, __VA_ARGS__)
-void RenderLoop_free(RenderLoop *loop);
-RenderLoop *RenderLoop_default(void);             // process singleton
+fn RenderLoop_free(RenderLoop *loop);
+RenderLoop *RenderLoop_default();             // process singleton
 
 bool RenderLoop_addClient(RenderLoop *loop, const Client *client);
-bool RenderLoop_removeClient(RenderLoop *loop, void *window);
-Client *RenderLoop_findClient(RenderLoop *loop, const void *window);
+bool RenderLoop_removeClient(RenderLoop *loop, any window);
+Client *RenderLoop_findClient(RenderLoop *loop, const_any window);
 
-void RenderLoop_markDirty(RenderLoop *loop, void *window);
-void RenderLoop_setContentGen(RenderLoop *loop, void *window, u64 gen);
-void RenderLoop_notify(RenderLoop *loop);         // thread-safe wake
+fn RenderLoop_markDirty(RenderLoop *loop, any window);
+fn RenderLoop_setContentGen(RenderLoop *loop, any window, u64 gen);
+fn RenderLoop_notify(RenderLoop *loop);         // thread-safe wake
 
 // One demand-driven step. Returns true when at least one client presented.
 bool RenderLoop_step(RenderLoop *loop);

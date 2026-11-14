@@ -154,7 +154,7 @@ GpuFamily GpuCapability_family(const Device *device) {
 }
 
 /** The running Apple chip family, or HOST_CHIP_UNKNOWN off Apple. */
-HostChip GpuCapability_chip(void) {
+HostChip GpuCapability_chip() {
     #if defined(VEX_PLATFORM_APPLE)
     char brand[128];
     bytes size = sizeof brand;
@@ -172,7 +172,7 @@ HostChip GpuCapability_chip(void) {
  * media engine; Intel Macs do not. An unknown chip answers UNKNOWN, never a
  * guess. A VideoToolbox hardware-decode probe replaces the inference when the
  * host media tier lands (Capability Gating Law, stated fallback). */
-HostMediaEngine GpuCapability_mediaEngine(void) {
+HostMediaEngine GpuCapability_mediaEngine() {
     switch (GpuCapability_chip()) {
         case HOST_CHIP_A17_PRO:
         case HOST_CHIP_A18:

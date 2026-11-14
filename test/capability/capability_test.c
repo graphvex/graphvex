@@ -26,11 +26,11 @@ static int g_failures = 0;
 
 // Test-local Device projections: the capability contract pins the null/invalid
 // path, so this binary answers every device question with "no live session".
-bool Device_isValid(const Device *device) { (void) device; return false; }
-void *Device_physical(const Device *device) { (void) device; return nullptr; }
-bool Device_hasMetalObjects(const Device *device) { (void) device; return false; }
+bool Device_isValid(const Device *device) { (fn) device; return false; }
+any Device_physical(const Device *device) { (fn) device; return nullptr; }
+bool Device_hasMetalObjects(const Device *device) { (fn) device; return false; }
 
-int main(void) {
+int main() {
     // A null Device fails closed on every device question.
     CHECK(!GpuCapability_available(nullptr));
     CHECK(!GpuCapability_has(nullptr, GPU_FEATURE_RAY_TRACING));

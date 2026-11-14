@@ -63,19 +63,19 @@ typedef struct VkVertex {
     f32 blur;               // soft-edge falloff, px
 } VkVertex;
 
-VkBatch *VkBatch_0(void);
+VkBatch *VkBatch_0();
 #define VkBatch(...) CONSTRUCTOR_DISPATCH(VkBatch, __VA_ARGS__)
-void VkBatch_free(VkBatch *b);
-void VkBatch_clear(VkBatch *b);
+fn VkBatch_free(VkBatch *b);
+fn VkBatch_clear(VkBatch *b);
 
 // Set the clip recorded into every quad from here on (native px). Quads keep
 // their geometry; the clip only cuts fragments.
-void VkBatch_setClip(VkBatch *b, Rect clip);
-void VkBatch_setClipRadius(VkBatch *b, f32 radius);   // 0 = rectangular clip
+fn VkBatch_setClip(VkBatch *b, Rect clip);
+fn VkBatch_setClipRadius(VkBatch *b, f32 radius);   // 0 = rectangular clip
 
-void VkBatch_rect(VkBatch *b, Rect dst, const Brush *brush);
-void VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst);
-void VkBatch_glyph(VkBatch *b, Rect dst, u32 atlasLayer, Color color);
+fn VkBatch_rect(VkBatch *b, Rect dst, const Brush *brush);
+fn VkBatch_image(VkBatch *b, const Image *image, Rect src, Rect dst);
+fn VkBatch_glyph(VkBatch *b, Rect dst, u32 atlasLayer, Color color);
 
 // Expand to 6 vertices per quad. Returns the number of vertices written; if
 // `out` is null or `capacity` is too small, returns the required count and

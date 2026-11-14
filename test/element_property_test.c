@@ -27,7 +27,7 @@ static int alpha_at(const Image *img, int x, int y) {
 }
 
 // Verifies element placement properties affect paint and hit behavior.
-int main(void) {
+int main() {
     // 1. sharing a bound: two Elements, one Property
     Element *a = Element();
     Element_setSize(a, 100, 50);

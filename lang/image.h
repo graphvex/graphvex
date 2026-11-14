@@ -26,7 +26,7 @@
 #define IMAGE_USAGE_TRANSFER (1u << 2)
 
 typedef struct Image Image;
-typedef bool (*ImageGpuRefFn)(void *resource);
+typedef bool (*ImageGpuRefFn)(any resource);
 
 typedef struct ImageDesc {
     u32 width;    // default 1
@@ -35,19 +35,19 @@ typedef struct ImageDesc {
     u32 usage;    // IMAGE_USAGE_* (default NONE)
 } ImageDesc;
 
-Image *Image_0(void);
+Image *Image_0();
 Image *Image_2(u32 width, u32 height);
 Image *Image_4(u32 width, u32 height, u32 format, u32 usage);
 #define GRAPHVEX_IMAGE_CTOR(_0,_1,_2,_3,_4,NAME,...) NAME
 #define Image(...) GRAPHVEX_IMAGE_CTOR(0 __VA_OPT__(,) __VA_ARGS__, \
     Image_4,Image_invalidArity,Image_2,Image_invalidArity,Image_0)(__VA_ARGS__)
 Image *Image_new(const ImageDesc *desc);
-void Image_destroy(Image *image);
+fn Image_destroy(Image *image);
 
 bool Image_resize(Image *image, u32 width, u32 height);
 bool Image_ensureShadow(Image *image, u32 width, u32 height);
 bool Image_upload(const u8 *rgba, u32 width, u32 height, Image *dest);
-void Image_fill(Image *image, Color color);   // CPU shadow fill
+fn Image_fill(Image *image, Color color);   // CPU shadow fill
 
 u32 Image_width(const Image *image);
 u32 Image_height(const Image *image);
@@ -57,12 +57,12 @@ bytes   Image_stride(const Image *image);      // Bytes per row
 u8 *Image_pixels(const Image *image);      // CPU shadow (nullable)
 bool     Image_isValid(const Image *image);
 
-void  *Image_native(const Image *image);        // dialect handle (VkImage / MTLTexture)
-void  *Image_iosurface(const Image *image);     // IOSurfaceRef when shared
-void   Image_setNative(Image *image, void *native);
-void   Image_setIOSurface(Image *image, void *ioSurface);
+any Image_native(const Image *image);        // dialect handle (VkImage / MTLTexture)
+any Image_iosurface(const Image *image);     // IOSurfaceRef when shared
+fn   Image_setNative(Image *image, any native);
+fn   Image_setIOSurface(Image *image, any ioSurface);
 u32 Image_layer(const Image *image);       // atlas layer / sampler index (0 default)
-void     Image_setLayer(Image *image, u32 layer);
+fn     Image_setLayer(Image *image, u32 layer);
 
 /* Owned reference to an optional immutable sampled texture; CPU pixels may be
  * absent. Driver admission validates matching extent and readiness; clearGpu unbinds.
@@ -72,12 +72,12 @@ void     Image_setLayer(Image *image, u32 layer);
  * a final texture release cannot prove upload completion within 100ms. */
 /* Backend admission supplies validated ready handles and paired callbacks.
  * This generic ownership seam does not force raster clients to link Vulkan. */
-bool Image_bindGpu(Image *image, void *resource, void *device, void *descriptor,
+bool Image_bindGpu(Image *image, any resource, any device, any descriptor,
                    ImageGpuRefFn retain, ImageGpuRefFn release);
 bool Image_clearGpu(Image *image);
-void *Image_gpuResource(const Image *image);
-void *Image_gpuDevice(const Image *image);
-void *Image_gpuDescriptor(const Image *image);
+any Image_gpuResource(const Image *image);
+any Image_gpuDevice(const Image *image);
+any Image_gpuDescriptor(const Image *image);
 bool Image_isDrawable(const Image *image);
 
 #endif // GRAPHICS_IMAGE_H

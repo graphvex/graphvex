@@ -12,7 +12,7 @@ static Color pixel(const Image *image, unsigned x, unsigned y) {
 }
 
 // Checks deterministic gallery fixture creation and rendered sample pixels.
-int main(void) {
+int main() {
     assert(!FilterGallery_photoFromPath("/nonexistent-filter-gallery-photo.png", 1, 1));
     assert(!FilterGallery_photoFromPath(nullptr, 0, 1));
     assert(!FilterGallery_photoFromPath(nullptr, UINT32_MAX, UINT32_MAX));

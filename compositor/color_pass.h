@@ -14,17 +14,17 @@ typedef struct ColorPass ColorPass;
  * Opaque native handles are Vulkan transit only; no driver types in clients.
  * Caller owns synchronization and must retire all submitted uses before free.
  * No CPU fallback. */
-ColorPass *ColorPass_6(Device *device, void *nativeRenderPass,
+ColorPass *ColorPass_6(Device *device, any nativeRenderPass,
                        const u32 *vertexWords, bytes vertexBytes,
                        const u32 *fragmentWords, bytes fragmentBytes);
-ColorPass *ColorPass_0(void);
+ColorPass *ColorPass_0();
 #define GRAPHVEX_COLOR_PASS_CTOR(_0,_1,_2,_3,_4,_5,_6,NAME,...) NAME
 #define ColorPass(...) GRAPHVEX_COLOR_PASS_CTOR(0 __VA_OPT__(,) __VA_ARGS__, \
     ColorPass_6, ColorPass_invalidArity, ColorPass_invalidArity, ColorPass_invalidArity, \
     ColorPass_invalidArity, ColorPass_invalidArity, ColorPass_0)(__VA_ARGS__)
-ColorPass *ColorPass_zero(void);
-void ColorPass_destroy(ColorPass *self);
-void *ColorPass_getDescriptorLayout(const ColorPass *self);
+ColorPass *ColorPass_zero();
+fn ColorPass_destroy(ColorPass *self);
+any ColorPass_getDescriptorLayout(const ColorPass *self);
 bool ColorPass_validateToken(FilterToken token);
 
 /* Caller allocates binding-0 combined-image-sampler descriptor matching the
@@ -38,9 +38,9 @@ bool ColorPass_validateToken(FilterToken token);
  * ping-pong separate images with dependencies between passes. Invalid token or
  * zero extent rejects before recording. Vulkan handle validity is a caller
  * precondition, not something this seam can infer from an arbitrary address. */
-bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
-                      void *nativeDescriptorSet, u32 width, u32 height,
+bool ColorPass_record(const ColorPass *self, any nativeCommandBuffer,
+                      any nativeDescriptorSet, u32 width, u32 height,
                       FilterToken token);
-void ColorPass_toString(const ColorPass *self, char *dest, bytes cap, bool *outTruncated);
-void ColorPass_toStringStruct(const ColorPass *self, char *dest, bytes cap, bool *outTruncated);
+fn ColorPass_toString(const ColorPass *self, char *dest, bytes cap, bool *outTruncated);
+fn ColorPass_toStringStruct(const ColorPass *self, char *dest, bytes cap, bool *outTruncated);
 #endif

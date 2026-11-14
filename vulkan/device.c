@@ -26,11 +26,11 @@
  * char error[256]               bounded last construction diagnostic
  * FUNCTION REGISTRY
  * Constructors: Device *Device_create(bool enableValidation)
- * Lifecycle: void Device_destroy(Device *device)
+ * Lifecycle: fn Device_destroy(Device *device)
  * Projections: bool Device_isValid(const Device *device)
  *   const char *Device_lastError(const Device *device)
  *   const char *Device_name(const Device *device)
- *   void *Device_native(const Device *device), Device_instance,
+ *   any Device_native(const Device *device), Device_instance,
  *   Device_physical, Device_queue (opaque Vulkan handles)
  *   u32 Device_queueFamily(const Device *device)
  *   bool Device_hasMetalObjects(const Device *device)
@@ -53,12 +53,12 @@ struct Device {
 };
 
 // Copies a bounded diagnostic into the device record when one is available.
-static void set_err(Device *c, const char *msg) {
+static fn set_err(Device *c, const char *msg) {
     snprintf((*c).error, sizeof (*c).error, "%s", msg);
 }
 
 Device *Device_create(bool enableValidation) {
-    (void)enableValidation;   // validation layers land in a debug slice
+    (fn)enableValidation;   // validation layers land in a debug slice
     Device *c = calloc(1, sizeof *c);
     if (!c) return nullptr;
     set_err(c, "ok");
@@ -166,7 +166,7 @@ Device *Device_create(bool enableValidation) {
 }
 
 // Destroys owned Vulkan handles and device metadata; null is ignored.
-void Device_destroy(Device *c) {
+fn Device_destroy(Device *c) {
     if (!c) return;
     if ((*c).device) vkDestroyDevice((*c).device, nullptr);
     if ((*c).instance) vkDestroyInstance((*c).instance, nullptr);
@@ -177,10 +177,10 @@ void Device_destroy(Device *c) {
 bool Device_isValid(const Device *c) { return c && (*c).device != VK_NULL_HANDLE; }
 const char *Device_lastError(const Device *c) { return c ? (*c).error : "null device"; }
 const char *Device_name(const Device *c) { return c ? (*c).deviceName : ""; }
-void *Device_native(const Device *c) { return c ? (void*) ((*c).device) : nullptr; }
-void *Device_instance(const Device *c) { return c ? (void*) ((*c).instance) : nullptr; }
-void *Device_physical(const Device *c) { return c ? (void*) ((*c).physical) : nullptr; }
-void *Device_queue(const Device *c) { return c ? (void*) ((*c).queue) : nullptr; }
+any Device_native(const Device *c) { return c ? (any) ((*c).device) : nullptr; }
+any Device_instance(const Device *c) { return c ? (any) ((*c).instance) : nullptr; }
+any Device_physical(const Device *c) { return c ? (any) ((*c).physical) : nullptr; }
+any Device_queue(const Device *c) { return c ? (any) ((*c).queue) : nullptr; }
 // Returns the selected graphics queue-family index, or zero for null.
 u32 Device_queueFamily(const Device *c) { return c ? (*c).queueFamily : 0u; }
 // Reports whether the device enabled VK_EXT_metal_objects.

@@ -20,12 +20,12 @@ static int g_fail = 0;
 static int g_steps[8];
 static int g_stepCount = 0;
 // Records the first callback's order in the board test trace.
-static void step1(Board *board, void *ud) { (void)board; (void)ud; g_steps[g_stepCount++] = 1; }
+static fn step1(Board *board, any ud) { (fn)board; (fn)ud; g_steps[g_stepCount++] = 1; }
 // Records the second callback's order in the board test trace.
-static void step2(Board *board, void *ud) { (void)board; (void)ud; g_steps[g_stepCount++] = 2; }
+static fn step2(Board *board, any ud) { (fn)board; (fn)ud; g_steps[g_stepCount++] = 2; }
 
 // Verifies board composition, mutation, and lifecycle behavior.
-int main(void) {
+int main() {
     Board *b = Board(8, 8);
     CHECK(b != nullptr);
     CHECK(Board_isValid(b));

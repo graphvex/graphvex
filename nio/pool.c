@@ -17,16 +17,16 @@
  * STRUCT FIELDS (Mirroring Pool)
  * bytes stride                  bytes in each fixed-size slot
  * u32 blockCap              slots admitted per backing block
- * void **blocks                  owned directory of Memory_alloc blocks
+ * any *blocks                  owned directory of Memory_alloc blocks
  * int blockCount                 initialized block directory entries
  * int blocksCap                  block-directory capacity
- * void *freeHead                 head of intrusive free-slot chain
+ * any freeHead                 head of intrusive free-slot chain
  * u32 live                  currently checked-out slot count
  * FUNCTION REGISTRY
  * Constructors: Pool *Pool_new(bytes stride, u32 blockCap)
- * Lifecycle: void Pool_destroy(Pool *pool)
- * Operations: void *Pool_alloc(Pool *pool), void Pool_release(Pool *pool,
- *   void *item), bool Pool_contains(const Pool *pool, const void *item)
+ * Lifecycle: fn Pool_destroy(Pool *pool)
+ * Operations: any Pool_alloc(Pool *pool), fn Pool_release(Pool *pool,
+ *   any item), bool Pool_contains(const Pool *pool, const_any item)
  * Projections: u32 Pool_live(const Pool *pool),
  *   bytes Pool_stride(const Pool *pool)
  * Private helpers: blocks_push grows the block directory; pool_grow appends
@@ -41,17 +41,17 @@
 struct Pool {
     bytes stride;
     u32 blockCap;          // slots per block
-    void **blocks;              // every ForeignMemory block, for teardown
+    any *blocks;              // every ForeignMemory block, for teardown
     int blockCount, blocksCap;
-    void *freeHead;             // intrusive free list over the slots
+    any freeHead;             // intrusive free list over the slots
     u32 live;
 };
 
 // Appends a backing block pointer, growing the block directory when required.
-static bool blocks_push(Pool *p, void *block) {
+static bool blocks_push(Pool *p, any block) {
     if ((*p).blockCount == (*p).blocksCap) {
         int cap = (*p).blocksCap ? (*p).blocksCap * 2 : 4;
-        void **grown = realloc((*p).blocks, (bytes)cap * sizeof *grown);
+        any *grown = realloc((*p).blocks, (bytes)cap * sizeof *grown);
         if (!grown) return false;
         (*p).blocks = grown;
         (*p).blocksCap = cap;
@@ -67,8 +67,8 @@ static bool pool_grow(Pool *p) {
     if (!mem) return false;
     if (!blocks_push(p, mem)) { Memory_free(mem); return false; }
     for (u32 i = 0; i < (*p).blockCap; i++) {
-        void *slot = mem + (bytes)i * (*p).stride;
-        *(void**) slot = (*p).freeHead;
+        any slot = mem + (bytes)i * (*p).stride;
+        *(any*) slot = (*p).freeHead;
         (*p).freeHead = slot;
     }
     return true;
@@ -76,7 +76,7 @@ static bool pool_grow(Pool *p) {
 
 // Creates a pool whose slots have the given stride and per-block capacity.
 Pool *Pool_new(bytes stride, u32 blockCap) {
-    if (stride < sizeof(void*) || blockCap == 0) return nullptr;
+    if (stride < sizeof(any) || blockCap == 0) return nullptr;
     Pool *p = calloc(1, sizeof *p);
     if (!p) return nullptr;
     (*p).stride = stride;
@@ -85,7 +85,7 @@ Pool *Pool_new(bytes stride, u32 blockCap) {
 }
 
 // Returns every ForeignMemory block and releases the pool metadata.
-void Pool_destroy(Pool *pool) {
+fn Pool_destroy(Pool *pool) {
     if (!pool) return;
     for (int i = 0; i < (*pool).blockCount; i++) Memory_free((*pool).blocks[i]);
     free((*pool).blocks);
@@ -93,26 +93,26 @@ void Pool_destroy(Pool *pool) {
 }
 
 // Acquires and zeroes one slot, growing the pool when its free list is empty.
-void *Pool_alloc(Pool *pool) {
+any Pool_alloc(Pool *pool) {
     if (!pool) return nullptr;
     if (!(*pool).freeHead && !pool_grow(pool)) return nullptr;
-    void *item = (*pool).freeHead;
-    (*pool).freeHead = *(void**) item;
+    any item = (*pool).freeHead;
+    (*pool).freeHead = *(any*) item;
     memset(item, 0, (*pool).stride);
     (*pool).live++;
     return item;
 }
 
 // Returns a slot to the free list; caller must supply a live slot from this pool.
-void Pool_release(Pool *pool, void *item) {
+fn Pool_release(Pool *pool, any item) {
     if (!pool || !item) return;
-    *(void**) item = (*pool).freeHead;
+    *(any*) item = (*pool).freeHead;
     (*pool).freeHead = item;
     (*pool).live--;
 }
 
 // Checks whether an address lies within any allocated slot block (not whether it is slot-aligned).
-bool Pool_contains(const Pool *pool, const void *item) {
+bool Pool_contains(const Pool *pool, const_any item) {
     if (!pool || !item) return false;
     const u8 *p = item;
     for (int i = 0; i < (*pool).blockCount; i++) {

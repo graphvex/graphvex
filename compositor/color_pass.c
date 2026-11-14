@@ -60,12 +60,12 @@ bool ColorPass_validateToken(FilterToken token) {
     return false;
 }
 // Returns the null identity because a Vulkan color pass requires device and shader inputs.
-ColorPass *ColorPass_0(void) { return nullptr; }
+ColorPass *ColorPass_0() { return nullptr; }
 // Returns the null identity through the zero-argument constructor.
-ColorPass *ColorPass_zero(void) { return ColorPass_0(); }
+ColorPass *ColorPass_zero() { return ColorPass_0(); }
 
 // Destroys pipeline objects created by this pass; caller must retire submitted work first.
-void ColorPass_destroy(ColorPass *self) {
+fn ColorPass_destroy(ColorPass *self) {
     if (!self)
         return;
     if ((*self).pipeline)
@@ -78,12 +78,12 @@ void ColorPass_destroy(ColorPass *self) {
 }
 
 // Builds a Vulkan fullscreen filter pipeline from validated SPIR-V words and render-pass handle.
-ColorPass *ColorPass_6(Device *device, void *nativeRenderPass,
+ColorPass *ColorPass_6(Device *device, any nativeRenderPass,
                        const u32 *vertexWords, bytes vertexBytes,
                        const u32 *fragmentWords, bytes fragmentBytes) {
     if (!Device_isValid(device) || !nativeRenderPass || !vertexWords || !fragmentWords ||
         vertexBytes < 20 || fragmentBytes < 20 || vertexBytes % 4 || fragmentBytes % 4 ||
-        (uintptr_t) vertexWords % 4 || (uintptr_t) fragmentWords % 4 ||
+        (pointer) vertexWords % 4 || (pointer) fragmentWords % 4 ||
         vertexWords[0] != UINT32_C(0x07230203) || fragmentWords[0] != UINT32_C(0x07230203)) {
         THROW("ColorPass rejected pipeline inputs");
         return nullptr;
@@ -161,12 +161,12 @@ failed:
 }
 
 // Returns the owned descriptor-set layout as an opaque handle for descriptor allocation.
-void *ColorPass_getDescriptorLayout(const ColorPass *self) {
-    return self ? (void*) (*self).descriptorLayout : nullptr;
+any ColorPass_getDescriptorLayout(const ColorPass *self) {
+    return self ? (any) (*self).descriptorLayout : nullptr;
 }
 // Records viewport, bindings, filter constants, and a fullscreen triangle into the command buffer.
-bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
-                      void *nativeDescriptorSet, u32 width, u32 height,
+bool ColorPass_record(const ColorPass *self, any nativeCommandBuffer,
+                      any nativeDescriptorSet, u32 width, u32 height,
                       FilterToken token) {
     if (!self || !nativeCommandBuffer || !nativeDescriptorSet || !width || !height || !tokenValid(token)) {
         THROW("ColorPass rejected recording inputs");
@@ -186,7 +186,7 @@ bool ColorPass_record(const ColorPass *self, void *nativeCommandBuffer,
     return true;
 }
 // Writes the bounded concise or field-level ColorPass projection.
-static void format(const ColorPass *self, bool structure, char *dest, bytes cap, bool *outTruncated) {
+static fn format(const ColorPass *self, bool structure, char *dest, bytes cap, bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
             *outTruncated = true;
@@ -197,17 +197,17 @@ static void format(const ColorPass *self, bool structure, char *dest, bytes cap,
         count = snprintf(dest, cap, "nullptr");
     else if (structure)
         count = snprintf(dest, cap, "ColorPass{device=%p,descriptorLayout=%p,layout=%p,pipeline=%p}",
-            (void*) (*self).device, (void*) (*self).descriptorLayout, (void*) (*self).layout, (void*) (*self).pipeline);
+            (any) (*self).device, (any) (*self).descriptorLayout, (any) (*self).layout, (any) (*self).pipeline);
     else
         count = snprintf(dest, cap, "ColorPass(Vulkan texture color)");
     if (outTruncated)
         *outTruncated = count < 0 || (bytes) count >= cap;
 }
 // Formats a bounded value summary of the color pipeline.
-void ColorPass_toString(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
+fn ColorPass_toString(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
     format(self, false, dest, cap, outTruncated);
 }
 // Formats the ColorPass fields into caller-provided bounded storage.
-void ColorPass_toStringStruct(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
+fn ColorPass_toStringStruct(const ColorPass *self, char *dest, bytes cap, bool *outTruncated) {
     format(self, true, dest, cap, outTruncated);
 }

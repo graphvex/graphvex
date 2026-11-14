@@ -95,25 +95,25 @@ typedef struct DrawCmd {
 
 typedef struct DisplayList DisplayList;
 
-DisplayList *DisplayList_0(void);
+DisplayList *DisplayList_0();
 #define DisplayList(...) CONSTRUCTOR_DISPATCH(DisplayList, __VA_ARGS__)
-void DisplayList_free(DisplayList *dl);
-void DisplayList_clear(DisplayList *dl);
-void DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush);
-void DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst);
-void DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color);
-void DisplayList_clip(DisplayList *dl, Rect rect);
-void DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius);   // rounded mask
-void DisplayList_unclip(DisplayList *dl);
+fn DisplayList_free(DisplayList *dl);
+fn DisplayList_clear(DisplayList *dl);
+fn DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush);
+fn DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst);
+fn DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color);
+fn DisplayList_clip(DisplayList *dl, Rect rect);
+fn DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius);   // rounded mask
+fn DisplayList_unclip(DisplayList *dl);
 bytes DisplayList_count(const DisplayList *dl);
 const DrawCmd *DisplayList_cmds(const DisplayList *dl);
 
 // ── the backend row (the slim seam) ─────────────────────────────────────────
 typedef struct Backend {
     u32 id;
-    bool (*begin)(void);
-    bool (*end)(void);
-    bool (*present)(void);
+    bool (*begin)();
+    bool (*end)();
+    bool (*present)();
     bool (*resize)(u32 width, u32 height);
     bool (*clear)(Color color);
     bool (*clip)(const Rect *rect, f32 radius);   // null = reset; radius 0 = rect
@@ -126,12 +126,12 @@ typedef struct Backend {
 // ── core ────────────────────────────────────────────────────────────────────
 bool Graphics_register(const Backend *row);
 bool Graphics_use(u32 backendId);
-u32 Graphics_backendId(void);
-const Backend *Graphics_current(void);
+u32 Graphics_backendId();
+const Backend *Graphics_current();
 
-bool Graphics_begin(void);
-bool Graphics_end(void);
-bool Graphics_present(void);
+bool Graphics_begin();
+bool Graphics_end();
+bool Graphics_present();
 bool Graphics_resize(u32 width, u32 height);
 bool Graphics_clear(Color color);
 bool Graphics_clip(const Rect *rect);

@@ -14,15 +14,15 @@
  * f32 scale                   logical-point to native-pixel scale
  * Rect scissor                  visible native-pixel rectangle
  * FUNCTION REGISTRY
- * Constructors: Viewport Viewport_0(void)
- * Setters: void Viewport_resize(Viewport *v, f32 framebufferWidthPx,
+ * Constructors: Viewport Viewport_0()
+ * Setters: fn Viewport_resize(Viewport *v, f32 framebufferWidthPx,
  *   f32 framebufferHeightPx, f32 backingScale)
  * Projections: Viewport_x/y/w/h(const Viewport *v, f32 pointValue)
  *   Rect Viewport_rect(const Viewport *v, f32 xPoints, f32 yPoints,
  *   f32 wPoints, f32 hPoints)
- *   void Viewport_toPoints(const Viewport *v, f32 px, f32 py,
+ *   fn Viewport_toPoints(const Viewport *v, f32 px, f32 py,
  *   f32 *outX, f32 *outY)
- *   void Viewport_logicalSize(const Viewport *v, f32 *outW, f32 *outH)
+ *   fn Viewport_logicalSize(const Viewport *v, f32 *outW, f32 *outH)
  *   bool Viewport_isEmpty(const Viewport *v)
  * Private helper: s returns the positive backing scale, defaulting to 1.
  * Null/default contract: zero construction uses scale 1; resize ignores null
@@ -30,13 +30,13 @@
  * ======================================================================== */
 
 // Returns a zero-sized viewport with unit backing scale.
-Viewport Viewport_0(void) {
+Viewport Viewport_0() {
     Viewport v = {0.0f, 0.0f, 1.0f, {0, 0, 0, 0}};
     return v;
 }
 
 // Updates native-pixel extent, sanitizes the scale to a positive value, and resets the scissor.
-void Viewport_resize(Viewport *v, f32 framebufferWidthPx, f32 framebufferHeightPx,
+fn Viewport_resize(Viewport *v, f32 framebufferWidthPx, f32 framebufferHeightPx,
                      f32 backingScale) {
     if (!v) return;
     (*v).width = framebufferWidthPx;

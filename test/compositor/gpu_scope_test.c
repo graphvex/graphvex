@@ -41,7 +41,7 @@ static unsigned encoded(d64 value) {
     return (unsigned) lround(255*(value<=.0031308 ? 12.92*value : 1.055*pow(value,1/2.4)-.055));
 }
 // Reads one RGBA pixel and converts its channels to linear light.
-static void sample(const Image *image,int x,int y,d64 *out) {
+static fn sample(const Image *image,int x,int y,d64 *out) {
     memset(out,0,4*sizeof(d64));
     if (x<0 || y<0 || x>=(int) Image_width(image) || y>=(int) Image_height(image)) return;
     const u8 *p=Image_pixels(image)+(bytes) y*Image_stride(image)+(bytes) x*4;
@@ -49,21 +49,21 @@ static void sample(const Image *image,int x,int y,d64 *out) {
     for (unsigned c=0;c<3;++c) out[c]=linear(p[c])*out[3];
 }
 // Applies premultiplied source-over composition to oracle pixels.
-static void over(const d64 *src,d64 *dest) {
+static fn over(const d64 *src,d64 *dest) {
     d64 a=src[3];
     for (unsigned c=0;c<4;++c) dest[c]=src[c]+dest[c]*(1-a);
 }
 // Reports whether an absolute pixel lies inside the test element rectangle.
 static bool inside(int x,int y) { return x>=PX && x<PX+PW && y>=PY && y<PY+PH; }
 // Composes decoration and foreground pixels into an isolated group.
-static void group(const Image *decoration,const Image *foreground,int x,int y,d64 *out) {
+static fn group(const Image *decoration,const Image *foreground,int x,int y,d64 *out) {
     memset(out,0,4*sizeof(d64));
     if (!inside(x,y)) return;
     sample(decoration,x-PX,y-PY,out);
     d64 fore[4]; sample(foreground,x-FX,y-FY,fore); over(fore,out);
 }
 // Computes expected filter output for the selected scope and radius.
-static void oracle(unsigned scope,unsigned radius,const Image *prior,const Image *decoration,
+static fn oracle(unsigned scope,unsigned radius,const Image *prior,const Image *decoration,
                    const Image *foreground,int x,int y,d64 *out) {
     d64 filtered[4]={0};
     d64 denominator=(2*radius+1)*(2*radius+1);
@@ -86,7 +86,7 @@ static void oracle(unsigned scope,unsigned radius,const Image *prior,const Image
     over(content,out);
 }
 // Compares Vulkan scope-filter output to the independent CPU oracle.
-int main(void) {
+int main() {
     assert(GpuScope()==nullptr && GpuScope_0()==nullptr && GpuScope_zero()==nullptr);
     assert(GpuScope_destroy(nullptr) && !GpuScope_isPending(nullptr));
     Device *device=Device_create(false);

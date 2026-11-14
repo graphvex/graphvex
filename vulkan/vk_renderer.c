@@ -64,7 +64,7 @@ static VkExtent2D s_ext = {0, 0};
 // two slots are live (render the back, publish it, swap); the rest is headroom.
 #define VK_SURFACE_MAX 16
 typedef struct VkSurfaceSlot {
-    void *surface;         // borrowed IOSurfaceRef
+    any surface;         // borrowed IOSurfaceRef
     VkImage image;
     VkImageView view;
     VkFramebuffer fb;
@@ -126,7 +126,7 @@ static const u64 RENDER_WAIT_NS = UINT64_C(100000000);
 enum { IMAGE_DRAW_INITIAL_CAPACITY = 16 };
 
 // Waits for the previous submission within the renderer's fixed timeout.
-static bool retire_frame(void) {
+static bool retire_frame() {
     if (s_pending) {
         if (vkWaitForFences(s_device, 1, &s_fence, VK_TRUE, RENDER_WAIT_NS) != VK_SUCCESS)
             return false;
@@ -136,18 +136,18 @@ static bool retire_frame(void) {
     return true;
 }
 // Releases references held by recorded sampled-image draw commands.
-static void release_image_draws(void) {
+static fn release_image_draws() {
     for (bytes i = 0; i < s_imageDrawCount; ++i)
         SampledImage_release(s_imageDraws[i].sampled);
     s_imageDrawCount = 0;
 }
 
 // Returns the renderer's current diagnostic buffer.
-const char *VulkanBackend_lastError(void) { return s_err; }
+const char *VulkanBackend_lastError() { return s_err; }
 // Returns the active CPU batch, or null when no frame batch is open.
-const VkBatch *VulkanBackend_batch(void) { return s_batch; }
+const VkBatch *VulkanBackend_batch() { return s_batch; }
 // Returns allocated vertex-buffer capacity in bytes.
-bytes VulkanBackend_vertexBytes(void) { return (bytes) s_vboCap; }
+bytes VulkanBackend_vertexBytes() { return (bytes) s_vboCap; }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 // Selects the first physical-device memory type satisfying the requirements.
@@ -181,7 +181,7 @@ static bool make_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
 
 // ── render target ───────────────────────────────────────────────────────────
 // Destroys and nulls the renderer's private offscreen target resources.
-static void destroy_target(void) {
+static fn destroy_target() {
     if (s_fb) { vkDestroyFramebuffer(s_device, s_fb, nullptr); s_fb = VK_NULL_HANDLE; }
     if (s_imgView) { vkDestroyImageView(s_device, s_imgView, nullptr); s_imgView = VK_NULL_HANDLE; }
     if (s_img) { vkDestroyImage(s_device, s_img, nullptr); s_img = VK_NULL_HANDLE; }
@@ -245,7 +245,7 @@ static bool create_target(u32 w, u32 h) {
 // backs the image with that IOSurface's Metal texture, so rendering into it
 // writes the very Bytes CoreAnimation composites — no readback, no copy. The
 // host owns the IOSurface's lifetime; we never free it.
-static void surface_slot_destroy(int i) {
+static fn surface_slot_destroy(int i) {
     if (i < 0 || i >= VK_SURFACE_MAX) return;
     VkSurfaceSlot *slot = &s_surfaces[i];
     if ((*slot).fb) { vkDestroyFramebuffer(s_device, (*slot).fb, nullptr); (*slot).fb = VK_NULL_HANDLE; }
@@ -255,7 +255,7 @@ static void surface_slot_destroy(int i) {
 }
 
 // Imports and registers an IOSurface-backed target, returning its slot or a negative error.
-static int surface_slot_add(void *iosurface, u32 w, u32 h) {
+static int surface_slot_add(any iosurface, u32 w, u32 h) {
     if (!s_device || !s_rpPresent || !iosurface || w == 0 || h == 0) return -1;
     int i = -1;
     for (int k = 0; k < VK_SURFACE_MAX; k++)
@@ -303,7 +303,7 @@ static int surface_slot_add(void *iosurface, u32 w, u32 h) {
 
 // The only writers of the target word. Selecting a slot validates it here, so
 // every later reader may trust kind == SLOT to mean a live registry entry.
-static void surfaceTargetPrivate(void) {
+static fn surfaceTargetPrivate() {
     s_targetKind = VK_SURFACE_PRIVATE;
     s_targetSlot = VK_SURFACE_NO_SLOT;
 }
@@ -317,7 +317,7 @@ static bool surfaceTargetSelect(int slot) {
 }
 
 // Destroys every imported surface target and clears the slot registry.
-static void surface_slots_destroy_all(void) {
+static fn surface_slots_destroy_all() {
     for (int k = 0; k < VK_SURFACE_MAX; k++)
         if (s_surfaces[k].used) surface_slot_destroy(k);
     surfaceTargetPrivate();
@@ -358,7 +358,7 @@ static bool create_render_pass_ex(VkRenderPass *out, VkFormat format, VkImageLay
 }
 
 // Creates renderer texture/sampler resources used for image draw commands.
-static bool create_texture(void) {
+static bool create_texture() {
     VkImageCreateInfo ii = {0}; ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     ii.imageType = VK_IMAGE_TYPE_2D;
     ii.format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -423,7 +423,7 @@ static bool create_texture(void) {
 }
 
 // Creates the renderer's graphics pipeline and associated shader/layout state.
-static bool create_pipeline(void) {
+static bool create_pipeline() {
     VkShaderModuleCreateInfo vci = {0}; vci.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     vci.codeSize = quad_vert_spv_len;
     vci.pCode = (const u32*) quad_vert_spv;
@@ -515,7 +515,7 @@ static bool create_pipeline(void) {
 }
 
 // Initializes the Vulkan instance/device and renderer resources on first use.
-static bool init_vulkan(void) {
+static bool init_vulkan() {
     if (s_device != VK_NULL_HANDLE) return true;
     s_dev = Device_create(false);
     if (!Device_isValid(s_dev)) {
@@ -545,7 +545,7 @@ static bool init_vulkan(void) {
     return true;
 }
 
-Device *VulkanBackend_device(void) { return init_vulkan() ? s_dev : nullptr; }
+Device *VulkanBackend_device() { return init_vulkan() ? s_dev : nullptr; }
 // Creates or reuses a sampled GPU representation for an Image.
 bool VulkanBackend_prepareImage(Image *image) {
     if (!Image_isValid(image) || Image_format(image) != IMAGE_FORMAT_RGBA8 || !init_vulkan()) {
@@ -580,7 +580,7 @@ bool VulkanBackend_prepareImage(Image *image) {
 static f32 cf(Color c) { return (f32)((c >> 24) & 0xFFu) / 255.0f; }
 
 // Records and submits the current batch, retaining sampled resources until its fence retires.
-static bool render(void) {
+static bool render() {
     if (!s_device) return false;
     if (s_pending)
         return retire_frame();
@@ -623,7 +623,7 @@ static bool render(void) {
     }
     bytes written = 0;
     if (vcount > 0) {
-        void *map = nullptr;
+        any map = nullptr;
         VK_ERR(vkMapMemory(s_device, s_vboMem, 0, vbytes, 0, &map));
         written = VkBatch_vertices(s_batch, (VkVertex*) map, vcount);
         vkUnmapMemory(s_device, s_vboMem);
@@ -698,7 +698,7 @@ static bool render(void) {
 
 // ── Backend row ─────────────────────────────────────────────────────────────
 // Opens a new CPU-side batch after initializing the backend if needed.
-static bool vk_begin(void) {
+static bool vk_begin() {
     if (!init_vulkan()) return false;
     if (!retire_frame()) return false;
     release_image_draws();
@@ -710,9 +710,9 @@ static bool vk_begin(void) {
     return true;
 }
 // Reports whether a batch is open; submission is performed by vk_present.
-static bool vk_end(void) { return s_batch != nullptr; }
+static bool vk_end() { return s_batch != nullptr; }
 // Presents the recorded batch through the renderer's bounded submission path.
-static bool vk_present(void) { return render(); }
+static bool vk_present() { return render(); }
 
 // Updates native-pixel renderer extent and resets the default clip.
 static bool vk_resize(u32 w, u32 h) {
@@ -782,7 +782,7 @@ static bool vk_drawImage(const Image *image, const Rect *dst) {
 static bool vk_drawText(const Rect *rect, const char *text, const Brush *brush) {
     if (!s_batch || !rect) return false;
     VkBatch_glyph(s_batch, *rect, 0u, brush ? (*brush).color : COLOR_WHITE);
-    (void)text;
+    (fn)text;
     return true;
 }
 
@@ -792,7 +792,7 @@ static bool vk_capture(Image *dest) {
     if (s_targetKind == VK_SURFACE_SLOT) return false;   // an imported surface is read by the host
     if (!s_rendered && !render()) return false;
     if (!Image_ensureShadow(dest, (u32)s_w, (u32)s_h)) return false;
-    void *map = nullptr;
+    any map = nullptr;
     VkDeviceSize size = (VkDeviceSize)s_w * s_h * 4u;
     VK_ERR(vkMapMemory(s_device, s_rboMem, 0, size, 0, &map));
     u8 *out = Image_pixels(dest);
@@ -803,7 +803,7 @@ static bool vk_capture(Image *dest) {
     return true;
 }
 
-const Backend *VulkanBackend_row(void) {
+const Backend *VulkanBackend_row() {
     static const Backend row = {
         BACKEND_VULKAN, vk_begin,    vk_end,      vk_present,
         vk_resize,      vk_clear,    vk_clip,     vk_fillRect,
@@ -813,8 +813,8 @@ const Backend *VulkanBackend_row(void) {
 }
 
 // Binds the host's native presentation layer and configures the renderer in native pixels.
-bool VulkanBackend_bind(void *nativeLayer, u32 widthPx, u32 heightPx) {
-    (void)nativeLayer;
+bool VulkanBackend_bind(any nativeLayer, u32 widthPx, u32 heightPx) {
+    (fn)nativeLayer;
     if (!init_vulkan()) return false;
     return vk_resize(widthPx, heightPx);
 }
@@ -823,7 +823,7 @@ bool VulkanBackend_bind(void *nativeLayer, u32 widthPx, u32 heightPx) {
 // renders straight into it — the host's layer composites those very Bytes, no
 // readback. Apple only (VK_EXT_metal_objects); false elsewhere or if absent.
 // Imports an IOSurface as the presentation target when the active device supports it.
-bool VulkanBackend_bindSurface(void *iosurface, u32 widthPx, u32 heightPx) {
+bool VulkanBackend_bindSurface(any iosurface, u32 widthPx, u32 heightPx) {
     if (!init_vulkan()) return false;
     if (!Device_hasMetalObjects(s_dev)) {
         snprintf(s_err, sizeof s_err, "VK_EXT_metal_objects unavailable");
@@ -844,7 +844,7 @@ bool VulkanBackend_bindSurface(void *iosurface, u32 widthPx, u32 heightPx) {
 
 // Leave the imported target and return to the private (readback) target.
 // Leaves the currently imported IOSurface target and restores private-target rendering.
-void VulkanBackend_unbindSurface(void) {
+fn VulkanBackend_unbindSurface() {
     if (s_boundSlot == VK_SURFACE_NO_SLOT) return;
     if (!retire_frame()) return;
     surfaceTargetPrivate();
@@ -854,7 +854,7 @@ void VulkanBackend_unbindSurface(void) {
 
 // ── surface-target pool (d64 buffering; the seam swaps slots) ────────────
 // Adds an IOSurface target to the renderer's reusable surface pool.
-int VulkanBackend_addSurface(void *iosurface, u32 widthPx, u32 heightPx) {
+int VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx) {
     if (!init_vulkan() || !Device_hasMetalObjects(s_dev)) return -1;
     return surface_slot_add(iosurface, widthPx, heightPx);
 }
@@ -871,14 +871,14 @@ bool VulkanBackend_useSurface(int slot) {
 }
 
 // Destroys all pooled surface targets after their dependent work has stopped.
-void VulkanBackend_cleanupSurfaces(void) {
+fn VulkanBackend_cleanupSurfaces() {
     if (!s_device) return;
     if (!retire_frame()) return;
     surface_slots_destroy_all();
 }
 
 // Removes and destroys one registered surface slot.
-void VulkanBackend_removeSurface(int slot) {
+fn VulkanBackend_removeSurface(int slot) {
     if (slot < 0 || slot >= VK_SURFACE_MAX || !s_surfaces[slot].used) return;
     if (!retire_frame()) return;
     if (s_targetKind == VK_SURFACE_SLOT && s_targetSlot == slot) surfaceTargetPrivate();
@@ -887,7 +887,7 @@ void VulkanBackend_removeSurface(int slot) {
 }
 
 // Detaches the native presentation layer from the renderer.
-void VulkanBackend_unbind(void) {
+fn VulkanBackend_unbind() {
     if (s_device) {
         if (!retire_frame()) return;
         if (s_uploadPending && !SampledImage_release(s_uploadPending)) return;

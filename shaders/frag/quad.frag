@@ -27,7 +27,7 @@ f32 sdRoundBox(vec2 p, vec2 hs, f32 r) {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
 }
 
-void main() {
+fn main() {
     // CLIP = DISCARD. The quad always keeps its true size, so the corner is
     // computed for the full box; pixels past the clip window are simply cut.
     if (vLocal.x < vClip.x || vLocal.y < vClip.y ||

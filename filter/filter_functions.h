@@ -31,7 +31,7 @@ static inline u16 Filter_id(FilterToken token) {
 static inline u64 Filter_payload(FilterToken token) {
     return token & FILTER_PAYLOAD_MASK;
 }
-static inline FilterToken Filter_identity(void) { return 0; }
+static inline FilterToken Filter_identity() { return 0; }
 /* Private encoding helpers: no validity or ownership assertion. */
 static inline FilterToken filterScalar(u16 id, f32 value) {
     u32 bits;
@@ -69,19 +69,19 @@ static inline FilterToken Filter_blackAndWhite(f32 threshold) {
 static inline FilterToken Filter_monocolor(u32 color) {
     return ((u64) MONOCOLOR_ID << 48) | color;
 }
-static inline FilterToken Filter_grayscale(void) {
+static inline FilterToken Filter_grayscale() {
     return (u64) GRAYSCALE_ID << 48;
 }
-static inline FilterToken Filter_grayscaleRed(void) {
+static inline FilterToken Filter_grayscaleRed() {
     return (u64) GRAYSCALE_RED_ID << 48;
 }
-static inline FilterToken Filter_grayscaleGreen(void) {
+static inline FilterToken Filter_grayscaleGreen() {
     return (u64) GRAYSCALE_GREEN_ID << 48;
 }
-static inline FilterToken Filter_grayscaleBlue(void) {
+static inline FilterToken Filter_grayscaleBlue() {
     return (u64) GRAYSCALE_BLUE_ID << 48;
 }
-static inline FilterToken Filter_invert(void) {
+static inline FilterToken Filter_invert() {
     return (u64) INVERT_ID << 48;
 }
 /* Parameter reference payload: generation16 | index32. Generation zero encodes

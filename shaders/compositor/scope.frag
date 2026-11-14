@@ -35,7 +35,7 @@ vec4 readFiltered(ivec2 point) {
     return value;
 }
 vec4 over(vec4 source, vec4 dest) { return source + dest * (1.0-source.a); }
-void main() {
+fn main() {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     bool inside = all(greaterThanEqual(pixel,pc.panelOrigin)) &&
                   all(lessThan(pixel,pc.panelOrigin+pc.panelExtent));

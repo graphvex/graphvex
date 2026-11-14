@@ -20,16 +20,16 @@
  * _Atomic bool wake              coalesced cross-thread wake request
  * d64 lastSeconds             previous monotonic step time
  * FUNCTION REGISTRY
- * Constructors: RenderLoop *RenderLoop_0(void),
+ * Constructors: RenderLoop *RenderLoop_0(),
  *   RenderLoop *RenderLoop_fps(u32 targetFps),
- *   RenderLoop *RenderLoop_default(void)
- * Lifecycle: void RenderLoop_free(RenderLoop *loop)
+ *   RenderLoop *RenderLoop_default()
+ * Lifecycle: fn RenderLoop_free(RenderLoop *loop)
  * Registry: bool RenderLoop_addClient(RenderLoop *loop,const Client *client)
- *   bool RenderLoop_removeClient(RenderLoop *loop,void *window)
- *   Client *RenderLoop_findClient(RenderLoop *loop,const void *window)
- * Demand: void RenderLoop_markDirty(RenderLoop *loop,void *window)
- *   void RenderLoop_setContentGen(RenderLoop *loop,void *window,u64 gen)
- *   void RenderLoop_notify(RenderLoop *loop)
+ *   bool RenderLoop_removeClient(RenderLoop *loop,any window)
+ *   Client *RenderLoop_findClient(RenderLoop *loop,const_any window)
+ * Demand: fn RenderLoop_markDirty(RenderLoop *loop,any window)
+ *   fn RenderLoop_setContentGen(RenderLoop *loop,any window,u64 gen)
+ *   fn RenderLoop_notify(RenderLoop *loop)
  *   bool RenderLoop_step(RenderLoop *loop)
  * Private helper: now_seconds reads CLOCK_MONOTONIC for elapsed-time callbacks.
  * Failure, ownership and threading contract:
@@ -48,14 +48,14 @@ struct RenderLoop {
 };
 
 // Reads monotonic wall time in seconds for elapsed-frame scheduling.
-static d64 now_seconds(void) {
+static d64 now_seconds() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (d64)ts.tv_sec + (d64)ts.tv_nsec / 1e9;
 }
 
 // Creates a demand-driven loop without an FPS cap.
-RenderLoop *RenderLoop_0(void) { return RenderLoop_fps(0); }
+RenderLoop *RenderLoop_0() { return RenderLoop_fps(0); }
 
 // Creates a loop with the requested target rate; zero leaves presentation uncapped.
 RenderLoop *RenderLoop_fps(u32 targetFps) {
@@ -68,7 +68,7 @@ RenderLoop *RenderLoop_fps(u32 targetFps) {
 }
 
 // Frees the loop and its client array; null is ignored.
-void RenderLoop_free(RenderLoop *loop) {
+fn RenderLoop_free(RenderLoop *loop) {
     if (!loop) return;
     free((*loop).clients);
     free(loop);
@@ -76,7 +76,7 @@ void RenderLoop_free(RenderLoop *loop) {
 
 static RenderLoop *s_default = nullptr;
 // Returns the lazily allocated process-default demand-driven loop.
-RenderLoop *RenderLoop_default(void) {
+RenderLoop *RenderLoop_default() {
     if (!s_default) s_default = RenderLoop_0();
     return s_default;
 }
@@ -101,7 +101,7 @@ bool RenderLoop_addClient(RenderLoop *loop, const Client *client) {
 }
 
 // Removes the client matching window by swapping in the final array entry.
-bool RenderLoop_removeClient(RenderLoop *loop, void *window) {
+bool RenderLoop_removeClient(RenderLoop *loop, any window) {
     if (!loop) return false;
     for (int i = 0; i < (*loop).count; i++) {
         if ((*loop).clients[i].window == window) {
@@ -114,7 +114,7 @@ bool RenderLoop_removeClient(RenderLoop *loop, void *window) {
 }
 
 // Finds a client by window and returns a borrowed pointer into the loop's array.
-Client *RenderLoop_findClient(RenderLoop *loop, const void *window) {
+Client *RenderLoop_findClient(RenderLoop *loop, const_any window) {
     if (!loop) return nullptr;
     for (int i = 0; i < (*loop).count; i++)
         if ((*loop).clients[i].window == window) return &(*loop).clients[i];
@@ -122,19 +122,19 @@ Client *RenderLoop_findClient(RenderLoop *loop, const void *window) {
 }
 
 // Marks the matching client's content dirty, if it is registered.
-void RenderLoop_markDirty(RenderLoop *loop, void *window) {
+fn RenderLoop_markDirty(RenderLoop *loop, any window) {
     Client *c = RenderLoop_findClient(loop, window);
     if (c) (*c).dirty = true;
 }
 
 // Updates the matching client's content generation to trigger demand on the next step.
-void RenderLoop_setContentGen(RenderLoop *loop, void *window, u64 gen) {
+fn RenderLoop_setContentGen(RenderLoop *loop, any window, u64 gen) {
     Client *c = RenderLoop_findClient(loop, window);
     if (c) (*c).contentGen = gen;
 }
 
 // Sets the loop's atomic wake flag when a loop is supplied.
-void RenderLoop_notify(RenderLoop *loop) {
+fn RenderLoop_notify(RenderLoop *loop) {
     if (loop) (*loop).wake = true;
 }
 

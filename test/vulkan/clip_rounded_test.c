@@ -25,7 +25,7 @@ static int alpha_at(const Image *img, int x, int y) {
 }
 
 // Checks rounded Vulkan clipping at corners, edges, and interior pixels.
-int main(void) {
+int main() {
     CHECK(Graphics_register(VulkanBackend_row()));
     CHECK(Graphics_use(BACKEND_VULKAN));
     CHECK(Graphics_resize(64, 64));

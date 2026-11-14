@@ -18,12 +18,12 @@ static int g_fail = 0;
 
 // a recording host blit: proves Surface_present hands over native + image
 static int g_presentCalls = 0;
-static void *g_seenNative = nullptr;
+static any g_seenNative = nullptr;
 static Image *g_seenImage = nullptr;
 static bool g_blitOk = true;
 
 // Test callback records surface presentation and returns its configured result.
-static bool recordPresent(Surface *surface, void *userdata) {
+static bool recordPresent(Surface *surface, any userdata) {
     g_presentCalls++;
     (*(int*) userdata)++;
     g_seenNative = Surface_handle(surface);
@@ -33,15 +33,15 @@ static bool recordPresent(Surface *surface, void *userdata) {
 
 // a board revalidate step, recorded
 // Counts board revalidation callbacks.
-static void countReval(Board *board, void *ud) { (void)board; (*(int*) ud)++; }
+static fn countReval(Board *board, any ud) { (fn)board; (*(int*) ud)++; }
 
 // Exercises surface lifecycle, presentation admission, and board revalidation.
-int main(void) {
-    Surface *s = Surface((void*) 0xCAFE, 100, 50);
+int main() {
+    Surface *s = Surface((any) 0xCAFE, 100, 50);
     CHECK(s != nullptr);
     CHECK(Surface_isValid(s));
     CHECK(Surface_width(s) == 100 && Surface_height(s) == 50);
-    CHECK(Surface_handle(s) == (void*) 0xCAFE);   // borrowed, returned verbatim
+    CHECK(Surface_handle(s) == (any) 0xCAFE);   // borrowed, returned verbatim
 
     // the retained present image exists and is renderable
     Image *img = Surface_presentImage(s);
@@ -57,7 +57,7 @@ int main(void) {
     Surface_onPresent(s, recordPresent, &hits);
     CHECK(Surface_present(s));
     CHECK(g_presentCalls == 1 && hits == 1);
-    CHECK(g_seenNative == (void*) 0xCAFE);
+    CHECK(g_seenNative == (any) 0xCAFE);
     CHECK(g_seenImage == Surface_presentImage(s));
 
     // a failing blit propagates -> present reports false

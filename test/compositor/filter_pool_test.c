@@ -28,7 +28,7 @@ static FilterPool *pool(u32 capacity, u32 maxFilters) {
 }
 
 // Verifies pool allocation, borrowed token lifetime, and release behavior.
-static void lifetime(void) {
+static fn lifetime() {
     FilterPool *p = pool(1, 2);
     CHECK(FilterPool_capacity(p) == 1 && FilterPool_maxRecipeFilters(p) == 2);
     CHECK(FilterPool_live(p) == 0);
@@ -66,7 +66,7 @@ static void lifetime(void) {
 }
 
 // Checks pool configuration, malformed strings, and diagnostic failures.
-static void invalid_and_strings(void) {
+static fn invalid_and_strings() {
     FilterPool *p = nullptr;
     ERROR(FilterPool_2((FilterPoolConfig){0, 1}, &p), FILTER_POOL_INVALID);
     ERROR(FilterPool_2((FilterPoolConfig){4097, 1}, &p), FILTER_POOL_LIMIT);
@@ -124,7 +124,7 @@ static void invalid_and_strings(void) {
 }
 
 // Exercises filter-pool tokens through compositor composition.
-static void composition(void) {
+static fn composition() {
     FilterPool *p = pool(2, COMPOSITOR_MAX_FILTERS);
     FilterToken recipe[] = {Filter_gain(2), Filter_scatterBlur(1)};
     FilterToken token;
@@ -168,7 +168,7 @@ static void composition(void) {
 }
 
 // Verifies exhausted generations reject safely without aliasing old handles.
-static void generation_exhaustion(void) {
+static fn generation_exhaustion() {
     FilterPool *p = pool(1, 1);
     FilterToken first = 0, last = 0;
     for (u32 generation = 1; generation <= UINT16_MAX; ++generation) {
@@ -187,7 +187,7 @@ static void generation_exhaustion(void) {
 }
 
 // Runs filter-pool lifetime, validation, composition, and exhaustion cases.
-int main(void) {
+int main() {
     FILE *diagnostics = tmpfile();
     if (!diagnostics)
         return 1;

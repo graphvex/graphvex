@@ -11,8 +11,8 @@
 // Validate all geometry/format/stride/work bounds before callbacks. A false
 // consumer result stops iteration; previous consumer writes are not rolled back.
 // Cold/reference path, not an optimized texture sampler; 16M visible-pixel budget.
-typedef bool (*ImageRunsFn)(Rect run, Color color, void *context);
+typedef bool (*ImageRunsFn)(Rect run, Color color, any context);
 bool ImageRuns_visit(const Image *image, Rect destination, Rect clip,
-                     ImageRunsFn visit, void *context);
+                     ImageRunsFn visit, any context);
 
 #endif

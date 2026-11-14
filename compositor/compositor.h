@@ -47,23 +47,23 @@ CompositorStatus CompositorSurface_create(CompositorBounds bounds,
                                           CompositorSurface **out);
 /* Arity constructors return a new owned surface or NULL on failure; use create
  * when the status is required. Zero constructs the owned empty identity. */
-CompositorSurface *CompositorSurface_0(void);
+CompositorSurface *CompositorSurface_0();
 CompositorSurface *CompositorSurface_1(CompositorBounds bounds);
-CompositorSurface *CompositorSurface_zero(void);
+CompositorSurface *CompositorSurface_zero();
 #define GRAPHVEX_COMPOSITOR_CTOR(_0, _1, NAME, ...) NAME
 #define CompositorSurface(...) \
     GRAPHVEX_COMPOSITOR_CTOR(0 __VA_OPT__(,) __VA_ARGS__, \
                             CompositorSurface_1, CompositorSurface_0)(__VA_ARGS__)
-void CompositorSurface_destroy(CompositorSurface *surface);
+fn CompositorSurface_destroy(CompositorSurface *surface);
 CompositorBounds CompositorSurface_bounds(const CompositorSurface *surface);
 f32 *CompositorSurface_pixels(CompositorSurface *surface);
 const f32 *CompositorSurface_constPixels(const CompositorSurface *surface);
 CompositorStatus CompositorSurface_validate(const CompositorSurface *surface);
 /* Cold bounded strings. Null self writes "nullptr"; absent/zero-capacity dest
  * reports truncation. Strings never allocate, inspect pixels or recurse. */
-void CompositorSurface_toString(const CompositorSurface *surface, char *dest,
+fn CompositorSurface_toString(const CompositorSurface *surface, char *dest,
                                 bytes cap, bool *outTruncated);
-void CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
+fn CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
                                       bytes cap, bool *outTruncated);
 
 /* Validates tokens even for empty bounds. Ordered blur support expands each

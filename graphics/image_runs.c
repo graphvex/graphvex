@@ -35,7 +35,7 @@ static Color sample(const u8 *pixels, bytes stride, u32 width,
 
 // Visits contiguous horizontal runs of equal sampled color within the clipped destination.
 bool ImageRuns_visit(const Image *image, Rect destination, Rect clip,
-                     ImageRunsFn visit, void *context) {
+                     ImageRunsFn visit, any context) {
     if (!image || !visit || !Image_isValid(image) || !validRect(destination) ||
         !validRect(clip) || Image_format(image) != IMAGE_FORMAT_RGBA8)
         return false;

@@ -67,7 +67,7 @@ CompositorStatus CompositorSurface_create(CompositorBounds b,
 }
 
 // Creates an empty zero-origin surface.
-CompositorSurface *CompositorSurface_0(void) {
+CompositorSurface *CompositorSurface_0() {
     return CompositorSurface_1((CompositorBounds) {0});
 }
 // Convenience constructor returning null if checked surface creation fails.
@@ -77,12 +77,12 @@ CompositorSurface *CompositorSurface_1(CompositorBounds bounds) {
     return surface;
 }
 // Returns the empty-surface identity through the zero-argument constructor.
-CompositorSurface *CompositorSurface_zero(void) {
+CompositorSurface *CompositorSurface_zero() {
     return CompositorSurface_0();
 }
 
 // Writes a bounded value or one-level field projection and reports truncation.
-static void surfaceString(const CompositorSurface *surface, bool structure,
+static fn surfaceString(const CompositorSurface *surface, bool structure,
                            char *dest, bytes cap, bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
@@ -97,7 +97,7 @@ static void surfaceString(const CompositorSurface *surface, bool structure,
         if (structure) {
             written = snprintf(dest, cap,
                 "CompositorSurface{bounds={x=%d,y=%d,width=%u,height=%u},pixels=%p}",
-                b.x, b.y, b.width, b.height, (void*) (*surface).pixels);
+                b.x, b.y, b.width, b.height, (any) (*surface).pixels);
         } else {
             written = snprintf(dest, cap, "CompositorSurface(%u x %u at %d,%d)",
                                b.width, b.height, b.x, b.y);
@@ -107,18 +107,18 @@ static void surfaceString(const CompositorSurface *surface, bool structure,
         *outTruncated = written < 0 || (bytes) written >= cap;
 }
 // Formats a concise bounded summary of the surface.
-void CompositorSurface_toString(const CompositorSurface *surface, char *dest,
+fn CompositorSurface_toString(const CompositorSurface *surface, char *dest,
                                 bytes cap, bool *outTruncated) {
     surfaceString(surface, false, dest, cap, outTruncated);
 }
 // Formats the surface's own fields into a bounded structure projection.
-void CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
+fn CompositorSurface_toStringStruct(const CompositorSurface *surface, char *dest,
                                       bytes cap, bool *outTruncated) {
     surfaceString(surface, true, dest, cap, outTruncated);
 }
 
 // Frees the owned pixel buffer and surface record; null is ignored.
-void CompositorSurface_destroy(CompositorSurface *surface) {
+fn CompositorSurface_destroy(CompositorSurface *surface) {
     if (!surface)
         return;
     free((*surface).pixels);

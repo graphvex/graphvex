@@ -34,9 +34,9 @@
  * ----------------------------------------------------------------------------
  *   Image    *image;         // owned target (RGBA8)
  *   _Atomic u64 generation; // publishes so far (0 = never)
- *   void     *native;        // opaque dialect handle (the backend's VkImage)
+ *   any native;        // opaque dialect handle (the backend's VkImage)
  *   BoardRevalidateFn *revalidators; // borrowed steps (R4 scene/content)
- *   void    **revalidateUd;  // userdata per step
+ *   any *revalidateUd;  // userdata per step
  *   int       revalidateCount, revalidateCap;
  *
  * FUNCTION REGISTRY (exported by board.h):
@@ -56,9 +56,9 @@
 struct Board {
     Image *image;
     _Atomic u64 generation;
-    void *native;    // opaque dialect handle (the backend's VkImage)
+    any native;    // opaque dialect handle (the backend's VkImage)
     BoardRevalidateFn *revalidators;   // borrowed steps (R4 scene/content panels)
-    void **revalidateUd;               // userdata per step
+    any *revalidateUd;               // userdata per step
     int revalidateCount, revalidateCap;
 };
 
@@ -79,7 +79,7 @@ Board *Board_new(const BoardDesc *desc) {
 }
 
 // Creates a board with the default 1x1 image target.
-Board *Board_0(void) { return Board_new(nullptr); }
+Board *Board_0() { return Board_new(nullptr); }
 // Creates a board with the requested dimensions and default image usage.
 Board *Board_2(u32 width, u32 height) {
     BoardDesc d = {width, height, 0u};
@@ -87,7 +87,7 @@ Board *Board_2(u32 width, u32 height) {
 }
 
 // Destroys the owned image and callback arrays; null is ignored.
-void Board_destroy(Board *board) {
+fn Board_destroy(Board *board) {
     if (!board) return;
     Image_destroy((*board).image);
     free((*board).revalidators);
@@ -103,13 +103,13 @@ bool Board_resize(Board *board, u32 width, u32 height) {
 }
 
 // Advances the atomic generation to announce newly published board content.
-void Board_publish(Board *board) {
+fn Board_publish(Board *board) {
     if (!board) return;
     atomic_fetch_add(&(*board).generation, 1u);
 }
 
 // Fills the board's image with the supplied packed color when the board is valid.
-void Board_fill(Board *board, Color color) {
+fn Board_fill(Board *board, Color color) {
     if (board && (*board).image) Image_fill((*board).image, color);
 }
 
@@ -126,16 +126,16 @@ bool Board_isValid(const Board *board) { return board && Image_isValid((*board).
 // Returns the board-owned image as a borrowed pointer, or nullptr for a null board.
 Image *Board_image(const Board *board) { return board ? (*board).image : nullptr; }
 // Returns the opaque native handle without transferring ownership.
-void *Board_native(const Board *board) { return board ? (*board).native : nullptr; }
+any Board_native(const Board *board) { return board ? (*board).native : nullptr; }
 
 // ── revalidation ────────────────────────────────────────────────────────────
 // Appends a borrowed callback and userdata pair; invalid input or growth failure leaves it unadded.
-void Board_addRevalidator(Board *board, BoardRevalidateFn fn, void *userdata) {
+fn Board_addRevalidator(Board *board, BoardRevalidateFn fn, any userdata) {
     if (!board || !fn) return;
     if ((*board).revalidateCount == (*board).revalidateCap) {
         int cap = (*board).revalidateCap ? (*board).revalidateCap * 2 : 4;
         BoardRevalidateFn *steps = realloc((*board).revalidators, (bytes)cap * sizeof *steps);
-        void **uds = realloc((*board).revalidateUd, (bytes)cap * sizeof *uds);
+        any *uds = realloc((*board).revalidateUd, (bytes)cap * sizeof *uds);
         if (!steps || !uds) return;   // best-effort; keep whatever we had
         (*board).revalidators = steps;
         (*board).revalidateUd = uds;
@@ -147,13 +147,13 @@ void Board_addRevalidator(Board *board, BoardRevalidateFn fn, void *userdata) {
 }
 
 // Removes all registered callbacks without freeing their borrowed userdata.
-void Board_clearRevalidators(Board *board) {
+fn Board_clearRevalidators(Board *board) {
     if (!board) return;
     (*board).revalidateCount = 0;
 }
 
 // Runs registered callbacks in order, then publishes the board once.
-void Board_revalidate(Board *board) {
+fn Board_revalidate(Board *board) {
     if (!board) return;
     for (int i = 0; i < (*board).revalidateCount; i++)
         (*board).revalidators[i](board, (*board).revalidateUd[i]);

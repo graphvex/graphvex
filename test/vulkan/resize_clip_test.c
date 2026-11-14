@@ -29,7 +29,7 @@ static const u8 *at(const Image *img, int x, int y) {
 // A stiff scene: a 200x200 panel (radius 24) pinned at the top-left, and a
 // second panel straddling the shrink edge so the crop is non-trivial.
 // Records the fixed scene used for resize and clipping comparisons.
-static void scene(void) {
+static fn scene() {
     Graphics_clear(COLOR_RGBA(10, 12, 16, 255));
     Graphics_fillRect(&(Rect){0, 0, 200, 200},
                       &(Brush){COLOR_RGBA(230, 120, 120, 255), 24, 0, 0, 0});
@@ -50,7 +50,7 @@ static Image *render_at(int w, int h) {
 }
 
 // Confirms shrinking and restoring the viewport preserves clipped pixels.
-int main(void) {
+int main() {
     CHECK(Graphics_register(VulkanBackend_row()));
     CHECK(Graphics_use(BACKEND_VULKAN));
 

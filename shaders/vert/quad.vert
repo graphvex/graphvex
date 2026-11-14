@@ -27,7 +27,7 @@ layout(location = 6) out vec4 vClip;
 layout(location = 7) out f32 vBlur;
 layout(location = 8) out f32 vClipRadius;
 
-void main() {
+fn main() {
     // native px, Y-down (top-left) -> Vulkan NDC (Y-up); NDC lives ONLY here.
     vec2 ndc = vec2(inPos.x / pc.viewport.x * 2.0 - 1.0,
                     inPos.y / pc.viewport.y * 2.0 - 1.0);

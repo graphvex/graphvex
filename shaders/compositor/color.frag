@@ -36,7 +36,7 @@ f32 contrastChannel(f32 value, f32 alpha, f32 amount) {
     return clamp(delta * amount + pivot, 0.0, alpha);
 }
 
-void main() {
+fn main() {
     vec4 color = texelFetch(sourceColor, ivec2(gl_FragCoord.xy), 0);
     f32 alpha = color.a;
     if (alpha == 0.0) {

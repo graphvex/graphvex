@@ -34,12 +34,12 @@ static const f32 *at(const CompositorSurface *surface, i32 x, i32 y) {
 }
 
 // Asserts that a f32 result is within the test's numeric tolerance.
-static void near(f32 actual, d64 expected) {
+static fn near(f32 actual, d64 expected) {
     assert(isfinite(actual) && fabs(actual - expected) < 2e-6);
 }
 
 // Verifies crop bounds, pixels, and rejected-output preservation.
-static void cropContract(void) {
+static fn cropContract() {
     const f32 translucent[4] = {.25f, .125f, 0, .5f};
     CompositorSurface *source = makeSurface((CompositorBounds) {-3, 7, 2, 2}, translucent);
     CompositorSurface *crop = nullptr;
@@ -74,7 +74,7 @@ static void cropContract(void) {
 }
 
 // Checks backdrop filtering replaces the prior scene region exactly once.
-static void backdropReplacement(void) {
+static fn backdropReplacement() {
     const f32 black[4] = {0, 0, 0, 1};
     CompositorSurface *prior = makeSurface((CompositorBounds) {-4, -4, 9, 9}, black);
     f32 *p = CompositorSurface_pixels(prior);
@@ -133,7 +133,7 @@ static void backdropReplacement(void) {
 }
 
 // Checks foreground clipping and element-filter spill beyond placement.
-static void foregroundClipAndElementSpill(void) {
+static fn foregroundClipAndElementSpill() {
     const f32 black[4] = {0, 0, 0, 1}, green[4] = {0, 1, 0, 1}, red[4] = {1, 0, 0, 1};
     CompositorSurface *prior = makeSurface((CompositorBounds) {0, 0, 9, 9}, black);
     CompositorSurface *decoration = makeSurface((CompositorBounds) {2, 2, 5, 5}, green);
@@ -182,7 +182,7 @@ static void foregroundClipAndElementSpill(void) {
 }
 
 // Ensures foreground-only composition does not capture prior scene pixels.
-static void noBackdropDoesNotBakePrior(void) {
+static fn noBackdropDoesNotBakePrior() {
     const f32 red[4] = {1, 0, 0, 1};
     CompositorSurface *prior = makeSurface((CompositorBounds) {0, 0, 7, 7}, red);
     FilterToken blur = Filter_scatterBlur(1);
@@ -199,7 +199,7 @@ static void noBackdropDoesNotBakePrior(void) {
 }
 
 // Verifies invalid scope inputs reject without changing prior content.
-static void rejections(void) {
+static fn rejections() {
     const f32 gray[4] = {.25f, .25f, .25f, 1};
     CompositorSurface *prior = makeSurface((CompositorBounds) {0, 0, 7, 7}, gray);
     CompositorScopeDesc desc = {.priorScene = prior, .panelBounds = {2, 2, 3, 3}};
@@ -266,7 +266,7 @@ static void rejections(void) {
 }
 
 // Runs crop, backdrop, foreground, spill, and rejection scope contracts.
-int main(void) {
+int main() {
     cropContract();
     backdropReplacement();
     foregroundClipAndElementSpill();

@@ -20,11 +20,11 @@
 typedef struct Pool Pool;
 
 Pool *Pool_new(bytes stride, u32 blockCap);
-void Pool_destroy(Pool *pool);
+fn Pool_destroy(Pool *pool);
 
-void *Pool_alloc(Pool *pool);              // a zeroed slot, or NULL on OOM
-void Pool_release(Pool *pool, void *item); // return a slot to the free list
-bool Pool_contains(const Pool *pool, const void *item);   // does the slot belong here?
+any Pool_alloc(Pool *pool);              // a zeroed slot, or NULL on OOM
+fn Pool_release(Pool *pool, any item); // return a slot to the free list
+bool Pool_contains(const Pool *pool, const_any item);   // does the slot belong here?
 
 u32 Pool_live(const Pool *pool);
 bytes Pool_stride(const Pool *pool);

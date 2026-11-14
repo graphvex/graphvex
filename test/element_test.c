@@ -21,7 +21,7 @@ static int g_fail = 0;
 static int closef(f32 a, f32 b) { return fabsf(a - b) < 0.001f; }
 
 // Exercises element construction, anchors, pivots, painting, and null guards.
-int main(void) {
+int main() {
     Rect parent = {100, 50, 200, 100};
 
     // --- the 9 parts themselves ---

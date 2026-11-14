@@ -12,12 +12,12 @@
 // `Rect` colliding with graphvex's `Rect`. In the real stack this role is
 // hotcwap's (window_cocoa.m), owned by R1.
 
-void *IosHost_create(int width, int height);   // an IOSurfaceRef, or NULL
-void  IosHost_release(void *surface);
+any IosHost_create(int width, int height);   // an IOSurfaceRef, or NULL
+fn  IosHost_release(any surface);
 
 // Lock for read and return the base address; stride out is Bytes/row.
 // Returns NULL if the lock failed.
-const u8 *IosHost_lockRead(void *surface, bytes *outStride);
-void IosHost_unlock(void *surface);
+const u8 *IosHost_lockRead(any surface, bytes *outStride);
+fn IosHost_unlock(any surface);
 
 #endif // IOSURFACE_HOST_H

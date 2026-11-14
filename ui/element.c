@@ -95,10 +95,10 @@ Element *Element_1(const ElementDesc *d) {
 }
 
 // Creates a visible default element with zero extent and inherited cursor preference.
-Element *Element_0(void) { return Element_1(nullptr); }
+Element *Element_0() { return Element_1(nullptr); }
 
 // Recursively destroys the owned child tree and releases only an owned property record.
-void Element_destroy(Element *e) {
+fn Element_destroy(Element *e) {
     if (!e) return;
     for (int i = 0; i < (*e).count; i++) Element_destroy((*e).children[i]);
     free((*e).children);
@@ -137,7 +137,7 @@ Element *Element_ownProperty(Element *e) {
 
 // ── revalidation ────────────────────────────────────────────────────────────
 // Marks this element and its ancestors dirty so revalidation reaches the changed branch.
-void Element_markDirty(Element *e) {
+fn Element_markDirty(Element *e) {
     for (Element *n = e; n; n = (*n).parent) {
         if ((*n).dirty) break;
         (*n).dirty = true;
@@ -145,7 +145,7 @@ void Element_markDirty(Element *e) {
 }
 
 // Clears dirty state bottom-up while pruning already-clean subtrees.
-void Element_revalidate(Element *root) {
+fn Element_revalidate(Element *root) {
     if (!root || !(*root).dirty) return;    // prune clean subtrees
     for (int i = 0; i < (*root).count; i++) {
         Element *c = (*root).children[i];
@@ -159,7 +159,7 @@ bool Element_isDirty(const Element *e) { return e && (*e).dirty; }
 
 // ── tree ────────────────────────────────────────────────────────────────────
 // Inserts child at a clamped position and updates its parent link and dirty state.
-static void child_insert(Element *parent, Element *child, int index) {
+static fn child_insert(Element *parent, Element *child, int index) {
     if ((*parent).count == (*parent).cap) {
         (*parent).cap = (*parent).cap ? (*parent).cap * 2 : 8;
         Element **grown = realloc((*parent).children, (bytes)((*parent).cap) * sizeof *grown);
@@ -438,7 +438,7 @@ const char *Element_tag(const Element *e) { return e ? (*e).tag : nullptr; }
 
 // ── paint ───────────────────────────────────────────────────────────────────
 // Records this element's shadow, body, image, and children into the supplied display list.
-void Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
+fn Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
     if (!e || !dl || !(*e).visible || !(*e).property) return;
     const Property *p = (*e).property;
 

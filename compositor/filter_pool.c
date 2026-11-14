@@ -227,7 +227,7 @@ u32 FilterPool_live(const FilterPool *pool) {
 }
 
 // Writes the selected bounded pool projection and reports truncation.
-static void format(const FilterPool *pool, bool structure, char *dest, bytes cap,
+static fn format(const FilterPool *pool, bool structure, char *dest, bytes cap,
                    bool *outTruncated) {
     if (!dest && cap) {
         if (outTruncated)
@@ -242,7 +242,7 @@ static void format(const FilterPool *pool, bool structure, char *dest, bytes cap
         length = snprintf(dest, cap,
             "FilterPool{capacity=%u,maxRecipeFilters=%u,live=%u,slots=%p}",
             (*pool).capacity, (*pool).maxRecipeFilters, (*pool).live,
-            (void*) (*pool).slots);
+            (any) (*pool).slots);
     else
         length = snprintf(dest, cap, "FilterPool(live=%u,capacity=%u)",
                           (*pool).live, (*pool).capacity);
@@ -250,12 +250,12 @@ static void format(const FilterPool *pool, bool structure, char *dest, bytes cap
         *outTruncated = length < 0 || (bytes) length >= cap;
 }
 // Formats the pool's concise value summary into caller storage.
-void FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
+fn FilterPool_toString(const FilterPool *pool, char *dest, bytes cap,
                          bool *outTruncated) {
     format(pool, false, dest, cap, outTruncated);
 }
 // Formats the pool's own fields into caller storage.
-void FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
+fn FilterPool_toStringStruct(const FilterPool *pool, char *dest, bytes cap,
                                bool *outTruncated) {
     format(pool, true, dest, cap, outTruncated);
 }

@@ -15,11 +15,11 @@ enum { GPU_SCOPE_BACKDROP, GPU_SCOPE_FOREGROUND, GPU_SCOPE_ELEMENT };
  * are transport for the current Image/Picture bridge, not pixel algorithms.
  * Calls require external synchronization. */
 GpuScope *GpuScope_3(Device *device, const char *shaderDir, u32 maxPixels);
-GpuScope *GpuScope_0(void);
+GpuScope *GpuScope_0();
 #define GRAPHVEX_GPU_SCOPE_CTOR(_0,_1,_2,_3,NAME,...) NAME
 #define GpuScope(...) GRAPHVEX_GPU_SCOPE_CTOR(0 __VA_OPT__(,) __VA_ARGS__, \
     GpuScope_3,GpuScope_invalidArity,GpuScope_invalidArity,GpuScope_0)(__VA_ARGS__)
-GpuScope *GpuScope_zero(void);
+GpuScope *GpuScope_zero();
 bool GpuScope_isPending(const GpuScope *self);
 /* Waits at most 100ms. False leaves object and in-flight resources alive; retry
  * after completion/device recovery. Never destroy borrowed Device first. */
@@ -43,6 +43,6 @@ bool GpuScope_renderSampled(GpuScope *self, unsigned scope, const Image *prior,
     const Image *decoration, i32 panelX, i32 panelY,
     const Image *foreground, i32 foregroundX, i32 foregroundY,
     u32 radius, Image **out);
-void GpuScope_toString(const GpuScope *self,char *dest,bytes cap,bool *outTruncated);
-void GpuScope_toStringStruct(const GpuScope *self,char *dest,bytes cap,bool *outTruncated);
+fn GpuScope_toString(const GpuScope *self,char *dest,bytes cap,bool *outTruncated);
+fn GpuScope_toStringStruct(const GpuScope *self,char *dest,bytes cap,bool *outTruncated);
 #endif

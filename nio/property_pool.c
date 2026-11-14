@@ -16,11 +16,11 @@
  * STRUCT FIELDS (Mirroring PropertyPool)
  * Pool *slots                    fixed-stride storage and live-slot accounting
  * FUNCTION REGISTRY
- * Constructors: PropertyPool *PropertyPool_0(void)
- *   PropertyPool *PropertyPool_default(void)
- * Lifecycle: void PropertyPool_destroy(PropertyPool *pool)
+ * Constructors: PropertyPool *PropertyPool_0()
+ *   PropertyPool *PropertyPool_default()
+ * Lifecycle: fn PropertyPool_destroy(PropertyPool *pool)
  * Operations: Property *PropertyPool_alloc(PropertyPool *pool,
- *   const Property *init), void PropertyPool_release(PropertyPool *pool,
+ *   const Property *init), fn PropertyPool_release(PropertyPool *pool,
  *   Property *property)
  * Projections: u32 PropertyPool_live(const PropertyPool *pool)
  * Private configuration: PROPERTY_POOL_BLOCK_CAP is the initial per-block
@@ -38,7 +38,7 @@ struct PropertyPool {
 };
 
 // Creates a typed pool for stable Property records.
-PropertyPool *PropertyPool_0(void) {
+PropertyPool *PropertyPool_0() {
     PropertyPool *pp = calloc(1, sizeof *pp);
     if (!pp) return nullptr;
     (*pp).slots = Pool_new(sizeof(Property), PROPERTY_POOL_BLOCK_CAP);
@@ -50,13 +50,13 @@ PropertyPool *PropertyPool_0(void) {
 // arena). Borrowed, never destroyed by callers.
 static PropertyPool *s_default = nullptr;
 // Returns the process-global lazily created pool; callers borrow it and must not destroy it.
-PropertyPool *PropertyPool_default(void) {
+PropertyPool *PropertyPool_default() {
     if (!s_default) s_default = PropertyPool_0();
     return s_default;
 }
 
 // Destroys the pool and all of its backing storage; do not use on the shared default pool.
-void PropertyPool_destroy(PropertyPool *pool) {
+fn PropertyPool_destroy(PropertyPool *pool) {
     if (!pool) return;
     Pool_destroy((*pool).slots);
     free(pool);
@@ -72,7 +72,7 @@ Property *PropertyPool_alloc(PropertyPool *pool, const Property *init) {
 }
 
 // Returns a property slot to its pool; the pointer must belong to that pool.
-void PropertyPool_release(PropertyPool *pool, Property *property) {
+fn PropertyPool_release(PropertyPool *pool, Property *property) {
     if (pool && property) Pool_release((*pool).slots, property);
 }
 

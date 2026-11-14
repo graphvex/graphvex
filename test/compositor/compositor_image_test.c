@@ -48,7 +48,7 @@ static void round_trip(void) {
 }
 
 // Checks alpha handling and gain adjustments on image composition.
-static void alpha_and_gain(void) {
+static fn alpha_and_gain() {
     const u8 rgba[] = {255, 128, 64, 128, 255, 200, 100, 0};
     Image *image = Image_2(2, 1);
     assert(Image_upload(rgba, 2, 1, image));
@@ -74,7 +74,7 @@ static void alpha_and_gain(void) {
 }
 
 // Checks invalid image inputs and preserved state after rejection.
-static void failures(void) {
+static fn failures() {
     CompositorSurface *empty = nullptr;
     assert(CompositorSurface_create((CompositorBounds) {0}, &empty) == COMPOSITOR_OK);
     CompositorSurface *out = empty;
@@ -96,7 +96,7 @@ static void failures(void) {
 }
 
 // Runs image round-trip, alpha/gain, and failure-contract scenarios.
-int main(void) {
+int main() {
     round_trip();
     alpha_and_gain();
     failures();

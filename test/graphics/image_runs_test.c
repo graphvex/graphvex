@@ -15,7 +15,7 @@ typedef struct RunsState {
 } RunsState;
 
 // Records each visited image run and color into the supplied test state.
-static bool record(Rect run, Color color, void *userdata) {
+static bool record(Rect run, Color color, any userdata) {
     RunsState *state = userdata;
     if (!(*state).count) {
         (*state).first = run;
@@ -26,7 +26,7 @@ static bool record(Rect run, Color color, void *userdata) {
 }
 
 // Tests run visitation, clipping, format rejection, and callback failure.
-int main(void) {
+int main() {
     Image *image = Image_2(2, 1);
     assert(image && Image_ensureShadow(image, 2, 1));
     assert(Image_resize(image, 1, 1)); // retained stride exceeds visible row width

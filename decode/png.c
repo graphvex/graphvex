@@ -65,9 +65,9 @@ static u32 pngChannels(int colorType) {
     }
 }
 
-bool Png_isPng(const u8 *bytes, bytes length) {
-    return bytes != nullptr && length >= sizeof(PNG_SIGNATURE)
-        && memcmp(bytes, PNG_SIGNATURE, sizeof(PNG_SIGNATURE)) == 0;
+bool Png_isPng(const u8 *data, bytes length) {
+    return data != nullptr && length >= sizeof(PNG_SIGNATURE)
+        && memcmp(data, PNG_SIGNATURE, sizeof(PNG_SIGNATURE)) == 0;
 }
 
 const char *Png_codeName(PngCode code) {
@@ -115,34 +115,34 @@ static bool pngUnfilter(u8 *raw, u32 height, bytes rowBytes, u32 bpp) {
     return true;
 }
 
-static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
+static PngCode Png_decodeWith(const u8 *data, bytes length, u8 **outRgba,
                               u32 *outWidth, u32 *outHeight, bool useMalloc);
 
-static void *pngAlloc(bytes bytes, bool useMalloc) {
+static any pngAlloc(bytes bytes, bool useMalloc) {
     return useMalloc ? malloc(bytes) : Memory_alloc(TYPE_BYTE_ARRAY, bytes);
 }
-static void pngRelease(void *block, bool useMalloc) {
+static fn pngRelease(any block, bool useMalloc) {
     if (useMalloc) free(block);
     else Memory_free(block);
 }
 
-PngCode Png_decode(const u8 *bytes, bytes length, u8 **outRgba,
+PngCode Png_decode(const u8 *data, bytes length, u8 **outRgba,
                    u32 *outWidth, u32 *outHeight) {
-    return Png_decodeWith(bytes, length, outRgba, outWidth, outHeight, false);
+    return Png_decodeWith(data, length, outRgba, outWidth, outHeight, false);
 }
 
-PngCode Png_decodeMalloc(const u8 *bytes, bytes length, u8 **outRgba,
+PngCode Png_decodeMalloc(const u8 *data, bytes length, u8 **outRgba,
                          u32 *outWidth, u32 *outHeight) {
-    return Png_decodeWith(bytes, length, outRgba, outWidth, outHeight, true);
+    return Png_decodeWith(data, length, outRgba, outWidth, outHeight, true);
 }
 
-static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
+static PngCode Png_decodeWith(const u8 *data, bytes length, u8 **outRgba,
                               u32 *outWidth, u32 *outHeight, bool useMalloc) {
-    if (bytes == nullptr || outRgba == nullptr || outWidth == nullptr || outHeight == nullptr) {
+    if (data == nullptr || outRgba == nullptr || outWidth == nullptr || outHeight == nullptr) {
         THROW("Png decode: null bytes or output");
         return PNG_INVALID;
     }
-    if (!Png_isPng(bytes, length)) {
+    if (!Png_isPng(data, length)) {
         THROW("Png decode: signature");
         return PNG_INVALID;
     }
@@ -155,16 +155,16 @@ static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
     // Pass 1: validate every chunk (length, CRC, order) and size the IDAT stream.
     bytes at = sizeof(PNG_SIGNATURE);
     while (at + 12 <= length) {
-        u32 chunkLen = pngReadBE32(bytes + at);
-        const u8 *type = bytes + at + 4;
+        u32 chunkLen = pngReadBE32(data + at);
+        const u8 *type = data + at + 4;
         if (chunkLen > PNG_MAX_PIXELS || at + 12u + chunkLen > length) {
             THROW("Png decode: chunk length");
             return PNG_TRUNCATED;
         }
-        u32 expected = pngReadBE32(bytes + at + 8 + chunkLen);
+        u32 expected = pngReadBE32(data + at + 8 + chunkLen);
         uLong computed = crc32(0L, Z_NULL, 0);
         computed = crc32(computed, type, 4);
-        computed = crc32(computed, bytes + at + 8, chunkLen);
+        computed = crc32(computed, data + at + 8, chunkLen);
         if ((u32) computed != expected) {
             THROW("Png decode: chunk CRC");
             return PNG_INVALID;
@@ -172,11 +172,11 @@ static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
         if (memcmp(type, "IHDR", 4) == 0) {
             if (seenIHDR || chunkLen != 13)
                 return PNG_INVALID;
-            width = pngReadBE32(bytes + at + 8);
-            height = pngReadBE32(bytes + at + 12);
-            int bitDepth = bytes[at + 16];
-            int colorType = bytes[at + 17];
-            int interlace = bytes[at + 20];
+            width = pngReadBE32(data + at + 8);
+            height = pngReadBE32(data + at + 12);
+            int bitDepth = data[at + 16];
+            int colorType = data[at + 17];
+            int interlace = data[at + 20];
             if (width == 0 || height == 0 || width > PNG_MAX_PIXELS || height > PNG_MAX_PIXELS
                 || (u64) width * height > PNG_MAX_PIXELS) {
                 THROW("Png decode: geometry");
@@ -230,10 +230,10 @@ static PngCode Png_decodeWith(const u8 *bytes, bytes length, u8 **outRgba,
     bytes gathered = 0;
     at = sizeof(PNG_SIGNATURE);
     while (at + 12 <= length && gathered < idatTotal) {
-        u32 chunkLen = pngReadBE32(bytes + at);
-        const u8 *type = bytes + at + 4;
+        u32 chunkLen = pngReadBE32(data + at);
+        const u8 *type = data + at + 4;
         if (memcmp(type, "IDAT", 4) == 0) {
-            memcpy(compressed + gathered, bytes + at + 8, chunkLen);
+            memcpy(compressed + gathered, data + at + 8, chunkLen);
             gathered += chunkLen;
         } else if (memcmp(type, "IEND", 4) == 0) {
             break;

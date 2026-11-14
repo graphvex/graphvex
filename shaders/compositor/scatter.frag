@@ -9,7 +9,7 @@ layout(location = 1) flat in f32 kernelWeight;
 layout(location = 0) out vec4 accumulatedColor;
 layout(location = 1) out f32 accumulatedWeight;
 
-void main() {
+fn main() {
     accumulatedColor = weightedColor;
     accumulatedWeight = kernelWeight;
 }

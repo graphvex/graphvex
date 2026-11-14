@@ -20,36 +20,36 @@
 // Bind to a host-provided native destination:
 //   - Apple    : `nativeLayer` is a borrowed CAMetalLayer (id<CAMetalLayer>)
 //   - Win/Linux: `nativeWindow` is the platform handle (HWND / xcb window)
-bool VulkanBackend_bind(void *nativeLayer, u32 widthPx, u32 heightPx);
-void VulkanBackend_unbind(void);
-const Backend *VulkanBackend_row(void);
+bool VulkanBackend_bind(any nativeLayer, u32 widthPx, u32 heightPx);
+fn VulkanBackend_unbind();
+const Backend *VulkanBackend_row();
 
 // Zero-copy seam (Apple, VK_EXT_metal_objects): import a host IOSurface as the
 // render target. `iosurface` is a borrowed IOSurfaceRef (RGBA8, native px); we
 // never free it. Present renders straight into it — no readback. Unbind returns
 // to the private (readback) target. False when unsupported (non-Apple/driver).
-bool VulkanBackend_bindSurface(void *iosurface, u32 widthPx, u32 heightPx);
-void VulkanBackend_unbindSurface(void);
+bool VulkanBackend_bindSurface(any iosurface, u32 widthPx, u32 heightPx);
+fn VulkanBackend_unbindSurface();
 
 // A pool of imported surface targets (d64 buffering): add a surface once,
 // then select which one present renders into. add returns a slot (>=0) or -1.
 // use(-1) returns to the private readback target. cleanup releases them all.
-int  VulkanBackend_addSurface(void *iosurface, u32 widthPx, u32 heightPx);
+int  VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx);
 bool VulkanBackend_useSurface(int slot);
-void VulkanBackend_removeSurface(int slot);
-void VulkanBackend_cleanupSurfaces(void);
+fn VulkanBackend_removeSurface(int slot);
+fn VulkanBackend_cleanupSurfaces();
 
 // The live quad batch (tests/debug); valid between begin() and present().
-const VkBatch *VulkanBackend_batch(void);
-const char *VulkanBackend_lastError(void);
+const VkBatch *VulkanBackend_batch();
+const char *VulkanBackend_lastError();
 
 /* Cold owner-thread seam. The returned Device is borrowed from the renderer;
  * it remains alive until unbind. Prepare uploads a CPU Image once, or admits a
  * completed texture from that same Device. Images must clear/release GPU bindings
  * before unbind. Repainting reads retained descriptors, never CPU color runs.
  * Mutating raw CPU pixels requires Image_clearGpu before the next preparation. */
-Device *VulkanBackend_device(void);
+Device *VulkanBackend_device();
 bool VulkanBackend_prepareImage(Image *image);
-bytes VulkanBackend_vertexBytes(void);
+bytes VulkanBackend_vertexBytes();
 
 #endif // GRAPHICS_VULKAN_BACKEND_H

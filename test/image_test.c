@@ -20,7 +20,7 @@ static int g_fail = 0;
 static unsigned references, releases;
 static bool refuseRetain, refuseRelease;
 // Test callback that retains a resource unless rejection is requested.
-static bool retainResource(void *resource) {
+static bool retainResource(any resource) {
     CHECK(resource == &references);
     if (refuseRetain)
         return false;
@@ -28,7 +28,7 @@ static bool retainResource(void *resource) {
     return true;
 }
 // Test callback that releases a resource unless rejection is requested.
-static bool releaseResource(void *resource) {
+static bool releaseResource(any resource) {
     CHECK(resource == &references);
     if (refuseRelease)
         return false;
@@ -38,7 +38,7 @@ static bool releaseResource(void *resource) {
 }
 
 // Exercises image ownership callbacks, pixel operations, and invalid inputs.
-int main(void) {
+int main() {
     Image *gpu = Image(2, 3);
     CHECK(!Image_isDrawable(gpu));
     CHECK(!Image_bindGpu(gpu, nullptr, gpu, gpu, retainResource, releaseResource));
@@ -110,10 +110,10 @@ int main(void) {
     CHECK(Image_layer(img) == 0u);
     Image_setLayer(img, 3);
     CHECK(Image_layer(img) == 3u);
-    Image_setNative(img, (void*) 0x1234);
-    CHECK(Image_native(img) == (void*) 0x1234);
-    Image_setIOSurface(img, (void*) 0x5678);
-    CHECK(Image_iosurface(img) == (void*) 0x5678);
+    Image_setNative(img, (any) 0x1234);
+    CHECK(Image_native(img) == (any) 0x1234);
+    Image_setIOSurface(img, (any) 0x5678);
+    CHECK(Image_iosurface(img) == (any) 0x5678);
 
     Image_destroy(img);
     Image_destroy(nullptr);   // null-safe

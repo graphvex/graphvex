@@ -27,7 +27,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, u32 count,
 }
 
 // Asserts the RGB value at one pixel in the sampled image.
-static void pixel(const Image *image, unsigned x, unsigned y, unsigned r, unsigned g, unsigned b) {
+static fn pixel(const Image *image, unsigned x, unsigned y, unsigned r, unsigned g, unsigned b) {
     const u8 *p = Image_pixels(image) + y * Image_stride(image) + x * 4u;
     assert(abs((int) p[0] - (int) r) <= 1);
     assert(abs((int) p[1] - (int) g) <= 1);
@@ -35,7 +35,7 @@ static void pixel(const Image *image, unsigned x, unsigned y, unsigned r, unsign
     assert(p[3] == 255);
 }
 // Tests Vulkan image sampling, clipping, and timeout retry behavior.
-int main(void) {
+int main() {
     Device *device = VulkanBackend_device();
     if (!Device_isValid(device))
         return B_TEST_SKIP;

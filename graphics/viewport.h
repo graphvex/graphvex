@@ -28,10 +28,10 @@ typedef struct Viewport {
 typedef struct ViewportPoint { f32 x; f32 y; } ViewportPoint;
 typedef struct ViewportSize { f32 width; f32 height; } ViewportSize;
 
-Viewport Viewport_0(void);   // 0x0, scale 1
+Viewport Viewport_0();   // 0x0, scale 1
 #define Viewport(...) CONSTRUCTOR_DISPATCH(Viewport, __VA_ARGS__)
 
-void Viewport_resize(Viewport *v, f32 framebufferWidthPx, f32 framebufferHeightPx,
+fn Viewport_resize(Viewport *v, f32 framebufferWidthPx, f32 framebufferHeightPx,
                      f32 backingScale);
 
 // logical points (top-left, Y-down) → native px

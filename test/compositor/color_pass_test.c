@@ -42,7 +42,7 @@ static u32 memoryType(u32 bits, VkMemoryPropertyFlags flags) {
     return 0;
 }
 // Creates and binds a test buffer with host-visible memory.
-static void buffer(VkBufferUsageFlags usage, VkBuffer *out, VkDeviceMemory *memory) {
+static fn buffer(VkBufferUsageFlags usage, VkBuffer *out, VkDeviceMemory *memory) {
     VkBufferCreateInfo info = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = BYTES, .usage = usage};
     VK(vkCreateBuffer(device, &info, nullptr, out));
@@ -84,14 +84,14 @@ static TestImage image(VkRenderPass pass) {
     return result;
 }
 // Releases the image fixture's framebuffer, view, image, and memory.
-static void destroyImage(TestImage *self) {
+static fn destroyImage(TestImage *self) {
     vkDestroyFramebuffer(device, (*self).framebuffer, nullptr);
     vkDestroyImageView(device, (*self).view, nullptr);
     vkDestroyImage(device, (*self).image, nullptr);
     vkFreeMemory(device, (*self).memory, nullptr);
 }
 // Records an image layout transition and its access dependency.
-static void transition(VkCommandBuffer cmd, VkImage target, VkImageLayout old,
+static fn transition(VkCommandBuffer cmd, VkImage target, VkImageLayout old,
                        VkImageLayout next, VkAccessFlags fromAccess, VkAccessFlags toAccess,
                        VkPipelineStageFlags fromStage, VkPipelineStageFlags toStage) {
     VkImageMemoryBarrier barrier = {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -122,7 +122,7 @@ static u32 *words(const char *name, bytes *size) {
     return data;
 }
 // Computes the independent CPU reference for one color-filter token.
-static void oracle(const f32 *p, FilterToken token, f32 *out) {
+static fn oracle(const f32 *p, FilterToken token, f32 *out) {
     d64 alpha = p[3];
     d64 rgb[3] = {0};
     for (unsigned c = 0; c < 3; ++c)
@@ -147,18 +147,18 @@ static void oracle(const f32 *p, FilterToken token, f32 *out) {
     out[3] = p[3];
 }
 // Records one ColorPass operation into the supplied Vulkan command buffer.
-static void draw(ColorPass *pass, VkCommandBuffer cmd, VkRenderPass render,
+static fn draw(ColorPass *pass, VkCommandBuffer cmd, VkRenderPass render,
                  TestImage *target, VkDescriptorSet descriptor, FilterToken token) {
     VkRenderPassBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = render, .framebuffer = (*target).framebuffer,
         .renderArea = {{0, 0}, {WIDTH, HEIGHT}}};
     vkCmdBeginRenderPass(cmd, &begin, VK_SUBPASS_CONTENTS_INLINE);
-    assert(ColorPass_record(pass, (void*) cmd, (void*) descriptor, WIDTH, HEIGHT, token));
+    assert(ColorPass_record(pass, (any) cmd, (any) descriptor, WIDTH, HEIGHT, token));
     vkCmdEndRenderPass(cmd);
 }
 
 // Compares Vulkan color-pass pixels with CPU references and rejection cases.
-int main(void) {
+int main() {
     assert(ColorPass_zero() == nullptr);
     assert(ColorPass_0() == nullptr && ColorPass() == nullptr);
     assert(ColorPass_getDescriptorLayout(nullptr) == nullptr);
@@ -197,9 +197,9 @@ int main(void) {
     VkRenderPass render; VK(vkCreateRenderPass(device, &rp, nullptr, &render));
     bytes vertexSize, fragmentSize;
     u32 *vertex = words("resolve.vert", &vertexSize), *fragment = words("color.frag", &fragmentSize);
-    ColorPass *pass = ColorPass(session, (void*) render, vertex, vertexSize, fragment, fragmentSize);
+    ColorPass *pass = ColorPass(session, (any) render, vertex, vertexSize, fragment, fragmentSize);
     assert(pass);
-    ColorPass *independent = ColorPass_6(session, (void*) render, vertex, vertexSize, fragment, fragmentSize);
+    ColorPass *independent = ColorPass_6(session, (any) render, vertex, vertexSize, fragment, fragmentSize);
     assert(independent && independent != pass);
     ColorPass_destroy(independent);
     char text[256]; bool truncated;
@@ -220,7 +220,7 @@ int main(void) {
         .25f,0,0,.25f, 0,.25f,0,.25f, 0,0,.25f,.25f, 1,1,1,1,
         FLT_MAX,FLT_MAX,FLT_MAX,1, .75f,.125f,.5f,1, 0,0,0,1,
         1.25e-9f,3.75e-9f,8.75e-9f,1e-8f};
-    void *mapped;
+    any mapped;
     VK(vkMapMemory(device, uploadMemory, 0, BYTES, 0, &mapped));
     memcpy(mapped, pixels, sizeof pixels); vkUnmapMemory(device, uploadMemory);
     VkSamplerCreateInfo si = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -324,19 +324,19 @@ int main(void) {
         Filter_brightness(0) | (UINT64_C(1) << 32), Filter_hsl(1,1)};
     for (bytes i = 0; i < sizeof invalid / sizeof invalid[0]; ++i)
         assert(!ColorPass_validateToken(invalid[i]));
-    assert(!ColorPass_record(nullptr, (void*) cmd, (void*) descriptors[0], WIDTH, HEIGHT, tokens[0]));
-    assert(!ColorPass_record(pass, nullptr, (void*) descriptors[0], WIDTH, HEIGHT, tokens[0]));
-    assert(!ColorPass_record(pass, (void*) cmd, nullptr, WIDTH, HEIGHT, tokens[0]));
-    assert(!ColorPass_record(pass, (void*) cmd, (void*) descriptors[0], 0, HEIGHT, tokens[0]));
-    assert(!ColorPass_record(pass, (void*) cmd, (void*) descriptors[0], WIDTH, HEIGHT, invalid[0]));
-    assert(!ColorPass(nullptr, (void*) render, vertex, vertexSize, fragment, fragmentSize));
+    assert(!ColorPass_record(nullptr, (any) cmd, (any) descriptors[0], WIDTH, HEIGHT, tokens[0]));
+    assert(!ColorPass_record(pass, nullptr, (any) descriptors[0], WIDTH, HEIGHT, tokens[0]));
+    assert(!ColorPass_record(pass, (any) cmd, nullptr, WIDTH, HEIGHT, tokens[0]));
+    assert(!ColorPass_record(pass, (any) cmd, (any) descriptors[0], 0, HEIGHT, tokens[0]));
+    assert(!ColorPass_record(pass, (any) cmd, (any) descriptors[0], WIDTH, HEIGHT, invalid[0]));
+    assert(!ColorPass(nullptr, (any) render, vertex, vertexSize, fragment, fragmentSize));
     assert(!ColorPass(session, nullptr, vertex, vertexSize, fragment, fragmentSize));
-    assert(!ColorPass(session, (void*) render, nullptr, vertexSize, fragment, fragmentSize));
-    assert(!ColorPass(session, (void*) render, vertex, vertexSize, nullptr, fragmentSize));
-    assert(!ColorPass(session, (void*) render, vertex, 0, fragment, fragmentSize));
-    assert(!ColorPass(session, (void*) render, vertex, vertexSize, fragment, fragmentSize - 1));
+    assert(!ColorPass(session, (any) render, nullptr, vertexSize, fragment, fragmentSize));
+    assert(!ColorPass(session, (any) render, vertex, vertexSize, nullptr, fragmentSize));
+    assert(!ColorPass(session, (any) render, vertex, 0, fragment, fragmentSize));
+    assert(!ColorPass(session, (any) render, vertex, vertexSize, fragment, fragmentSize - 1));
     u32 badWords[5] = {0};
-    assert(!ColorPass(session, (void*) render, badWords, sizeof badWords, fragment, fragmentSize));
+    assert(!ColorPass(session, (any) render, badWords, sizeof badWords, fragment, fragmentSize));
     fflush(stderr); assert(dup2(saved, STDERR_FILENO) >= 0); close(saved);
     rewind(diagnostics); unsigned lines = 0;
     while (fgets(text, sizeof text, diagnostics)) { assert(strstr(text, "[vex]") && strstr(text, "ColorPass")); ++lines; }

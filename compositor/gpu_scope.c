@@ -124,7 +124,7 @@ static bool makeTexture(GpuScope *self,u32 width,u32 height,VkFormat format,Text
     return vkCreateImageView((*self).device,&view,nullptr,&(*out).view)==VK_SUCCESS;
 }
 // Releases per-job textures, descriptors, framebuffers, and command resources.
-static void releaseJob(GpuScope *self) {
+static fn releaseJob(GpuScope *self) {
     Job *job=&(*self).job;
     if ((*job).descriptors)
         vkDestroyDescriptorPool((*self).device,(*job).descriptors,nullptr);
@@ -161,8 +161,8 @@ static bool retire(GpuScope *self) {
 }
 // Reports whether this scope currently has a submitted job pending completion.
 bool GpuScope_isPending(const GpuScope *self) { return self && (*self).pending; }
-GpuScope *GpuScope_0(void) { return nullptr; }
-GpuScope *GpuScope_zero(void) { return GpuScope_0(); }
+GpuScope *GpuScope_0() { return nullptr; }
+GpuScope *GpuScope_zero() { return GpuScope_0(); }
 // Destroys scope-owned Vulkan state after retiring pending work; false preserves it on timeout.
 bool GpuScope_destroy(GpuScope *self) {
     if (!self)
@@ -366,7 +366,7 @@ failed:
     GpuScope_destroy(self); THROW("GpuScope Vulkan setup unsupported or failed"); return nullptr;
 }
 // Records a texture layout transition with matching access and stage masks.
-static void barrier(GpuScope *self,Texture *texture,VkImageLayout old,VkImageLayout next,
+static fn barrier(GpuScope *self,Texture *texture,VkImageLayout old,VkImageLayout next,
     VkAccessFlags from,VkAccessFlags to,VkPipelineStageFlags fromStage,VkPipelineStageFlags toStage) {
     VkImageMemoryBarrier b={.sType=VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,.srcAccessMask=from,.dstAccessMask=to,
         .oldLayout=old,.newLayout=next,.srcQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED,.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED,
@@ -380,7 +380,7 @@ static bool upload(GpuScope *self,const Image *source,unsigned index) {
     if (!makeTexture(self,w,h,VK_FORMAT_R8G8B8A8_SRGB,t) ||
         !makeBuffer(self,(VkDeviceSize) w*h*4,VK_BUFFER_USAGE_TRANSFER_SRC_BIT,b))
         return false;
-    void *mappedPixelBytes;
+    any mappedPixelBytes;
     if (vkMapMemory((*self).device,(*b).memory,0,(*b).size,0,&mappedPixelBytes)!=VK_SUCCESS)
         return false;
     for (u32 y=0;y<h;++y)
@@ -403,7 +403,7 @@ static bool framebuffer(GpuScope *self,unsigned index,VkRenderPass render,unsign
     return vkCreateFramebuffer((*self).device,&info,nullptr,&(*job).frames[index])==VK_SUCCESS;
 }
 // Writes one sampled-texture descriptor for the selected set, binding, and job texture.
-static void descriptor(GpuScope *self,unsigned set,unsigned binding,unsigned texture) {
+static fn descriptor(GpuScope *self,unsigned set,unsigned binding,unsigned texture) {
     Job *job=&(*self).job; Texture *t=&(*job).textures[texture];
     VkDescriptorImageInfo image={(*self).sampler,(*t).view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     VkWriteDescriptorSet write={.sType=VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,.dstSet=(*job).sets[set],
@@ -411,7 +411,7 @@ static void descriptor(GpuScope *self,unsigned set,unsigned binding,unsigned tex
     vkUpdateDescriptorSets((*self).device,1,&write,0,nullptr);
 }
 // Begins a render pass and binds the selected pipeline, framebuffer, and descriptors.
-static void beginPass(GpuScope *self,unsigned frame,VkRenderPass render,VkPipeline pipeline,
+static fn beginPass(GpuScope *self,unsigned frame,VkRenderPass render,VkPipeline pipeline,
     VkPipelineLayout layout,unsigned width,unsigned height,unsigned attachments) {
     Job *job=&(*self).job;
     VkClearValue clear[2]={0};
@@ -524,8 +524,8 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
     if (sampled) {
         if (!result)
             goto failed;
-        SampledImage *texture = SampledImage_5((*self).owner, (void*) (*target).image,
-            (void*) (*target).memory, w, h);
+        SampledImage *texture = SampledImage_5((*self).owner, (any) (*target).image,
+            (any) (*target).memory, w, h);
         if (!texture) {
             Image_destroy(result);
             goto failed;
@@ -546,7 +546,7 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
         return true;
     }
     if (!result || !Image_ensureShadow(result,w,h)) { Image_destroy(result); goto failed; }
-    void *mappedPixelBytes;
+    any mappedPixelBytes;
     if (vkMapMemory((*self).device,(*read).memory,0,(*read).size,0,&mappedPixelBytes)!=VK_SUCCESS) { Image_destroy(result); goto failed; }
     for (u32 y=0;y<h;++y)
         memcpy(Image_pixels(result)+(bytes) y*Image_stride(result),(u8*) mappedPixelBytes+(bytes) y*w*4,(bytes) w*4);
@@ -567,7 +567,7 @@ bool GpuScope_renderSampled(GpuScope *self,unsigned scope,const Image *prior,con
     return render(self,scope,prior,decoration,panelX,panelY,foreground,foregroundX,foregroundY,radius,true,out);
 }
 // Writes the bounded concise or field-level projection for the scope.
-static void format(const GpuScope *self,bool structure,char *dest,bytes cap,bool *outTruncated) {
+static fn format(const GpuScope *self,bool structure,char *dest,bytes cap,bool *outTruncated) {
     if (!dest || !cap) {
         if (outTruncated)
             *outTruncated=true;
@@ -579,15 +579,15 @@ static void format(const GpuScope *self,bool structure,char *dest,bytes cap,bool
     else if (!structure)
         n=snprintf(dest,cap,"GpuScope(Vulkan scatter, budget=%u,pending=%d)",(*self).maxPixels,(*self).pending);
     else n=snprintf(dest,cap,"GpuScope{device=%p,physical=%p,queue=%p,maxPixels=%u,maxExtent=%u,scatterRender=%p,groupRender=%p,finalRender=%p,scatterDescriptor=%p,scopeDescriptor=%p,scatterLayout=%p,scopeLayout=%p,scatterPipeline=%p,groupPipeline=%p,finalPipeline=%p,sampler=%p,commands=%p,command=%p,fence=%p,pending=%d,job=GPU transport records,owner=%p}",
-        (void*) (*self).device,(void*) (*self).physical,(void*) (*self).queue,(*self).maxPixels,(*self).maxExtent,
-        (void*) (*self).scatterRender,(void*) (*self).groupRender,(void*) (*self).finalRender,
-        (void*) (*self).scatterDescriptor,(void*) (*self).scopeDescriptor,(void*) (*self).scatterLayout,(void*) (*self).scopeLayout,
-        (void*) (*self).scatterPipeline,(void*) (*self).groupPipeline,(void*) (*self).finalPipeline,(void*) (*self).sampler,
-        (void*) (*self).commands,(void*) (*self).command,(void*) (*self).fence,(*self).pending,(void*) (*self).owner);
+        (any) (*self).device,(any) (*self).physical,(any) (*self).queue,(*self).maxPixels,(*self).maxExtent,
+        (any) (*self).scatterRender,(any) (*self).groupRender,(any) (*self).finalRender,
+        (any) (*self).scatterDescriptor,(any) (*self).scopeDescriptor,(any) (*self).scatterLayout,(any) (*self).scopeLayout,
+        (any) (*self).scatterPipeline,(any) (*self).groupPipeline,(any) (*self).finalPipeline,(any) (*self).sampler,
+        (any) (*self).commands,(any) (*self).command,(any) (*self).fence,(*self).pending,(any) (*self).owner);
     if (outTruncated)
         *outTruncated=n<0 || (bytes) n>=cap;
 }
 // Formats a bounded value summary of the GPU scope.
-void GpuScope_toString(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,false,dest,cap,outTruncated); }
+fn GpuScope_toString(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,false,dest,cap,outTruncated); }
 // Formats the GPU scope's own fields into caller storage.
-void GpuScope_toStringStruct(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,true,dest,cap,outTruncated); }
+fn GpuScope_toStringStruct(const GpuScope *self,char *dest,bytes cap,bool *outTruncated) { format(self,true,dest,cap,outTruncated); }

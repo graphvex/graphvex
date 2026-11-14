@@ -14,14 +14,14 @@
 // life and may be shared by many Elements.
 typedef struct PropertyPool PropertyPool;
 
-PropertyPool *PropertyPool_0(void);
+PropertyPool *PropertyPool_0();
 #define PropertyPool(...) CONSTRUCTOR_DISPATCH(PropertyPool, __VA_ARGS__)
-PropertyPool *PropertyPool_default(void);   // process-global, for Element-owned bounds
-void PropertyPool_destroy(PropertyPool *pool);
+PropertyPool *PropertyPool_default();   // process-global, for Element-owned bounds
+fn PropertyPool_destroy(PropertyPool *pool);
 
 // A zeroed, defaulted Property (init NULL => Property_default()), or NULL on OOM.
 Property *PropertyPool_alloc(PropertyPool *pool, const Property *init);
-void PropertyPool_release(PropertyPool *pool, Property *property);
+fn PropertyPool_release(PropertyPool *pool, Property *property);
 u32 PropertyPool_live(const PropertyPool *pool);
 
 #endif // GRAPHICS_NIO_PROPERTY_POOL_H

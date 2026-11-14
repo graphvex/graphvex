@@ -24,7 +24,7 @@ static u8 byteAt(const Image *img, int x, int y, int c) {
 }
 
 // Verifies captured graphics pixels and image channel ordering.
-int main(void) {
+int main() {
     CHECK(Graphics_use(BACKEND_RASTER));
     CHECK(Raster_configure(32, 16));
 

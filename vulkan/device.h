@@ -17,14 +17,14 @@
 typedef struct Device Device;
 
 Device *Device_create(bool enableValidation);
-void Device_destroy(Device *device);
+fn Device_destroy(Device *device);
 bool Device_isValid(const Device *device);
 const char *Device_lastError(const Device *device);
 const char *Device_name(const Device *device);
-void *Device_native(const Device *device);   // opaque VkDevice (transit only)
-void *Device_instance(const Device *device);
-void *Device_physical(const Device *device);
-void *Device_queue(const Device *device);
+any Device_native(const Device *device);   // opaque VkDevice (transit only)
+any Device_instance(const Device *device);
+any Device_physical(const Device *device);
+any Device_queue(const Device *device);
 u32 Device_queueFamily(const Device *device);
 bool Device_hasMetalObjects(const Device *device);   // VK_EXT_metal_objects enabled
 

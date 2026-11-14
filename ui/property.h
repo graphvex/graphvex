@@ -32,11 +32,11 @@ typedef struct Property {
     f32 blur;
 } Property;
 
-Property Property_default(void);
+Property Property_default();
 
 // Lower/upper size clamps. Setting max <= 0 clears the ceiling.
-void Property_setMinSize(Property *property, f32 width, f32 height);
-void Property_setMaxSize(Property *property, f32 width, f32 height);
+fn Property_setMinSize(Property *property, f32 width, f32 height);
+fn Property_setMaxSize(Property *property, f32 width, f32 height);
 
 // The EFFECTIVE size: stored w/h clamped to the min/max above. Every layout,
 // hit-test and query read uses these, never the raw fields.

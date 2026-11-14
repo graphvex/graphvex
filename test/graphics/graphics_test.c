@@ -17,7 +17,7 @@ static int g_fail = 0;
     } while (0)
 
 // Checks graphics backend registration and lookup behavior.
-static void test_registry(void) {
+static fn test_registry() {
     CHECK(Graphics_use(BACKEND_RASTER));
     CHECK(Graphics_backendId() == BACKEND_RASTER);
     CHECK(!Graphics_use(9999u));                 // unknown id refused
@@ -27,7 +27,7 @@ static void test_registry(void) {
 }
 
 // Verifies rectangle fills and clearing on the raster backend.
-static void test_fill_and_clear(void) {
+static fn test_fill_and_clear() {
     CHECK(Raster_configure(64, 64));
     CHECK(Graphics_begin());
     CHECK(Graphics_clear(COLOR_BLACK));
@@ -40,7 +40,7 @@ static void test_fill_and_clear(void) {
 }
 
 // Checks rounded-rectangle corner coverage and interior fill.
-static void test_rounded_corners(void) {
+static fn test_rounded_corners() {
     CHECK(Graphics_begin());
     CHECK(Graphics_clear(COLOR_BLACK));
     CHECK(Graphics_fillRect(&(Rect){0, 0, 10, 10}, &(Brush){COLOR_WHITE, 5.0f, 0, 0, 0}));
@@ -51,7 +51,7 @@ static void test_rounded_corners(void) {
 }
 
 // Verifies source-over blending and transparent-source behavior.
-static void test_alpha_blend(void) {
+static fn test_alpha_blend() {
     CHECK(Graphics_begin());
     CHECK(Graphics_clear(COLOR_BLACK));
     CHECK(Graphics_fillRect(&(Rect){0, 0, 4, 4}, &(Brush){COLOR_RGBA(255, 255, 255, 128), 0, 0, 0, 0}));
@@ -67,7 +67,7 @@ static void test_alpha_blend(void) {
 }
 
 // Checks display-list recording, clipping, and invalid geometry handling.
-static void test_display_list_and_clip(void) {
+static fn test_display_list_and_clip() {
     DisplayList *dl = DisplayList();
     CHECK(dl != nullptr);
     CHECK(DisplayList_count(dl) == 0);
@@ -95,7 +95,7 @@ static void test_display_list_and_clip(void) {
 }
 
 // Verifies packed-color helpers and rectangle containment boundaries.
-static void test_color_helpers(void) {
+static fn test_color_helpers() {
     Color c = COLOR_RGBA(0x12, 0x34, 0x56, 0x78);
     CHECK(Color_red(c) == 0x12);
     CHECK(Color_green(c) == 0x34);
@@ -108,7 +108,7 @@ static void test_color_helpers(void) {
 }
 
 // Runs graphics registry, rasterization, blending, clipping, and color tests.
-int main(void) {
+int main() {
     test_registry();
     test_fill_and_clear();
     test_rounded_corners();
