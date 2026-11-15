@@ -30,7 +30,7 @@ bool GpuScope_destroy(GpuScope *self);
  * ownership on success. A GPU timeout retains the job on self, not freed early.
  * Device supports sampled/color-attachment/blend RGBA32F and sampled/sRGB target
  * formats, probed once at construction. No rounded-mask/automatic tree contract. */
-bool GpuScope_render(GpuScope *self, unsigned scope, const Image *prior,
+bool GpuScope_render(GpuScope *self, u32 scope, const Image *prior,
     const Image *decoration, i32 panelX, i32 panelY,
     const Image *foreground, i32 foregroundX, i32 foregroundY,
     u32 radius, Image **out);
@@ -38,7 +38,7 @@ bool GpuScope_render(GpuScope *self, unsigned scope, const Image *prior,
  * staging/readback/CPU shadow. Its sampled texture outlives the scope, borrows
  * the same Device, and must be released before that Device. Consumers retain
  * resources through submission completion. Use render for numeric readback. */
-bool GpuScope_renderSampled(GpuScope *self, unsigned scope, const Image *prior,
+bool GpuScope_renderSampled(GpuScope *self, u32 scope, const Image *prior,
     const Image *decoration, i32 panelX, i32 panelY,
     const Image *foreground, i32 foregroundX, i32 foregroundY,
     u32 radius, Image **out);

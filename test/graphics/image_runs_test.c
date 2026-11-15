@@ -9,7 +9,7 @@
 // clipped origin, transparent skip, callback failure and real raster colors.
 // No texture upload, OOM injection, GPU execution, source crop or fit-mode proof.
 typedef struct RunsState {
-    unsigned count;
+    u32 count;
     bool accept;
     Rect first;
     Color color;
@@ -27,7 +27,7 @@ static bool record(Rect run, Color color, any userdata) {
 }
 
 // Tests run visitation, clipping, format rejection, and callback failure.
-int main() {
+i32 main() {
     Image *image = Image_2(2, 1);
     assert(image && Image_ensureShadow(image, 2, 1));
     assert(Image_resize(image, 1, 1)); // retained stride exceeds visible row width

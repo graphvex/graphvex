@@ -9,7 +9,7 @@
 #include "graphics/graphics.h"
 #include "lang/image.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -19,13 +19,13 @@ static int g_fail = 0;
     } while (0)
 
 // Returns one channel byte from the image's packed pixel storage.
-static u8 byteAt(const Image *img, int x, int y, int c) {
+static u8 byteAt(const Image *img, i32 x, i32 y, i32 c) {
     const u8 *p = Image_pixels(img);
     return p[(bytes)y * Image_stride(img) + (bytes)x * 4 + (bytes)c];
 }
 
 // Verifies captured graphics pixels and image channel ordering.
-int main() {
+i32 main() {
     CHECK(Graphics_use(BACKEND_RASTER));
     CHECK(Raster_configure(32, 16));
 

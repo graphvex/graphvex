@@ -12,7 +12,7 @@
 
 #include "ui/element.h"
 
-static int failures;
+static i32 failures;
 #define CHECK(c) do { if (!(c)) { \
     fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); failures++; \
 } } while (0)
@@ -36,8 +36,8 @@ static Element *node(f32 w, f32 h, f32 x, f32 y) {
 static fn placement_and_styles() {
     Rect parent = {100, 50, 200, 100};
     Element *e = node(20, 10, 5, -7);
-    for (int a = 0; a < PART_COUNT; a++) {
-        for (int p = 0; p < PART_COUNT; p++) {
+    for (i32 a = 0; a < PART_COUNT; a++) {
+        for (i32 p = 0; p < PART_COUNT; p++) {
             Element_setAnchor(e, a);
             Element_setPivot(e, p);
             Rect event = Element_eventBound(e, parent);
@@ -143,7 +143,7 @@ static fn empty_and_shared() {
 }
 
 // Runs element bound placement, descendant, halo, and sharing scenarios.
-int main() {
+i32 main() {
     placement_and_styles();
     descendants_and_clips();
     halo_and_hit();

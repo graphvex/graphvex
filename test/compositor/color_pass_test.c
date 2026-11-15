@@ -114,7 +114,7 @@ static u32 *words(const char *name, bytes *size) {
     FILE *file = fopen(path, "rb");
     assert(file && "b.sh must generate compositor shaders before test");
     assert(!fseek(file, 0, SEEK_END));
-    long length = ftell(file);
+    i64 length = ftell(file);
     assert(length > 0 && length % 4 == 0);
     rewind(file);
     u32 *data = malloc((bytes) length);
@@ -126,7 +126,7 @@ static u32 *words(const char *name, bytes *size) {
 static fn oracle(const f32 *p, FilterToken token, f32 *out) {
     d64 alpha = p[3];
     d64 rgb[3] = {0};
-    for (unsigned c = 0; c < 3; ++c)
+    for (u32 c = 0; c < 3; ++c)
         rgb[c] = alpha > 0 ? p[c] / alpha : 0;
     u32 bits = (u32) Filter_payload(token);
     f32 amount; memcpy(&amount, &bits, sizeof amount);
@@ -136,7 +136,7 @@ static fn oracle(const f32 *p, FilterToken token, f32 *out) {
     if (id == GRAYSCALE_GREEN_ID) gray = rgb[1];
     if (id == GRAYSCALE_BLUE_ID) gray = rgb[2];
     if (id == BLACK_AND_WHITE_ID) gray = gray >= amount ? 1 : 0;
-    for (unsigned c = 0; c < 3; ++c) {
+    for (u32 c = 0; c < 3; ++c) {
         d64 value = gray;
         if (id == BRIGHTNESS_ID) value = rgb[c] + amount;
         if (id == CONTRAST_ID) value = (rgb[c] - .5) * amount + .5;
@@ -159,7 +159,7 @@ static fn draw(ColorPass *pass, VkCommandBuffer cmd, VkRenderPass render,
 }
 
 // Compares Vulkan color-pass pixels with CPU references and rejection cases.
-int main() {
+i32 main() {
     assert(ColorPass_zero() == nullptr);
     assert(ColorPass_0() == nullptr && ColorPass() == nullptr);
     assert(ColorPass_getDescriptorLayout(nullptr) == nullptr);
@@ -241,7 +241,7 @@ int main() {
     VkDescriptorSet descriptors[2]; VK(vkAllocateDescriptorSets(device, &da, descriptors));
     VkDescriptorImageInfo images[] = {{sampler, input.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
                                     {sampler, output.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
-    for (unsigned i = 0; i < 2; ++i) {
+    for (u32 i = 0; i < 2; ++i) {
         VkWriteDescriptorSet write = {.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = descriptors[i], .dstBinding = 0, .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &images[i]};
@@ -301,14 +301,14 @@ int main() {
         VK(vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_C(100000000)));
         VK(vkMapMemory(device, readbackMemory, 0, BYTES, 0, &mapped));
         const f32 *actual = mapped;
-        for (unsigned p = 0; p < WIDTH * HEIGHT; ++p) {
+        for (u32 p = 0; p < WIDTH * HEIGHT; ++p) {
             f32 expected[4], temporary[4];
             oracle(pixels + 4 * p, first, expected);
             if (ordered) {
                 memcpy(temporary, expected, sizeof temporary);
                 oracle(temporary, last, expected);
             }
-            for (unsigned c = 0; c < 4; ++c) {
+            for (u32 c = 0; c < 4; ++c) {
                 d64 tolerance = fmax(1e-14, fabs(expected[c]) * 3e-6);
                 assert(isfinite(actual[p * 4 + c]) && fabs(actual[p * 4 + c] - expected[c]) <= tolerance);
             }
@@ -317,7 +317,7 @@ int main() {
         vkUnmapMemory(device, readbackMemory);
     }
     FILE *diagnostics = tmpfile(); assert(diagnostics);
-    int saved = dup(STDERR_FILENO); assert(saved >= 0);
+    i32 saved = dup(STDERR_FILENO); assert(saved >= 0);
     assert(dup2(fileno(diagnostics), STDERR_FILENO) >= 0);
     const FilterToken invalid[] = {Filter_brightness(NAN), Filter_brightness(2),
         Filter_contrast(-1), Filter_contrast(INFINITY), Filter_blackAndWhite(-1),
@@ -339,7 +339,7 @@ int main() {
     u32 badWords[5] = {0};
     assert(!ColorPass(session, (any) render, badWords, sizeof badWords, fragment, fragmentSize));
     fflush(stderr); assert(dup2(saved, STDERR_FILENO) >= 0); close(saved);
-    rewind(diagnostics); unsigned lines = 0;
+    rewind(diagnostics); u32 lines = 0;
     while (fgets(text, sizeof text, diagnostics)) { assert(strstr(text, "[vex]") && strstr(text, "ColorPass")); ++lines; }
     assert(lines == sizeof invalid / sizeof invalid[0] + 12); fclose(diagnostics);
     assert(ColorPass_validateToken(Filter_contrast(1)));
@@ -364,10 +364,10 @@ int main() {
 
     VK(vkMapMemory(device, readbackMemory, 0, BYTES, 0, &mapped));
     const f32 *recovered = mapped;
-    for (unsigned p = 0; p < WIDTH * HEIGHT; ++p) {
+    for (u32 p = 0; p < WIDTH * HEIGHT; ++p) {
         f32 expected[4];
         oracle(pixels + 4 * p, Filter_grayscale(), expected);
-        for (unsigned c = 0; c < 4; ++c)
+        for (u32 c = 0; c < 4; ++c)
             assert(fabs(recovered[p * 4 + c] - expected[c]) <= fmax(1e-14, fabs(expected[c]) * 3e-6));
     }
     vkUnmapMemory(device, readbackMemory);

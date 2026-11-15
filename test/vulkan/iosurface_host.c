@@ -11,7 +11,7 @@
 #include <IOSurface/IOSurface.h>
 
 /** Creates an RGBA IOSurface with Metal-aligned row storage; invalid dimensions return nullptr. */
-any IosHost_create(int width, int height) {
+any IosHost_create(i32 width, i32 height) {
     if (width <= 0 || height <= 0) return nullptr;
     CFMutableDictionaryRef d = CFDictionaryCreateMutable(nullptr, 0,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);

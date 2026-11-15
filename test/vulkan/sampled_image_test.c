@@ -14,7 +14,7 @@
 #include "test_support.h"
 #include <vulkan/vulkan.h>
 
-static unsigned forcedTimeouts;
+static u32 forcedTimeouts;
 // Injects bounded fence timeouts before delegating to Vulkan's real wait.
 VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, u32 count,
     const VkFence *fences, VkBool32 all, u64 timeout) {
@@ -29,15 +29,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device, u32 count,
 }
 
 // Asserts the RGB value at one pixel in the sampled image.
-static fn pixel(const Image *image, unsigned x, unsigned y, unsigned r, unsigned g, unsigned b) {
+static fn pixel(const Image *image, u32 x, u32 y, u32 r, u32 g, u32 b) {
     const u8 *p = Image_pixels(image) + y * Image_stride(image) + x * 4u;
-    assert(abs((int) p[0] - (int) r) <= 1);
-    assert(abs((int) p[1] - (int) g) <= 1);
-    assert(abs((int) p[2] - (int) b) <= 1);
+    assert(abs((i32) p[0] - (i32) r) <= 1);
+    assert(abs((i32) p[1] - (i32) g) <= 1);
+    assert(abs((i32) p[2] - (i32) b) <= 1);
     assert(p[3] == 255);
 }
 // Tests Vulkan image sampling, clipping, and timeout retry behavior.
-int main() {
+i32 main() {
     Device *device = VulkanBackend_device();
     if (!Device_isValid(device))
         return B_TEST_SKIP;
@@ -82,13 +82,13 @@ int main() {
     assert(Graphics_resize(8, 8));
     Image *shot = Image();
     assert(Graphics_begin() && Graphics_clear(COLOR_BLACK));
-    for (unsigned i = 0; i < 40; ++i)
+    for (u32 i = 0; i < 40; ++i)
         assert(Graphics_drawImage(image, &(Rect){0,0,8,8}));
     assert(Graphics_end() && Graphics_capture(shot));
     pixel(shot, 1,1,255,0,0);
     assert(VulkanBackend_vertexBytes() == 240u * sizeof(VkVertex));
     bytes highWater = VulkanBackend_vertexBytes();
-    for (unsigned frame = 0; frame < 32; ++frame) {
+    for (u32 frame = 0; frame < 32; ++frame) {
         assert(Graphics_begin() && Graphics_clear(COLOR_BLACK));
         assert(Graphics_clip(&(Rect){0,0,8,8}));
         assert(Graphics_drawImage(image, &(Rect){0,0,8,8}));

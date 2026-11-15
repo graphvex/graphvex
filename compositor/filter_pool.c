@@ -45,7 +45,7 @@ struct FilterPool {
 // Reports a rejected cold operation and returns its status unchanged.
 static FilterPoolStatus reject(FilterPoolStatus status) {
     if (status != FILTER_POOL_OK)
-        THROW("FilterPool rejected operation: status=%d", (int) status);
+        THROW("FilterPool rejected operation: status=%d", (i32) status);
     return status;
 }
 
@@ -234,7 +234,7 @@ static fn format(const FilterPool *pool, bool structure, char *dest, bytes cap,
         reject(FILTER_POOL_INVALID);
         return;
     }
-    int length;
+    i32 length;
     if (!pool)
         length = snprintf(dest, cap, "nullptr");
     else if (structure)

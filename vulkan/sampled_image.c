@@ -309,7 +309,7 @@ failed:
 }
 // Writes the bounded value or one-level field projection of a sampled image.
 static fn format(const SampledImage *self, bool structure, char *dest, bytes cap, bool *truncated) {
-    int n = 0;
+    i32 n = 0;
     if (!dest || !cap) {
         if (truncated)
             *truncated = true;

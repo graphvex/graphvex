@@ -8,7 +8,7 @@
 
 #include "graphics/render_loop.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -17,9 +17,9 @@ static int g_fail = 0;
         }                                                                  \
     } while (0)
 
-static int g_presented = 0;
-static int g_probed = 0;
-static int g_window = 0;
+static i32 g_presented = 0;
+static i32 g_probed = 0;
+static i32 g_window = 0;
 
 // Counts each render-loop probe callback invocation.
 static fn probe(any ud, d64 dt) { (discard)ud; (discard)dt; g_probed++; }
@@ -31,7 +31,7 @@ static bool present(any window, d64 dt, any ud) {
 }
 
 // Verifies render-loop callbacks, demand scheduling, and stop behavior.
-int main() {
+i32 main() {
     RenderLoop *loop = RenderLoop();
     CHECK(loop != nullptr);
     CHECK(RenderLoop_findClient(loop, &g_window) == nullptr);
@@ -64,7 +64,7 @@ int main() {
     CHECK(!RenderLoop_step(loop));            // same generation, no demand
 
     // markDirty on an unknown window is a no-op
-    int other = 0;
+    i32 other = 0;
     RenderLoop_markDirty(loop, &other);
     CHECK(!RenderLoop_step(loop));
 

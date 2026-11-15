@@ -54,7 +54,7 @@ static u32 pngReadBE32(const u8 *p) {
     return ((u32) p[0] << 24) | ((u32) p[1] << 16) | ((u32) p[2] << 8) | (u32) p[3];
 }
 
-static u32 pngChannels(int colorType) {
+static u32 pngChannels(i32 colorType) {
     switch (colorType) {
         case 0: return 1;   // grey
         case 2: return 3;   // RGB
@@ -99,10 +99,10 @@ static bool pngUnfilter(u8 *raw, u32 height, bytes rowBytes, u32 bpp) {
                 case 2: cur[x] = (u8) (cur[x] + up); break;
                 case 3: cur[x] = (u8) (cur[x] + (u8) (((u32) left + up) / 2u)); break;
                 case 4: {
-                    int p = (int) left + (int) up - (int) upLeft;
-                    int pa = p > (int) left ? p - (int) left : (int) left - p;
-                    int pb = p > (int) up ? p - (int) up : (int) up - p;
-                    int pc = p > (int) upLeft ? p - (int) upLeft : (int) upLeft - p;
+                    i32 p = (i32) left + (i32) up - (i32) upLeft;
+                    i32 pa = p > (i32) left ? p - (i32) left : (i32) left - p;
+                    i32 pb = p > (i32) up ? p - (i32) up : (i32) up - p;
+                    i32 pc = p > (i32) upLeft ? p - (i32) upLeft : (i32) upLeft - p;
                     u8 pred = (pa <= pb && pa <= pc) ? left : (pb <= pc ? up : upLeft);
                     cur[x] = (u8) (cur[x] + pred);
                     break;
@@ -173,9 +173,9 @@ static PngCode Png_decodeWith(const u8 *data, bytes length, u8 **outRgba,
                 return PNG_INVALID;
             width = pngReadBE32(data + at + 8);
             height = pngReadBE32(data + at + 12);
-            int bitDepth = data[at + 16];
-            int colorType = data[at + 17];
-            int interlace = data[at + 20];
+            i32 bitDepth = data[at + 16];
+            i32 colorType = data[at + 17];
+            i32 interlace = data[at + 20];
             if (width == 0 || height == 0 || width > PNG_MAX_PIXELS || height > PNG_MAX_PIXELS
                 || (u64) width * height > PNG_MAX_PIXELS) {
                 THROW("Png decode: geometry");
@@ -241,7 +241,7 @@ static PngCode Png_decodeWith(const u8 *data, bytes length, u8 **outRgba,
     }
 
     uLongf rawLen = (uLongf) rawSize;
-    int zc = uncompress(raw, &rawLen, compressed, (uLong) gathered);
+    i32 zc = uncompress(raw, &rawLen, compressed, (uLong) gathered);
     pngRelease(compressed, useMalloc);
     if (zc != Z_OK || rawLen != rawSize) {
         pngRelease(raw, useMalloc);

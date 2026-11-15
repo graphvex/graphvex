@@ -155,7 +155,7 @@ failed:
     if (vertex)
         vkDestroyShaderModule((*self).device, vertex, nullptr);
     ColorPass_destroy(self);
-    THROW("ColorPass Vulkan creation failed: %d", (int) result);
+    THROW("ColorPass Vulkan creation failed: %d", (i32) result);
     return nullptr;
 }
 
@@ -191,7 +191,7 @@ static fn format(const ColorPass *self, bool structure, char *dest, bytes cap, b
             *outTruncated = true;
         return;
     }
-    int count;
+    i32 count;
     if (!self)
         count = snprintf(dest, cap, "nullptr");
     else if (structure)

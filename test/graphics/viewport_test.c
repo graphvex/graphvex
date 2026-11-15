@@ -8,7 +8,7 @@
 
 #include "graphics/viewport.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -18,7 +18,7 @@ static int g_fail = 0;
     } while (0)
 
 // Checks viewport mapping, clipping, and boundary coordinate behavior.
-int main() {
+i32 main() {
     Viewport v = Viewport();
     CHECK(Viewport_isEmpty(&v));          // 0x0
 

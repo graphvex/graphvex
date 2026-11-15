@@ -8,7 +8,7 @@
 
 #include "vulkan/vk_batch.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -18,7 +18,7 @@ static int g_fail = 0;
     } while (0)
 
 // Checks Vulkan batch recording, geometry validation, and image admission.
-int main() {
+i32 main() {
     VkBatch *b = VkBatch();
     CHECK(b != nullptr);
     CHECK((*b).count == 0);
@@ -36,7 +36,7 @@ int main() {
     VkBatch_glyph(b, (Rect){0, 0, 8, 8}, 2, COLOR_BLACK);
     CHECK((*b).count == 2);
 
-    // 6 vertices per quad; the query never writes when capacity is short
+    // 6 vertices per quad; the query never writes when capacity is i16
     CHECK(VkBatch_vertices(b, nullptr, 0) == 12);
     VkVertex verts[12];
     CHECK(VkBatch_vertices(b, verts, 5) == 12);

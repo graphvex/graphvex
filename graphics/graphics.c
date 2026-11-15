@@ -22,7 +22,7 @@
  * MODULE: graphics/graphics.c
  * MODULE STATE
  * const Backend *s_rows[8]     registered callback rows
- * int s_rowCount               initialized backend rows
+ * i32 s_rowCount               initialized backend rows
  * const Backend *s_current     selected backend row
  * DrawCmd s_baseClip           external clip scope
  * bool s_hasBaseClip           whether the external clip is active
@@ -57,7 +57,7 @@
 // ── backend registry ────────────────────────────────────────────────────────
 #define MAX_BACKENDS 8
 static const Backend *s_rows[MAX_BACKENDS];
-static int s_rowCount = 0;
+static i32 s_rowCount = 0;
 static const Backend *s_current = nullptr;
 static DrawCmd s_baseClip;
 static bool s_hasBaseClip = false; // explicit clip outside a display-list scope
@@ -67,7 +67,7 @@ const Backend *RasterGraphics_row();   // defined below
 // Registers or replaces a backend descriptor by ID.
 bool Graphics_register(const Backend *row) {
     if (!row || (*row).id == BACKEND_NONE) return false;
-    for (int i = 0; i < s_rowCount; i++) {
+    for (i32 i = 0; i < s_rowCount; i++) {
         if ((*s_rows[i]).id == (*row).id) { s_rows[i] = row; return true; }
     }
     if (s_rowCount >= MAX_BACKENDS) return false;
@@ -77,13 +77,13 @@ bool Graphics_register(const Backend *row) {
 
 // Selects a registered backend and configures its callbacks for current dimensions.
 bool Graphics_use(u32 backendId) {
-    for (int i = 0; i < s_rowCount; i++) {
+    for (i32 i = 0; i < s_rowCount; i++) {
         if ((*s_rows[i]).id == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
     }
     // convenience: the raster backend self-registers on first use
     if (backendId == BACKEND_RASTER) {
         Graphics_register(RasterGraphics_row());
-        for (int i = 0; i < s_rowCount; i++)
+        for (i32 i = 0; i < s_rowCount; i++)
             if ((*s_rows[i]).id == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
     }
     return false;
@@ -410,9 +410,9 @@ static bool raster_resize(u32 w, u32 h) { return Raster_configure(w, h); }
 
 static bool raster_clear(Color color) {
     if (!s_px) return false;
-    for (int y = 0; y < s_h; y++) {
+    for (i32 y = 0; y < s_h; y++) {
         u32 *row = s_px + (bytes)y * (bytes)s_capW;
-        for (int x = 0; x < s_w; x++) row[x] = color;
+        for (i32 x = 0; x < s_w; x++) row[x] = color;
     }
     return true;
 }
@@ -459,13 +459,13 @@ static bool raster_fillRect(const Rect *rect, const Brush *brush) {
 
     Rect clipr = Rect_intersect(*rect, s_clip);
     if (Rect_isEmpty(clipr)) return true;
-    int x0 = (int)clipr.x < 0 ? 0 : (int)clipr.x;
-    int y0 = (int)clipr.y < 0 ? 0 : (int)clipr.y;
-    int x1 = (int)(clipr.x + clipr.w); if (x1 > s_w) x1 = s_w;
-    int y1 = (int)(clipr.y + clipr.h); if (y1 > s_h) y1 = s_h;
+    i32 x0 = (i32)clipr.x < 0 ? 0 : (i32)clipr.x;
+    i32 y0 = (i32)clipr.y < 0 ? 0 : (i32)clipr.y;
+    i32 x1 = (i32)(clipr.x + clipr.w); if (x1 > s_w) x1 = s_w;
+    i32 y1 = (i32)(clipr.y + clipr.h); if (y1 > s_h) y1 = s_h;
 
-    for (int y = y0; y < y1; y++) {
-        for (int x = x0; x < x1; x++) {
+    for (i32 y = y0; y < y1; y++) {
+        for (i32 x = x0; x < x1; x++) {
             if (s_clipRadius > 0.0f) {
                 // the active clip may be a rounded mask (a parent's corner radius)
                 f32 ccx = s_clip.x + s_clip.w * 0.5f;
@@ -540,10 +540,10 @@ static bool raster_capture(Image *dest) {
     u8 *out = Image_pixels(dest);
     if (!out) return false;
     bytes outStride = Image_stride(dest);
-    for (int y = 0; y < s_h; y++) {
+    for (i32 y = 0; y < s_h; y++) {
         const u32 *row = s_px + (bytes)y * (bytes)s_capW;
         u8 *orow = out + (bytes)y * outStride;
-        for (int x = 0; x < s_w; x++) {
+        for (i32 x = 0; x < s_w; x++) {
             u32 c = row[x];
             orow[x * 4 + 0] = (u8)((c >> 24) & 0xFFu);
             orow[x * 4 + 1] = (u8)((c >> 16) & 0xFFu);

@@ -239,8 +239,8 @@ static fn check_scatter(const CompositorSurface *src, u32 radius) {
     CompositorSurface *out = nullptr;
     assert(Compositor_compose(sources, 1, &blur, 1, &out) == COMPOSITOR_OK);
     CompositorBounds s = CompositorSurface_bounds(src), d = CompositorSurface_bounds(out);
-    assert((int64_t) d.x == (int64_t) s.x - radius);
-    assert((int64_t) d.y == (int64_t) s.y - radius);
+    assert((i64) d.x == (i64) s.x - radius);
+    assert((i64) d.y == (i64) s.y - radius);
     assert(d.width == s.width + 2 * radius && d.height == s.height + 2 * radius);
     const f32 *p = CompositorSurface_constPixels(src), *q = CompositorSurface_constPixels(out);
     u32 diameter = radius * 2 + 1;
@@ -250,15 +250,15 @@ static fn check_scatter(const CompositorSurface *src, u32 radius) {
             d64 expected[4] = {0};
             for (u32 sy = 0; sy < s.height; ++sy) {
                 for (u32 sx = 0; sx < s.width; ++sx) {
-                    int64_t dx = (int64_t) x - radius - sx, dy = (int64_t) y - radius - sy;
-                    if (dx < -(int64_t) radius || dx > radius || dy < -(int64_t) radius || dy > radius)
+                    i64 dx = (i64) x - radius - sx, dy = (i64) y - radius - sy;
+                    if (dx < -(i64) radius || dx > radius || dy < -(i64) radius || dy > radius)
                         continue;
-                    for (unsigned c = 0; c < 4; ++c)
+                    for (u32 c = 0; c < 4; ++c)
                         expected[c] += p[4 * ((bytes) sy * s.width + sx) + c] /
                             ((d64) diameter * diameter);
                 }
             }
-            for (unsigned c = 0; c < 4; ++c) {
+            for (u32 c = 0; c < 4; ++c) {
                 f32 actual = q[4 * ((bytes) y * d.width + x) + c];
                 /* Float sum of <=1089 positive terms: conservative precision
                  * bound scaled to result; independent oracle uses d64. */
@@ -268,9 +268,9 @@ static fn check_scatter(const CompositorSurface *src, u32 radius) {
         }
     }
     for (bytes i = 0; i < (bytes) s.width * s.height; ++i)
-        for (unsigned c = 0; c < 4; ++c)
+        for (u32 c = 0; c < 4; ++c)
             expectedMass[c] += p[4 * i + c];
-    for (unsigned c = 0; c < 4; ++c)
+    for (u32 c = 0; c < 4; ++c)
         assert(fabs(mass[c] - expectedMass[c]) <= 4e-5 * fmax(1.0, expectedMass[c]));
     assert(CompositorSurface_validate(out) == COMPOSITOR_OK);
     CompositorSurface_destroy(out);
@@ -344,7 +344,7 @@ static fn overflow_atomicity() {
 }
 
 // Runs compositor surface, filtering, scatter, and atomicity contracts.
-int main() {
+i32 main() {
     surface_contract();
     support_and_tokens();
     isolation_and_over();

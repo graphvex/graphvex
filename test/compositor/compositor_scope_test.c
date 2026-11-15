@@ -29,9 +29,9 @@ static CompositorSurface *makeSurface(CompositorBounds bounds, const f32 rgba[4]
 static const f32 *at(const CompositorSurface *surface, i32 x, i32 y) {
     CompositorBounds b = CompositorSurface_bounds(surface);
     assert(x >= b.x && y >= b.y);
-    assert((int64_t) x < (int64_t) b.x + b.width && (int64_t) y < (int64_t) b.y + b.height);
+    assert((i64) x < (i64) b.x + b.width && (i64) y < (i64) b.y + b.height);
     return CompositorSurface_constPixels(surface) +
-        4 * ((bytes) ((int64_t) y - b.y) * b.width + (bytes) ((int64_t) x - b.x));
+        4 * ((bytes) ((i64) y - b.y) * b.width + (bytes) ((i64) x - b.x));
 }
 
 // Asserts that a f32 result is within the test's numeric tolerance.
@@ -51,7 +51,7 @@ static fn cropContract() {
         for (i32 x = -4; x < 0; ++x) {
             const f32 *p = at(crop, x, y);
             bool inside = x >= -3 && x < -1 && y >= 7 && y < 9;
-            for (unsigned c = 0; c < 4; ++c)
+            for (u32 c = 0; c < 4; ++c)
                 near(p[c], inside ? translucent[c] : 0);
         }
     }
@@ -267,7 +267,7 @@ static fn rejections() {
 }
 
 // Runs crop, backdrop, foreground, spill, and rejection scope contracts.
-int main() {
+i32 main() {
     cropContract();
     backdropReplacement();
     foregroundClipAndElementSpill();

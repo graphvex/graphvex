@@ -13,7 +13,7 @@
 #include "lang/image.h"
 #include "vulkan/vulkan_backend.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -23,7 +23,7 @@ static int g_fail = 0;
     } while (0)
 
 // Returns the RGBA byte address for a pixel in the image.
-static const u8 *at(const Image *img, int x, int y) {
+static const u8 *at(const Image *img, i32 x, i32 y) {
     return Image_pixels(img) + (bytes)y * Image_stride(img) + (bytes)x * 4;
 }
 
@@ -40,7 +40,7 @@ static fn scene() {
 
 // Render the scene at a size THROUGH the resize path a window uses, then grab it.
 // Renders the shared scene at the requested extent and returns its image.
-static Image *render_at(int w, int h) {
+static Image *render_at(i32 w, i32 h) {
     CHECK(Graphics_resize((u32)w, (u32)h));
     CHECK(Graphics_begin());
     scene();
@@ -51,7 +51,7 @@ static Image *render_at(int w, int h) {
 }
 
 // Confirms shrinking and restoring the viewport preserves clipped pixels.
-int main() {
+i32 main() {
     CHECK(Graphics_register(VulkanBackend_row()));
     CHECK(Graphics_use(BACKEND_VULKAN));
 
@@ -62,9 +62,9 @@ int main() {
     CHECK(Image_width(small) == 150 && Image_height(small) == 150);
 
     // THE TEST: the smaller frame is the exact top-left crop of the bigger one.
-    int diff = 0, firstx = -1, firsty = -1;
-    for (int y = 0; y < 150; y++) {
-        for (int x = 0; x < 150; x++) {
+    i32 diff = 0, firstx = -1, firsty = -1;
+    for (i32 y = 0; y < 150; y++) {
+        for (i32 x = 0; x < 150; x++) {
             const u8 *a = at(big, x, y);
             const u8 *b = at(small, x, y);
             if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2] || a[3] != b[3]) {

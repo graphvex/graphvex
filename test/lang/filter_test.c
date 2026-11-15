@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 // Verifies the public filter-language compatibility surface.
-int main() {
+i32 main() {
     assert(sizeof(FilterToken) == 8);
     assert(Filter_identity() == 0);
     assert(Filter_id(Filter_identity()) == FILTER_IDENTITY);

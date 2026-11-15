@@ -11,7 +11,7 @@
 #include "lang/image.h"
 #include "vulkan/vulkan_backend.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -21,12 +21,12 @@ static int g_fail = 0;
     } while (0)
 
 // Returns the alpha channel at a pixel for rounded-clip assertions.
-static int alpha_at(const Image *img, int x, int y) {
+static i32 alpha_at(const Image *img, i32 x, i32 y) {
     return Image_pixels(img)[(bytes)y * Image_stride(img) + (bytes)x * 4 + 3];
 }
 
 // Checks rounded Vulkan clipping at corners, edges, and interior pixels.
-int main() {
+i32 main() {
     CHECK(Graphics_register(VulkanBackend_row()));
     CHECK(Graphics_use(BACKEND_VULKAN));
     CHECK(Graphics_resize(64, 64));

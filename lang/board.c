@@ -37,7 +37,7 @@
  *   any native;        // opaque dialect handle (the backend's VkImage)
  *   BoardRevalidateFn *revalidators; // borrowed steps (R4 scene/content)
  *   any *revalidateUd;  // userdata per step
- *   int       revalidateCount, revalidateCap;
+ *   i32       revalidateCount, revalidateCap;
  *
  * FUNCTION REGISTRY (exported by board.h):
  * ----------------------------------------------------------------------------
@@ -59,7 +59,7 @@ struct Board {
     any native;    // opaque dialect handle (the backend's VkImage)
     BoardRevalidateFn *revalidators;   // borrowed steps (R4 scene/content panels)
     any *revalidateUd;               // userdata per step
-    int revalidateCount, revalidateCap;
+    i32 revalidateCount, revalidateCap;
 };
 
 // Creates a retained RGBA image target from the descriptor, using 1x1 defaults when absent.
@@ -133,7 +133,7 @@ any Board_native(const Board *board) { return board ? (*board).native : nullptr;
 fn Board_addRevalidator(Board *board, BoardRevalidateFn fn, any userdata) {
     if (!board || !fn) return;
     if ((*board).revalidateCount == (*board).revalidateCap) {
-        int cap = (*board).revalidateCap ? (*board).revalidateCap * 2 : 4;
+        i32 cap = (*board).revalidateCap ? (*board).revalidateCap * 2 : 4;
         BoardRevalidateFn *steps = realloc((*board).revalidators, (bytes)cap * sizeof *steps);
         any *uds = realloc((*board).revalidateUd, (bytes)cap * sizeof *uds);
         if (!steps || !uds) return;   // best-effort; keep whatever we had
@@ -155,7 +155,7 @@ fn Board_clearRevalidators(Board *board) {
 // Runs registered callbacks in order, then publishes the board once.
 fn Board_revalidate(Board *board) {
     if (!board) return;
-    for (int i = 0; i < (*board).revalidateCount; i++)
+    for (i32 i = 0; i < (*board).revalidateCount; i++)
         (*board).revalidators[i](board, (*board).revalidateUd[i]);
     Board_publish(board);   // the board changed; wake the demand loop
 }

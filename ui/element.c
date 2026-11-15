@@ -23,9 +23,9 @@
  * CLASS: Element (ui/element.c)
  * Fields in declaration order:
  *   Property *property; bool ownsProperty, dirty;
- *   f32 offsetX, offsetY; int anchor, pivot; const char *tag;
- *   bool pressed, visible; int cursorPreference; const Image *image; // borrowed
- *   struct Element *parent; struct Element **children; int count, cap;
+ *   f32 offsetX, offsetY; i32 anchor, pivot; const char *tag;
+ *   bool pressed, visible; i32 cursorPreference; const Image *image; // borrowed
+ *   struct Element *parent; struct Element **children; i32 count, cap;
  * Public API (ui/element.h):
  *   Part_point; Element_0/1, destroy; property, setProperty, ownProperty;
  *   markDirty, revalidate, isDirty; add, addAt, remove, count, child, parent,
@@ -44,24 +44,24 @@ struct Element {
     bool dirty;
 
     f32 offsetX, offsetY;
-    int anchor, pivot;
+    i32 anchor, pivot;
     const char *tag;
     bool pressed;
     bool visible;
-    int cursorPreference; // per-node host preference; -1 inherits (not pooled)
+    i32 cursorPreference; // per-node host preference; -1 inherits (not pooled)
     const Image *image;    // borrowed, survives through recorded DisplayLists
 
     struct Element *parent;
     struct Element **children;
-    int count, cap;
+    i32 count, cap;
 };
 
 // ── construction ────────────────────────────────────────────────────────────
 // Resolves one of the nine anchor/pivot positions within a rectangle; invalid parts select top-left.
-Point Part_point(Rect r, int part) {
+Point Part_point(Rect r, i32 part) {
     if (part < 0 || part >= PART_COUNT) part = PART_TOP_LEFT;
-    int col = part % 3;   // 0 left, 1 centre, 2 right
-    int row = part / 3;   // 0 top,  1 middle, 2 bottom
+    i32 col = part % 3;   // 0 left, 1 centre, 2 right
+    i32 row = part / 3;   // 0 top,  1 middle, 2 bottom
     return (Point){r.x + (f32)col * 0.5f * r.w, r.y + (f32)row * 0.5f * r.h};
 }
 
@@ -100,7 +100,7 @@ Element *Element_0() { return Element_1(nullptr); }
 // Recursively destroys the owned child tree and releases only an owned property record.
 fn Element_destroy(Element *e) {
     if (!e) return;
-    for (int i = 0; i < (*e).count; i++) Element_destroy((*e).children[i]);
+    for (i32 i = 0; i < (*e).count; i++) Element_destroy((*e).children[i]);
     free((*e).children);
     if ((*e).ownsProperty && (*e).property)
         PropertyPool_release(PropertyPool_default(), (*e).property);
@@ -147,7 +147,7 @@ fn Element_markDirty(Element *e) {
 // Clears dirty state bottom-up while pruning already-clean subtrees.
 fn Element_revalidate(Element *root) {
     if (!root || !(*root).dirty) return;    // prune clean subtrees
-    for (int i = 0; i < (*root).count; i++) {
+    for (i32 i = 0; i < (*root).count; i++) {
         Element *c = (*root).children[i];
         if ((*c).dirty) Element_revalidate(c);
     }
@@ -159,7 +159,7 @@ bool Element_isDirty(const Element *e) { return e && (*e).dirty; }
 
 // ── tree ────────────────────────────────────────────────────────────────────
 // Inserts child at a clamped position and updates its parent link and dirty state.
-static fn child_insert(Element *parent, Element *child, int index) {
+static fn child_insert(Element *parent, Element *child, i32 index) {
     if ((*parent).count == (*parent).cap) {
         (*parent).cap = (*parent).cap ? (*parent).cap * 2 : 8;
         Element **grown = realloc((*parent).children, (bytes)((*parent).cap) * sizeof *grown);
@@ -183,7 +183,7 @@ Element *Element_add(Element *parent, Element *child) {
 }
 
 // Inserts child at index (out-of-range indices append) and returns child.
-Element *Element_addAt(Element *parent, Element *child, int index) {
+Element *Element_addAt(Element *parent, Element *child, i32 index) {
     if (!parent || !child) return child;
     child_insert(parent, child, index);
     return child;
@@ -193,7 +193,7 @@ Element *Element_addAt(Element *parent, Element *child, int index) {
 bool Element_remove(Element *child) {
     if (!child || !(*child).parent) return false;
     Element *p = (*child).parent;
-    for (int i = 0; i < (*p).count; i++) {
+    for (i32 i = 0; i < (*p).count; i++) {
         if ((*p).children[i] != child) continue;
         memmove(&(*p).children[i], &(*p).children[i + 1], (bytes)((*p).count - i - 1) * sizeof *(*p).children);
         (*p).count--;
@@ -205,10 +205,10 @@ bool Element_remove(Element *child) {
 }
 
 // Returns the number of direct children, or zero for null.
-int Element_count(const Element *e) { return e ? (*e).count : 0; }
+i32 Element_count(const Element *e) { return e ? (*e).count : 0; }
 
 // Returns a borrowed child at index, or nullptr when the index is invalid.
-Element *Element_child(const Element *e, int index) {
+Element *Element_child(const Element *e, i32 index) {
     if (!e || index < 0 || index >= (*e).count) return nullptr;
     return (*e).children[index];
 }
@@ -227,7 +227,7 @@ Element *Element_root(Element *e) {
 Element *Element_find(Element *root, const char *tag) {
     if (!root || !tag) return nullptr;
     if ((*root).tag && !strcmp((*root).tag, tag)) return root;
-    for (int i = 0; i < (*root).count; i++) {
+    for (i32 i = 0; i < (*root).count; i++) {
         Element *hit = Element_find((*root).children[i], tag);
         if (hit) return hit;
     }
@@ -249,7 +249,7 @@ static Element *hit_rec(Element *e, Rect absolute, f32 x, f32 y) {
             if (qx * qx + qy * qy > radius * radius) return nullptr;
         }
     }
-    for (int i = (*e).count - 1; i >= 0; i--) {
+    for (i32 i = (*e).count - 1; i >= 0; i--) {
         Element *c = (*e).children[i];
         Rect cr = Element_resolve(c, absolute);
         Element *hit = hit_rec(c, cr, x, y);
@@ -309,12 +309,12 @@ Element *Element_setOffset(Element *e, f32 x, f32 y) {
     return e;
 }
 // Sets a valid parent anchor part; invalid part values are ignored.
-Element *Element_setAnchor(Element *e, int anchor) {
+Element *Element_setAnchor(Element *e, i32 anchor) {
     if (e && anchor >= 0 && anchor < PART_COUNT) { (*e).anchor = anchor; Element_markDirty(e); }
     return e;
 }
 // Sets a valid self pivot part; invalid part values are ignored.
-Element *Element_setPivot(Element *e, int pivot) {
+Element *Element_setPivot(Element *e, i32 pivot) {
     if (e && pivot >= 0 && pivot < PART_COUNT) { (*e).pivot = pivot; Element_markDirty(e); }
     return e;
 }
@@ -405,12 +405,12 @@ const Image *Element_image(const Element *e) {
 
 // ── queries ─────────────────────────────────────────────────────────────────
 // Stores the host-interpreted cursor preference; -1 denotes inherited preference.
-Element *Element_setCursorPreference(Element *e, int cursor) {
+Element *Element_setCursorPreference(Element *e, i32 cursor) {
     if (e) (*e).cursorPreference = cursor;
     return e;
 }
 // Returns the stored cursor preference, or -1 when no element is supplied.
-int Element_cursorPreference(const Element *e) { return e ? (*e).cursorPreference : -1; }
+i32 Element_cursorPreference(const Element *e) { return e ? (*e).cursorPreference : -1; }
 // Returns the effective clamped property width, or zero without a bound.
 f32 Element_width(const Element *e) { return (e && (*e).property) ? Property_width((*e).property) : 0.0f; }
 // Returns the effective clamped property height, or zero without a bound.
@@ -421,9 +421,9 @@ f32 Element_radius(const Element *e) {
     return property ? (*property).radius : 0.0f;
 }
 // Returns the parent anchor part, defaulting to top-left for null.
-int   Element_anchor(const Element *e) { return e ? (*e).anchor : PART_TOP_LEFT; }
+i32   Element_anchor(const Element *e) { return e ? (*e).anchor : PART_TOP_LEFT; }
 // Returns the self pivot part, defaulting to top-left for null.
-int   Element_pivot(const Element *e) { return e ? (*e).pivot : PART_TOP_LEFT; }
+i32   Element_pivot(const Element *e) { return e ? (*e).pivot : PART_TOP_LEFT; }
 // Reports whether a bound exists and its stored width and height are nonnegative.
 bool  Element_isValid(const Element *e) {
     const Property *property = e ? (*e).property : nullptr;
@@ -483,7 +483,7 @@ fn Element_paint(const Element *e, Rect absolute, DisplayList *dl) {
     // says, and a scroll viewport clips to its rect.
     bool clips = ((*p).clip || (*p).radius > 0.0f) && (*e).count > 0;
     if (clips) DisplayList_clipRounded(dl, absolute, (*p).radius);
-    for (int i = 0; i < (*e).count; i++) {
+    for (i32 i = 0; i < (*e).count; i++) {
         Element *c = (*e).children[i];
         Element_paint(c, Element_resolve(c, absolute), dl);
     }
@@ -511,7 +511,7 @@ Rect Element_absoluteBound(const Element *e, Rect parent) {
     }
     Rect result = {x0, y0, x1 - x0, y1 - y0};
     bool clips = (*property).clip || (*property).radius > 0.0f;
-    for (int i = 0; i < (*e).count; i++) {
+    for (i32 i = 0; i < (*e).count; i++) {
         Rect child = Element_absoluteBound((*e).children[i], base);
         if (clips) child = Rect_intersect(child, base);
         if (Rect_isEmpty(child)) continue;

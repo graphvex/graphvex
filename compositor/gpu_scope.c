@@ -45,7 +45,7 @@ enum { UPLOAD_PRIOR, UPLOAD_DECORATION, UPLOAD_FOREGROUND, READBACK, BUFFER_COUN
 enum { GROUP_FRAME, SCATTER_FRAME, FINAL_FRAME, FRAME_COUNT };
 static const u64 GPU_WAIT_NS = UINT64_C(100000000);
 /* Security bound for externally supplied shader blobs, not an entity ceiling. */
-static const long MAX_SHADER_BYTES = 16L*1024*1024;
+static const i64 MAX_SHADER_BYTES = 16L*1024*1024;
 typedef struct Texture {
     VkImage image; VkDeviceMemory memory; VkImageView view;
     u32 width, height; VkFormat format;
@@ -127,10 +127,10 @@ static fn releaseJob(GpuScope *self) {
     Job *job=&(*self).job;
     if ((*job).descriptors)
         vkDestroyDescriptorPool((*self).device,(*job).descriptors,nullptr);
-    for (unsigned i=0;i<FRAME_COUNT;++i)
+    for (u32 i=0;i<FRAME_COUNT;++i)
         if ((*job).frames[i])
             vkDestroyFramebuffer((*self).device,(*job).frames[i],nullptr);
-    for (unsigned i=0;i<TEXTURE_COUNT;++i) {
+    for (u32 i=0;i<TEXTURE_COUNT;++i) {
         Texture *t=&(*job).textures[i];
         if ((*t).view)
             vkDestroyImageView((*self).device,(*t).view,nullptr);
@@ -139,7 +139,7 @@ static fn releaseJob(GpuScope *self) {
         if ((*t).memory)
             vkFreeMemory((*self).device,(*t).memory,nullptr);
     }
-    for (unsigned i=0;i<BUFFER_COUNT;++i) {
+    for (u32 i=0;i<BUFFER_COUNT;++i) {
         Buffer *b=&(*job).buffers[i];
         if ((*b).buffer)
             vkDestroyBuffer((*self).device,(*b).buffer,nullptr);
@@ -198,10 +198,10 @@ bool GpuScope_destroy(GpuScope *self) {
     free(self); return true;
 }
 // Creates a render pass with the requested color attachment count and format.
-static bool renderPass(GpuScope *self,VkFormat format,unsigned count,VkRenderPass *out) {
+static bool renderPass(GpuScope *self,VkFormat format,u32 count,VkRenderPass *out) {
     VkAttachmentDescription attachments[2]={0};
     VkAttachmentReference references[2]={0};
-    for (unsigned i=0;i<count;++i) {
+    for (u32 i=0;i<count;++i) {
         attachments[i]=(VkAttachmentDescription){.format=format,.samples=VK_SAMPLE_COUNT_1_BIT,
             .loadOp=VK_ATTACHMENT_LOAD_OP_CLEAR,.storeOp=VK_ATTACHMENT_STORE_OP_STORE,
             .initialLayout=VK_IMAGE_LAYOUT_UNDEFINED,.finalLayout=VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
@@ -231,7 +231,7 @@ static VkShaderModule loadShader(GpuScope *self,const char *directory,const char
     if (!file)
         return VK_NULL_HANDLE;
     if (fseek(file,0,SEEK_END)) { fclose(file); return VK_NULL_HANDLE; }
-    long length=ftell(file);
+    i64 length=ftell(file);
     if (length<20 || length%4 || length>MAX_SHADER_BYTES) { fclose(file); return VK_NULL_HANDLE; }
     rewind(file);
     u32 *words=malloc((bytes) length);
@@ -247,7 +247,7 @@ static VkShaderModule loadShader(GpuScope *self,const char *directory,const char
 }
 // Builds a fullscreen graphics pipeline from the supplied shader modules and layouts.
 static bool pipeline(GpuScope *self,VkShaderModule vertex,VkShaderModule fragment,
-    VkRenderPass render,VkPipelineLayout layout,unsigned count,bool additive,VkPipeline *out) {
+    VkRenderPass render,VkPipelineLayout layout,u32 count,bool additive,VkPipeline *out) {
     VkPipelineShaderStageCreateInfo stages[]={
         {.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,.stage=VK_SHADER_STAGE_VERTEX_BIT,.module=vertex,.pName="main"},
         {.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,.stage=VK_SHADER_STAGE_FRAGMENT_BIT,.module=fragment,.pName="main"}};
@@ -258,7 +258,7 @@ static bool pipeline(GpuScope *self,VkShaderModule vertex,VkShaderModule fragmen
         .polygonMode=VK_POLYGON_MODE_FILL,.cullMode=VK_CULL_MODE_NONE,.lineWidth=1};
     VkPipelineMultisampleStateCreateInfo ms={.sType=VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT};
     VkPipelineColorBlendAttachmentState blend[2]={0};
-    for (unsigned i=0;i<count;++i)
+    for (u32 i=0;i<count;++i)
         blend[i]=(VkPipelineColorBlendAttachmentState){.blendEnable=additive,
             .srcColorBlendFactor=VK_BLEND_FACTOR_ONE,.dstColorBlendFactor=VK_BLEND_FACTOR_ONE,
             .colorBlendOp=VK_BLEND_OP_ADD,.srcAlphaBlendFactor=VK_BLEND_FACTOR_ONE,
@@ -295,7 +295,7 @@ GpuScope *GpuScope_3(Device *device,const char *directory,u32 maxPixels) {
         (*self).maxExtent=(*limits).maxViewportDimensions[1];
     if ((*self).maxExtent>(u32) INT32_MAX-32)
         (*self).maxExtent=(u32) INT32_MAX-32;
-    for (unsigned i=0;i<2;++i) {
+    for (u32 i=0;i<2;++i) {
         VkFormat format=i ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R32G32B32A32_SFLOAT;
         VkFormatProperties support;
         vkGetPhysicalDeviceFormatProperties((*self).physical,format,&support);
@@ -311,7 +311,7 @@ GpuScope *GpuScope_3(Device *device,const char *directory,u32 maxPixels) {
         !renderPass(self,VK_FORMAT_R8G8B8A8_SRGB,1,&(*self).finalRender))
         goto failed;
     VkDescriptorSetLayoutBinding bindings[4]={0};
-    for (unsigned i=0;i<4;++i)
+    for (u32 i=0;i<4;++i)
         bindings[i]=(VkDescriptorSetLayoutBinding){.binding=i,.descriptorType=VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount=1,.stageFlags=VK_SHADER_STAGE_FRAGMENT_BIT};
     VkDescriptorSetLayoutCreateInfo ds={.sType=VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,.bindingCount=4,.pBindings=bindings};
@@ -331,7 +331,7 @@ GpuScope *GpuScope_3(Device *device,const char *directory,u32 maxPixels) {
     const char *names[]={"scatter_vert","scatter_frag","resolve_vert","scope_frag"};
     VkShaderModule modules[4]={0};
     bool ready=true;
-    for (unsigned i=0;i<4;++i) {
+    for (u32 i=0;i<4;++i) {
         modules[i]=loadShader(self,directory,names[i]);
         if (!modules[i])
             ready=false;
@@ -340,7 +340,7 @@ GpuScope *GpuScope_3(Device *device,const char *directory,u32 maxPixels) {
         ready=pipeline(self,modules[0],modules[1],(*self).scatterRender,(*self).scatterLayout,2,true,&(*self).scatterPipeline) &&
             pipeline(self,modules[2],modules[3],(*self).groupRender,(*self).scopeLayout,1,false,&(*self).groupPipeline) &&
             pipeline(self,modules[2],modules[3],(*self).finalRender,(*self).scopeLayout,1,false,&(*self).finalPipeline);
-    for (unsigned i=0;i<4;++i)
+    for (u32 i=0;i<4;++i)
         if (modules[i])
             vkDestroyShaderModule((*self).device,modules[i],nullptr);
     if (!ready)
@@ -373,7 +373,7 @@ static fn barrier(GpuScope *self,Texture *texture,VkImageLayout old,VkImageLayou
     vkCmdPipelineBarrier((*self).command,fromStage,toStage,0,0,nullptr,0,nullptr,1,&b);
 }
 // Uploads one CPU image into its per-job GPU texture and records visibility barriers.
-static bool upload(GpuScope *self,const Image *source,unsigned index) {
+static bool upload(GpuScope *self,const Image *source,u32 index) {
     Job *job=&(*self).job; Texture *t=&(*job).textures[index]; Buffer *b=&(*job).buffers[index];
     u32 w=Image_width(source),h=Image_height(source);
     if (!makeTexture(self,w,h,VK_FORMAT_R8G8B8A8_SRGB,t) ||
@@ -394,15 +394,15 @@ static bool upload(GpuScope *self,const Image *source,unsigned index) {
     return true;
 }
 // Creates a framebuffer using the selected contiguous range of job textures.
-static bool framebuffer(GpuScope *self,unsigned index,VkRenderPass render,unsigned first,unsigned count) {
+static bool framebuffer(GpuScope *self,u32 index,VkRenderPass render,u32 first,u32 count) {
     Job *job=&(*self).job; Texture *t=&(*job).textures[first]; VkImageView views[2];
-    for (unsigned i=0;i<count;++i) { Texture *v=&(*job).textures[first+i]; views[i]=(*v).view; }
+    for (u32 i=0;i<count;++i) { Texture *v=&(*job).textures[first+i]; views[i]=(*v).view; }
     VkFramebufferCreateInfo info={.sType=VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,.renderPass=render,
         .attachmentCount=count,.pAttachments=views,.width=(*t).width,.height=(*t).height,.layers=1};
     return vkCreateFramebuffer((*self).device,&info,nullptr,&(*job).frames[index])==VK_SUCCESS;
 }
 // Writes one sampled-texture descriptor for the selected set, binding, and job texture.
-static fn descriptor(GpuScope *self,unsigned set,unsigned binding,unsigned texture) {
+static fn descriptor(GpuScope *self,u32 set,u32 binding,u32 texture) {
     Job *job=&(*self).job; Texture *t=&(*job).textures[texture];
     VkDescriptorImageInfo image={(*self).sampler,(*t).view,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     VkWriteDescriptorSet write={.sType=VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,.dstSet=(*job).sets[set],
@@ -410,8 +410,8 @@ static fn descriptor(GpuScope *self,unsigned set,unsigned binding,unsigned textu
     vkUpdateDescriptorSets((*self).device,1,&write,0,nullptr);
 }
 // Begins a render pass and binds the selected pipeline, framebuffer, and descriptors.
-static fn beginPass(GpuScope *self,unsigned frame,VkRenderPass render,VkPipeline pipeline,
-    VkPipelineLayout layout,unsigned width,unsigned height,unsigned attachments) {
+static fn beginPass(GpuScope *self,u32 frame,VkRenderPass render,VkPipeline pipeline,
+    VkPipelineLayout layout,u32 width,u32 height,u32 attachments) {
     Job *job=&(*self).job;
     VkClearValue clear[2]={0};
     VkRenderPassBeginInfo begin={.sType=VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,.renderPass=render,
@@ -429,7 +429,7 @@ static bool inputValid(const Image *image,u32 maxPixels,u32 maxExtent) {
         (u64) w*h<=SIZE_MAX/4 && Image_format(image)==IMAGE_FORMAT_RGBA8 && Image_pixels(image) && Image_stride(image)>=(u64) w*4;
 }
 // Records and submits the selected backdrop/foreground/element scope into an output image.
-static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
+static bool render(GpuScope *self,u32 scope,const Image *prior,const Image *decoration,
     i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,bool sampled,Image **out) {
     if (!self || !out || scope>GPU_SCOPE_ELEMENT || radius>FILTER_SCATTER_MAX_RADIUS)
         goto rejected;
@@ -438,8 +438,8 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
         goto rejected;
     u32 w=Image_width(prior),h=Image_height(prior),pw=Image_width(decoration),ph=Image_height(decoration);
     if (panelX<0 || panelY<0 || (u64) panelX+pw>w || (u64) panelY+ph>h ||
-        (int64_t) foregroundX+Image_width(foreground)>INT32_MAX ||
-        (int64_t) foregroundY+Image_height(foreground)>INT32_MAX ||
+        (i64) foregroundX+Image_width(foreground)>INT32_MAX ||
+        (i64) foregroundY+Image_height(foreground)>INT32_MAX ||
         foregroundX<INT32_MIN+(i32) w+32 || foregroundY<INT32_MIN+(i32) h+32)
         goto rejected;
     u32 sw=scope==GPU_SCOPE_FOREGROUND ? Image_width(foreground) : w;
@@ -474,11 +474,11 @@ static bool render(GpuScope *self,unsigned scope,const Image *prior,const Image 
         .descriptorPool=(*job).descriptors,.descriptorSetCount=3,.pSetLayouts=layouts};
     if (vkAllocateDescriptorSets((*self).device,&da,(*job).sets)!=VK_SUCCESS)
         goto failed;
-    for (unsigned i=0;i<4;++i) {
+    for (u32 i=0;i<4;++i) {
         descriptor(self,GROUP_FRAME,i,i<3 ? i : PRIOR); // phase0 never reads filtered
         descriptor(self,FINAL_FRAME,i,i<3 ? i : ACCUMULATION);
     }
-    unsigned source=scope==GPU_SCOPE_ELEMENT ? GROUP : scope==GPU_SCOPE_FOREGROUND ? FOREGROUND : PRIOR;
+    u32 source=scope==GPU_SCOPE_ELEMENT ? GROUP : scope==GPU_SCOPE_FOREGROUND ? FOREGROUND : PRIOR;
     descriptor(self,SCATTER_FRAME,0,source);
     i32 push[]={(i32) scope,0,panelX,panelY,(i32) pw,(i32) ph,foregroundX,foregroundY,(i32) radius};
     if (scope==GPU_SCOPE_ELEMENT) {
@@ -556,12 +556,12 @@ rejected:
     THROW("GpuScope rejected or failed GPU scope render"); return false;
 }
 // Renders the requested filter scope and synchronously returns its CPU-visible Image output.
-bool GpuScope_render(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
+bool GpuScope_render(GpuScope *self,u32 scope,const Image *prior,const Image *decoration,
     i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,Image **out) {
     return render(self,scope,prior,decoration,panelX,panelY,foreground,foregroundX,foregroundY,radius,false,out);
 }
 // Renders the requested scope and binds the result as a sampled GPU resource without readback.
-bool GpuScope_renderSampled(GpuScope *self,unsigned scope,const Image *prior,const Image *decoration,
+bool GpuScope_renderSampled(GpuScope *self,u32 scope,const Image *prior,const Image *decoration,
     i32 panelX,i32 panelY,const Image *foreground,i32 foregroundX,i32 foregroundY,u32 radius,Image **out) {
     return render(self,scope,prior,decoration,panelX,panelY,foreground,foregroundX,foregroundY,radius,true,out);
 }
@@ -572,7 +572,7 @@ static fn format(const GpuScope *self,bool structure,char *dest,bytes cap,bool *
             *outTruncated=true;
         return;
     }
-    int n;
+    i32 n;
     if (!self)
         n=snprintf(dest,cap,"nullptr");
     else if (!structure)

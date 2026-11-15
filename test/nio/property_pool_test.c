@@ -9,7 +9,7 @@
 #include "nio/property_pool.h"
 #include "ui/property.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -19,7 +19,7 @@ static int g_fail = 0;
     } while (0)
 
 // Checks property-pool allocation, reuse, and bounds-safe access.
-int main() {
+i32 main() {
     PropertyPool *pool = PropertyPool();
     CHECK(pool != nullptr);
     CHECK(PropertyPool_live(pool) == 0);
@@ -47,7 +47,7 @@ int main() {
 
     // grow well past the first 64-slot block; earlier records stay put
     Property *kept = a;
-    for (int i = 0; i < 200; i++) CHECK(PropertyPool_alloc(pool, &bound) != nullptr);
+    for (i32 i = 0; i < 200; i++) CHECK(PropertyPool_alloc(pool, &bound) != nullptr);
     CHECK(PropertyPool_live(pool) == 202);
     CHECK((*kept).background == COLOR_WHITE);   // never moved
 

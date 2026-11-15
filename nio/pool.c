@@ -18,8 +18,8 @@
  * bytes stride                  bytes in each fixed-size slot
  * u32 blockCap              slots admitted per backing block
  * any *blocks                  owned directory of Memory_alloc blocks
- * int blockCount                 initialized block directory entries
- * int blocksCap                  block-directory capacity
+ * i32 blockCount                 initialized block directory entries
+ * i32 blocksCap                  block-directory capacity
  * any freeHead                 head of intrusive free-slot chain
  * u32 live                  currently checked-out slot count
  * FUNCTION REGISTRY
@@ -42,7 +42,7 @@ struct Pool {
     bytes stride;
     u32 blockCap;          // slots per block
     any *blocks;              // every ForeignMemory block, for teardown
-    int blockCount, blocksCap;
+    i32 blockCount, blocksCap;
     any freeHead;             // intrusive free list over the slots
     u32 live;
 };
@@ -50,7 +50,7 @@ struct Pool {
 // Appends a backing block pointer, growing the block directory when required.
 static bool blocks_push(Pool *p, any block) {
     if ((*p).blockCount == (*p).blocksCap) {
-        int cap = (*p).blocksCap ? (*p).blocksCap * 2 : 4;
+        i32 cap = (*p).blocksCap ? (*p).blocksCap * 2 : 4;
         any *grown = realloc((*p).blocks, (bytes)cap * sizeof *grown);
         if (!grown) return false;
         (*p).blocks = grown;
@@ -87,7 +87,7 @@ Pool *Pool_new(bytes stride, u32 blockCap) {
 // Returns every ForeignMemory block and releases the pool metadata.
 fn Pool_destroy(Pool *pool) {
     if (!pool) return;
-    for (int i = 0; i < (*pool).blockCount; i++) Memory_free((*pool).blocks[i]);
+    for (i32 i = 0; i < (*pool).blockCount; i++) Memory_free((*pool).blocks[i]);
     free((*pool).blocks);
     free(pool);
 }
@@ -115,7 +115,7 @@ fn Pool_release(Pool *pool, any item) {
 bool Pool_contains(const Pool *pool, const_any item) {
     if (!pool || !item) return false;
     const u8 *p = item;
-    for (int i = 0; i < (*pool).blockCount; i++) {
+    for (i32 i = 0; i < (*pool).blockCount; i++) {
         const u8 *base = (*pool).blocks[i];
         if (p >= base && p < base + (*pool).stride * (bytes)(*pool).blockCap) return true;
     }

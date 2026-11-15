@@ -109,9 +109,9 @@ Device *Device_create(bool enableValidation) {
     VkQueueFamilyProperties *qf = calloc(qn ? qn : 1, sizeof *qf);
     if (!qf) { Device_destroy(c); return nullptr; }
     vkGetPhysicalDeviceQueueFamilyProperties((*c).physical, &qn, qf);
-    int chosen = -1;
+    i32 chosen = -1;
     for (u32 i = 0; i < qn; i++) {
-        if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { chosen = (int)i; break; }
+        if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { chosen = (i32)i; break; }
     }
     free(qf);
     if (chosen < 0) {

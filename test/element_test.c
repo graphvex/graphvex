@@ -9,7 +9,7 @@
 
 #include "ui/element.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -19,10 +19,10 @@ static int g_fail = 0;
     } while (0)
 
 // Compares layout coordinates using the test's f32 tolerance.
-static int closef(f32 a, f32 b) { return fabsf(a - b) < 0.001f; }
+static i32 closef(f32 a, f32 b) { return fabsf(a - b) < 0.001f; }
 
 // Exercises element construction, anchors, pivots, painting, and null guards.
-int main() {
+i32 main() {
     Rect parent = {100, 50, 200, 100};
 
     // --- the 9 parts themselves ---
@@ -81,8 +81,8 @@ int main() {
 
     // --- ALL 81 anchor x pivot combos: the panel's pivot lands on the anchor ---
     Element_setOffset(p, 0, 0);
-    for (int a = 0; a < PART_COUNT; a++) {
-        for (int pv = 0; pv < PART_COUNT; pv++) {
+    for (i32 a = 0; a < PART_COUNT; a++) {
+        for (i32 pv = 0; pv < PART_COUNT; pv++) {
             Element_setAnchor(p, a);
             Element_setPivot(p, pv);
             Rect rr = Element_resolve(p, parent);

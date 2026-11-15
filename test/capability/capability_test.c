@@ -14,7 +14,7 @@
 
 #include <stdio.h>
 
-static int g_failures = 0;
+static i32 g_failures = 0;
 
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -30,7 +30,7 @@ bool Device_isValid(const Device *device) { (discard) device; return false; }
 any Device_physical(const Device *device) { (discard) device; return nullptr; }
 bool Device_hasMetalObjects(const Device *device) { (discard) device; return false; }
 
-int main() {
+i32 main() {
     // A null Device fails closed on every device question.
     CHECK(!GpuCapability_available(nullptr));
     CHECK(!GpuCapability_has(nullptr, GPU_FEATURE_RAY_TRACING));
@@ -41,7 +41,7 @@ int main() {
     CHECK(!GpuCapability_has(nullptr, (GpuFeature) -1));
 
     // Every name is stable, non-empty, and never null.
-    for (int i = 0; i < (int) GPU_FEATURE_COUNT; i++)
+    for (i32 i = 0; i < (i32) GPU_FEATURE_COUNT; i++)
         CHECK(GpuCapability_featureName((GpuFeature) i)[0] != '\0');
     CHECK(GpuCapability_featureName((GpuFeature) 999)[0] != '\0');
     CHECK(GpuCapability_featureName((GpuFeature) -1)[0] != '\0');

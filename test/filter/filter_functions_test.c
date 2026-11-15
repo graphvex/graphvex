@@ -25,7 +25,7 @@ static fn unsupported(FilterToken token) {
 }
 
 // Tests filter constructors, encoded parameters, and unsupported operations.
-int main() {
+i32 main() {
     assert(Filter_identity() == 0);
     assert(Filter_gain(1) == UINT64_C(0x000100003f800000));
     assert(Filter_scatterBlur(UINT32_MAX) == UINT64_C(0x00020000ffffffff));

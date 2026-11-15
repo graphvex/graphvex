@@ -10,7 +10,7 @@
 
 #include "nio/pool.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -20,14 +20,14 @@ static int g_fail = 0;
     } while (0)
 
 // Tests pool growth, stable item storage, release, and rejected operations.
-int main() {
+i32 main() {
     Pool *p = Pool_new(32, 4);       // 4 slots per block -> 10 allocs force growth
     CHECK(p != nullptr);
     CHECK(Pool_stride(p) == 32);
     CHECK(Pool_live(p) == 0);
 
     any items[10];
-    for (int i = 0; i < 10; i++) {
+    for (i32 i = 0; i < 10; i++) {
         items[i] = Pool_alloc(p);
         CHECK(items[i] != nullptr);
         memset(items[i], 0xAB, 32);
@@ -35,14 +35,14 @@ int main() {
     CHECK(Pool_live(p) == 10);
 
     // STABLE: block growth never moved the first slot
-    for (int i = 0; i < 10; i++) {
+    for (i32 i = 0; i < 10; i++) {
         const u8 *b = items[i];
         CHECK(b[0] == 0xAB && b[31] == 0xAB);
     }
     // every slot is distinct and contained
-    for (int i = 0; i < 10; i++) {
+    for (i32 i = 0; i < 10; i++) {
         CHECK(Pool_contains(p, items[i]));
-        for (int j = i + 1; j < 10; j++) CHECK(items[i] != items[j]);
+        for (i32 j = i + 1; j < 10; j++) CHECK(items[i] != items[j]);
     }
 
     // release is LIFO-reused and re-zeroed
@@ -54,7 +54,7 @@ int main() {
     CHECK(Pool_live(p) == 10);
 
     // a foreign pointer is not ours
-    int local = 0;
+    i32 local = 0;
     CHECK(!Pool_contains(p, &local));
 
     // null-safety

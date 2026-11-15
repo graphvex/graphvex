@@ -8,7 +8,7 @@
 
 #include "lang/board.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -18,15 +18,15 @@ static int g_fail = 0;
     } while (0)
 
 // recording revalidate steps, to prove order + count
-static int g_steps[8];
-static int g_stepCount = 0;
+static i32 g_steps[8];
+static i32 g_stepCount = 0;
 // Records the first callback's order in the board test trace.
 static fn step1(Board *board, any ud) { (discard)board; (discard)ud; g_steps[g_stepCount++] = 1; }
 // Records the second callback's order in the board test trace.
 static fn step2(Board *board, any ud) { (discard)board; (discard)ud; g_steps[g_stepCount++] = 2; }
 
 // Verifies board composition, mutation, and lifecycle behavior.
-int main() {
+i32 main() {
     Board *b = Board(8, 8);
     CHECK(b != nullptr);
     CHECK(Board_isValid(b));

@@ -8,7 +8,7 @@
 
 #include "graphics/graphics.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -109,7 +109,7 @@ static fn test_color_helpers() {
 }
 
 // Runs graphics registry, rasterization, blending, clipping, and color tests.
-int main() {
+i32 main() {
     test_registry();
     test_fill_and_clear();
     test_rounded_corners();

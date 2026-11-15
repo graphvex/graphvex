@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 // Checks canonical filter IDs, aliases, and operation-table consistency.
-int main() {
+i32 main() {
     const u32 ids[] = {
         IDENTITY_ID, GAIN_ID, SCATTER_BLUR_ID, BRIGHTNESS_ID,
         CONTRAST_ID, TONE_CURVE_ID, HSL_ID, HSV_ID,

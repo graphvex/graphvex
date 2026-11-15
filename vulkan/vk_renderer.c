@@ -41,7 +41,7 @@
  * CPU-shadow auto-preparation on first draw is a cold compatibility admission,
  * not allocation-free hot-path proof. Explicitly prepare gallery Images first. */
 
-#define VK_ERR(call) do { VkResult _r = (call); if (_r != VK_SUCCESS) { snprintf(s_err, sizeof s_err, #call " failed: VkResult %d", (int)_r); return false; } } while (0)
+#define VK_ERR(call) do { VkResult _r = (call); if (_r != VK_SUCCESS) { snprintf(s_err, sizeof s_err, #call " failed: VkResult %d", (i32)_r); return false; } } while (0)
 
 static Device *s_dev = nullptr;
 static VkInstance s_inst = VK_NULL_HANDLE;
@@ -82,8 +82,8 @@ typedef enum VkSurfaceTargetKind {
 
 #define VK_SURFACE_NO_SLOT (-1)
 static VkSurfaceTargetKind s_targetKind = VK_SURFACE_PRIVATE;
-static int s_targetSlot = VK_SURFACE_NO_SLOT;  // valid only when kind == SLOT
-static int s_boundSlot = VK_SURFACE_NO_SLOT;   // slot owned by VulkanBackend_bindSurface
+static i32 s_targetSlot = VK_SURFACE_NO_SLOT;  // valid only when kind == SLOT
+static i32 s_boundSlot = VK_SURFACE_NO_SLOT;   // slot owned by VulkanBackend_bindSurface
 
 static VkDescriptorSetLayout s_dsl = VK_NULL_HANDLE;
 static VkPipelineLayout s_pl = VK_NULL_HANDLE;
@@ -108,7 +108,7 @@ static VkFence s_fence = VK_NULL_HANDLE;
 
 static VkBatch *s_batch = nullptr;
 static Rect s_clip = {0, 0, 0, 0};
-static int s_w = 0, s_h = 0;
+static i32 s_w = 0, s_h = 0;
 static Color s_clear = COLOR_BLACK;
 static bool s_rendered = false;
 static char s_err[256] = "ok";
@@ -243,7 +243,7 @@ static bool create_target(u32 w, u32 h) {
 // backs the image with that IOSurface's Metal texture, so rendering into it
 // writes the very Bytes CoreAnimation composites — no readback, no copy. The
 // host owns the IOSurface's lifetime; we never free it.
-static fn surface_slot_destroy(int i) {
+static fn surface_slot_destroy(i32 i) {
     if (i < 0 || i >= VK_SURFACE_MAX) return;
     VkSurfaceSlot *slot = &s_surfaces[i];
     if ((*slot).fb) { vkDestroyFramebuffer(s_device, (*slot).fb, nullptr); (*slot).fb = VK_NULL_HANDLE; }
@@ -253,10 +253,10 @@ static fn surface_slot_destroy(int i) {
 }
 
 // Imports and registers an IOSurface-backed target, returning its slot or a negative error.
-static int surface_slot_add(any iosurface, u32 w, u32 h) {
+static i32 surface_slot_add(any iosurface, u32 w, u32 h) {
     if (!s_device || !s_rpPresent || !iosurface || w == 0 || h == 0) return -1;
-    int i = -1;
-    for (int k = 0; k < VK_SURFACE_MAX; k++)
+    i32 i = -1;
+    for (i32 k = 0; k < VK_SURFACE_MAX; k++)
         if (!s_surfaces[k].used) { i = k; break; }
     if (i < 0) return -1;
     VkSurfaceSlot *slot = &s_surfaces[i];
@@ -306,7 +306,7 @@ static fn surfaceTargetPrivate() {
     s_targetSlot = VK_SURFACE_NO_SLOT;
 }
 
-static bool surfaceTargetSelect(int slot) {
+static bool surfaceTargetSelect(i32 slot) {
     if (slot < 0 || slot >= VK_SURFACE_MAX || !s_surfaces[slot].used)
         return false;
     s_targetKind = VK_SURFACE_SLOT;
@@ -316,7 +316,7 @@ static bool surfaceTargetSelect(int slot) {
 
 // Destroys every imported surface target and clears the slot registry.
 static fn surface_slots_destroy_all() {
-    for (int k = 0; k < VK_SURFACE_MAX; k++)
+    for (i32 k = 0; k < VK_SURFACE_MAX; k++)
         if (s_surfaces[k].used) surface_slot_destroy(k);
     surfaceTargetPrivate();
     s_boundSlot = VK_SURFACE_NO_SLOT;
@@ -508,7 +508,7 @@ static bool create_pipeline() {
     VkResult r = vkCreateGraphicsPipelines(s_device, VK_NULL_HANDLE, 1, &gp, nullptr, &s_pipe);
     vkDestroyShaderModule(s_device, vs, nullptr);
     vkDestroyShaderModule(s_device, fs, nullptr);
-    if (r != VK_SUCCESS) { snprintf(s_err, sizeof s_err, "vkCreateGraphicsPipelines failed: %d", (int)r); return false; }
+    if (r != VK_SUCCESS) { snprintf(s_err, sizeof s_err, "vkCreateGraphicsPipelines failed: %d", (i32)r); return false; }
     return true;
 }
 
@@ -714,8 +714,8 @@ static bool vk_present() { return render(); }
 
 // Updates native-pixel renderer extent and resets the default clip.
 static bool vk_resize(u32 w, u32 h) {
-    s_w = (int)w;
-    s_h = (int)h;
+    s_w = (i32)w;
+    s_h = (i32)h;
     s_clip = (Rect){0, 0, (f32)w, (f32)h};
     return true;
 }
@@ -795,7 +795,7 @@ static bool vk_capture(Image *dest) {
     VK_ERR(vkMapMemory(s_device, s_rboMem, 0, size, 0, &map));
     u8 *out = Image_pixels(dest);
     bytes stride = Image_stride(dest);
-    for (int y = 0; y < s_h; y++)
+    for (i32 y = 0; y < s_h; y++)
         memcpy(out + (bytes)y * stride, (u8*) map + (bytes)y * (bytes)s_w * 4u, (bytes)s_w * 4u);
     vkUnmapMemory(s_device, s_rboMem);
     return true;
@@ -827,14 +827,14 @@ bool VulkanBackend_bindSurface(any iosurface, u32 widthPx, u32 heightPx) {
         snprintf(s_err, sizeof s_err, "VK_EXT_metal_objects unavailable");
         return false;
     }
-    int i = surface_slot_add(iosurface, widthPx, heightPx);
+    i32 i = surface_slot_add(iosurface, widthPx, heightPx);
     if (i < 0) return false;
     // Unreachable today (the slot was just marked used), but a select that
     // refused must not leave an imported slot registered and unowned.
     if (!surfaceTargetSelect(i)) { surface_slot_destroy(i); return false; }
     s_boundSlot = i;
-    s_w = (int)widthPx;
-    s_h = (int)heightPx;
+    s_w = (i32)widthPx;
+    s_h = (i32)heightPx;
     s_clip = (Rect){0, 0, (f32)widthPx, (f32)heightPx};
     s_rendered = false;
     return true;
@@ -852,17 +852,17 @@ fn VulkanBackend_unbindSurface() {
 
 // ── surface-target pool (d64 buffering; the seam swaps slots) ────────────
 // Adds an IOSurface target to the renderer's reusable surface pool.
-int VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx) {
+i32 VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx) {
     if (!init_vulkan() || !Device_hasMetalObjects(s_dev)) return -1;
     return surface_slot_add(iosurface, widthPx, heightPx);
 }
 
 // Selects a registered surface slot as the active render target.
-bool VulkanBackend_useSurface(int slot) {
+bool VulkanBackend_useSurface(i32 slot) {
     if (slot < 0) { surfaceTargetPrivate(); return true; }
     if (!surfaceTargetSelect(slot)) return false;
-    s_w = (int)s_surfaces[slot].w;
-    s_h = (int)s_surfaces[slot].h;
+    s_w = (i32)s_surfaces[slot].w;
+    s_h = (i32)s_surfaces[slot].h;
     s_clip = (Rect){0, 0, (f32)s_surfaces[slot].w, (f32)s_surfaces[slot].h};
     s_rendered = false;
     return true;
@@ -876,7 +876,7 @@ fn VulkanBackend_cleanupSurfaces() {
 }
 
 // Removes and destroys one registered surface slot.
-fn VulkanBackend_removeSurface(int slot) {
+fn VulkanBackend_removeSurface(i32 slot) {
     if (slot < 0 || slot >= VK_SURFACE_MAX || !s_surfaces[slot].used) return;
     if (!retire_frame()) return;
     if (s_targetKind == VK_SURFACE_SLOT && s_targetSlot == slot) surfaceTargetPrivate();

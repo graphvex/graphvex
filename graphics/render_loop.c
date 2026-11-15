@@ -14,8 +14,8 @@
  * CLASS: RenderLoop (graphics/render_loop.c)
  * STRUCT FIELDS (Mirroring graphics/render_loop.h)
  * Client *clients               owned growable client registry
- * int count                     initialized registry entries
- * int cap                       allocated registry capacity
+ * i32 count                     initialized registry entries
+ * i32 cap                       allocated registry capacity
  * u32 targetFps             optional target cadence; zero means uncapped
  * _Atomic bool wake              coalesced cross-thread wake request
  * d64 lastSeconds             previous monotonic step time
@@ -40,8 +40,8 @@
 
 struct RenderLoop {
     Client *clients;
-    int count;
-    int cap;
+    i32 count;
+    i32 cap;
     u32 targetFps;   // 0 = pure demand (no cap)
     _Atomic bool wake;
     d64 lastSeconds;
@@ -84,7 +84,7 @@ RenderLoop *RenderLoop_default() {
 // Adds or replaces a client keyed by its window pointer; allocation failure returns false.
 bool RenderLoop_addClient(RenderLoop *loop, const Client *client) {
     if (!loop || !client) return false;
-    for (int i = 0; i < (*loop).count; i++) {
+    for (i32 i = 0; i < (*loop).count; i++) {
         if ((*loop).clients[i].window == (*client).window) {
             (*loop).clients[i] = *client;
             return true;
@@ -103,7 +103,7 @@ bool RenderLoop_addClient(RenderLoop *loop, const Client *client) {
 // Removes the client matching window by swapping in the final array entry.
 bool RenderLoop_removeClient(RenderLoop *loop, any window) {
     if (!loop) return false;
-    for (int i = 0; i < (*loop).count; i++) {
+    for (i32 i = 0; i < (*loop).count; i++) {
         if ((*loop).clients[i].window == window) {
             (*loop).clients[i] = (*loop).clients[(*loop).count - 1];
             (*loop).count--;
@@ -116,7 +116,7 @@ bool RenderLoop_removeClient(RenderLoop *loop, any window) {
 // Finds a client by window and returns a borrowed pointer into the loop's array.
 Client *RenderLoop_findClient(RenderLoop *loop, const_any window) {
     if (!loop) return nullptr;
-    for (int i = 0; i < (*loop).count; i++)
+    for (i32 i = 0; i < (*loop).count; i++)
         if ((*loop).clients[i].window == window) return &(*loop).clients[i];
     return nullptr;
 }
@@ -146,7 +146,7 @@ bool RenderLoop_step(RenderLoop *loop) {
     (*loop).lastSeconds = t;
 
     bool presented = false;
-    for (int i = 0; i < (*loop).count; i++) {
+    for (i32 i = 0; i < (*loop).count; i++) {
         Client *c = &(*loop).clients[i];
         if ((*c).frameFn) (*c).frameFn((*c).userdata, dt);
         bool demand = (bool)((*c).dirty) || ((*c).contentGen != (*c).lastContentGen);

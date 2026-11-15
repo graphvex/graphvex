@@ -21,8 +21,8 @@
 // Reports whether the inner world-space rectangle is fully contained in outer.
 static bool contains(CompositorBounds outer, CompositorBounds inner) {
     return inner.x >= outer.x && inner.y >= outer.y &&
-        (int64_t) inner.x + inner.width <= (int64_t) outer.x + outer.width &&
-        (int64_t) inner.y + inner.height <= (int64_t) outer.y + outer.height;
+        (i64) inner.x + inner.width <= (i64) outer.x + outer.width &&
+        (i64) inner.y + inner.height <= (i64) outer.y + outer.height;
 }
 
 // Copies the source/bounds intersection into an owned surface with the requested origin and extent.
@@ -38,16 +38,16 @@ CompositorStatus Compositor_crop(const CompositorSurface *source,
     if (status != COMPOSITOR_OK)
         return status;
     CompositorBounds s = CompositorSurface_bounds(source);
-    int64_t x0 = s.x > bounds.x ? s.x : bounds.x;
-    int64_t y0 = s.y > bounds.y ? s.y : bounds.y;
-    int64_t sx1 = (int64_t) s.x + s.width, dx1 = (int64_t) bounds.x + bounds.width;
-    int64_t sy1 = (int64_t) s.y + s.height, dy1 = (int64_t) bounds.y + bounds.height;
-    int64_t x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
+    i64 x0 = s.x > bounds.x ? s.x : bounds.x;
+    i64 y0 = s.y > bounds.y ? s.y : bounds.y;
+    i64 sx1 = (i64) s.x + s.width, dx1 = (i64) bounds.x + bounds.width;
+    i64 sy1 = (i64) s.y + s.height, dy1 = (i64) bounds.y + bounds.height;
+    i64 x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
     const f32 *sp = CompositorSurface_constPixels(source);
     f32 *dp = CompositorSurface_pixels(crop);
     if (x1 > x0) {
         bytes Bytes = (bytes) (x1 - x0) * 4 * sizeof(f32);
-        for (int64_t y = y0; y < y1; ++y) {
+        for (i64 y = y0; y < y1; ++y) {
             const f32 *row = sp + 4 * ((bytes) (y - s.y) * s.width + (bytes) (x0 - s.x));
             f32 *dest = dp + 4 * ((bytes) (y - bounds.y) * bounds.width + (bytes) (x0 - bounds.x));
             memcpy(dest, row, Bytes);
@@ -108,17 +108,17 @@ static CompositorStatus replacementCopy(const CompositorSurface *group,
     if (status != COMPOSITOR_OK)
         return status;
     CompositorBounds s = CompositorSurface_bounds(group), d = CompositorSurface_bounds(scene);
-    int64_t x0 = s.x > d.x ? s.x : d.x, y0 = s.y > d.y ? s.y : d.y;
-    int64_t sx1 = (int64_t) s.x + s.width, dx1 = (int64_t) d.x + d.width;
-    int64_t sy1 = (int64_t) s.y + s.height, dy1 = (int64_t) d.y + d.height;
-    int64_t x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
+    i64 x0 = s.x > d.x ? s.x : d.x, y0 = s.y > d.y ? s.y : d.y;
+    i64 sx1 = (i64) s.x + s.width, dx1 = (i64) d.x + d.width;
+    i64 sy1 = (i64) s.y + s.height, dy1 = (i64) d.y + d.height;
+    i64 x1 = sx1 < dx1 ? sx1 : dx1, y1 = sy1 < dy1 ? sy1 : dy1;
     const f32 *sp = CompositorSurface_constPixels(group);
     f32 *dp = CompositorSurface_pixels(scene);
-    for (int64_t y = y0; y < y1; ++y) {
-        for (int64_t x = x0; x < x1; ++x) {
+    for (i64 y = y0; y < y1; ++y) {
+        for (i64 x = x0; x < x1; ++x) {
             const f32 *p = sp + 4 * ((bytes) (y - s.y) * s.width + (bytes) (x - s.x));
             f32 *q = dp + 4 * ((bytes) (y - d.y) * d.width + (bytes) (x - d.x));
-            for (unsigned c = 0; c < 3; ++c) {
+            for (u32 c = 0; c < 3; ++c) {
                 d64 value = p[c] + q[c] * (1.0 - p[3]);
                 if (value > FLT_MAX)
                     return COMPOSITOR_LIMIT;

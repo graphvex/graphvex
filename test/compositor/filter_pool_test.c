@@ -14,8 +14,8 @@
 #include <unistd.h>
 #include "../../compositor/filter_pool.h"
 
-static int failures;
-static unsigned expectedDiagnostics;
+static i32 failures;
+static u32 expectedDiagnostics;
 #define CHECK(c) do { if (!(c)) { \
     printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); ++failures; \
 } } while (0)
@@ -189,12 +189,12 @@ static fn generation_exhaustion() {
 }
 
 // Runs filter-pool lifetime, validation, composition, and exhaustion cases.
-int main() {
+i32 main() {
     FILE *diagnostics = tmpfile();
     if (!diagnostics)
         return 1;
     fflush(stderr);
-    int saved = dup(STDERR_FILENO);
+    i32 saved = dup(STDERR_FILENO);
     if (saved < 0 || dup2(fileno(diagnostics), STDERR_FILENO) < 0)
         return 1;
     lifetime();
@@ -205,7 +205,7 @@ int main() {
     CHECK(dup2(saved, STDERR_FILENO) >= 0);
     close(saved);
     rewind(diagnostics);
-    unsigned observed = 0;
+    u32 observed = 0;
     char line[512];
     while (fgets(line, sizeof line, diagnostics)) {
         CHECK(strstr(line, "[vex] ") && strstr(line, "FilterPool rejected operation: status="));

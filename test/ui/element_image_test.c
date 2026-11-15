@@ -10,7 +10,7 @@
 #include "ui/element.h"
 
 // Verifies image-backed elements paint, update, and reject invalid images.
-int main() {
+i32 main() {
     const u8 rgba[] = {255, 0, 0, 255, 0, 255, 0, 255};
     Image *image = Image_2(2, 1);
     assert(image && Image_upload(rgba, 2, 1, image));

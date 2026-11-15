@@ -49,7 +49,7 @@ static any slurp(const char *path, u32 *outSize) {
     FILE *f = fopen(path, "rb");
     if (!f) return nullptr;
     fseek(f, 0, SEEK_END);
-    long n = ftell(f);
+    i64 n = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (n <= 0) { fclose(f); return nullptr; }
     any buf = malloc((bytes)n);

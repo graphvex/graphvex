@@ -26,8 +26,8 @@ CompositorStatus Compositor_record(const CompositorSurface *surface,
                         (f32) bounds.width, (f32) bounds.height};
     if ((d64) destination.x != bounds.x || (d64) destination.y != bounds.y ||
         (d64) destination.w != bounds.width || (d64) destination.h != bounds.height ||
-        (d64) (destination.x + destination.w) != (int64_t) bounds.x + bounds.width ||
-        (d64) (destination.y + destination.h) != (int64_t) bounds.y + bounds.height)
+        (d64) (destination.x + destination.w) != (i64) bounds.x + bounds.width ||
+        (d64) (destination.y + destination.h) != (i64) bounds.y + bounds.height)
         return COMPOSITOR_LIMIT;
     Image *image = nullptr;
     CompositorStatus status = CompositorSurface_toImage(surface, &image);

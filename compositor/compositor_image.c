@@ -58,7 +58,7 @@ CompositorStatus CompositorSurface_fromImage(const Image *image,
             const u8 *p = row + (bytes) ix * 4;
             f32 *q = dest + 4 * ((bytes) iy * b.width + ix);
             f32 alpha = p[3] / 255.0f;
-            for (unsigned c = 0; c < 3; ++c)
+            for (u32 c = 0; c < 3; ++c)
                 q[c] = srgbDecode(p[c] / 255.0f) * alpha;
             q[3] = alpha;
         }
@@ -92,7 +92,7 @@ CompositorStatus CompositorSurface_toImage(const CompositorSurface *surface,
         for (u32 x = 0; x < b.width; ++x) {
             const f32 *p = source + 4 * ((bytes) y * b.width + x);
             u8 *q = pixels + (bytes) y * stride + (bytes) x * 4;
-            for (unsigned c = 0; c < 3; ++c)
+            for (u32 c = 0; c < 3; ++c)
                 q[c] = p[3] > 0 ? srgbEncode(p[c] / p[3]) : 0;
             q[3] = (u8) lroundf(p[3] * 255.0f);
         }

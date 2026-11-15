@@ -9,7 +9,7 @@
 
 #include "lang/image.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -18,7 +18,7 @@ static int g_fail = 0;
         }                                                                  \
     } while (0)
 
-static unsigned references, releases;
+static u32 references, releases;
 static bool refuseRetain, refuseRelease;
 // Test callback that retains a resource unless rejection is requested.
 static bool retainResource(any resource) {
@@ -39,7 +39,7 @@ static bool releaseResource(any resource) {
 }
 
 // Exercises image ownership callbacks, pixel operations, and invalid inputs.
-int main() {
+i32 main() {
     Image *gpu = Image(2, 3);
     CHECK(!Image_isDrawable(gpu));
     CHECK(!Image_bindGpu(gpu, nullptr, gpu, gpu, retainResource, releaseResource));
@@ -92,7 +92,7 @@ int main() {
 
     // upload replaces content and dims
     u8 src[2 * 2 * 4];
-    for (int i = 0; i < 16; i++) src[i] = (u8)i;
+    for (i32 i = 0; i < 16; i++) src[i] = (u8)i;
     CHECK(Image_upload(src, 2, 2, img));
     CHECK(Image_width(img) == 2 && Image_height(img) == 2);
     CHECK(Image_pixels(img)[3] == 3);

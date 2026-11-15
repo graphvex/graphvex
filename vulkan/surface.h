@@ -48,8 +48,8 @@ fn Surface_onPresent(Surface *surface, SurfacePresentFn fn, any userdata);
 bool Surface_present(Surface *surface);
 // Owner-thread policy. -1 = no imposed ceiling; positive = FPS ceiling.
 // No sleeps, no scene-thread pacing. Deferred invalidations coalesce.
-fn Surface_setFPSCap(Surface *surface, int fps);
-int Surface_getFPSCap(const Surface *surface);
+fn Surface_setFPSCap(Surface *surface, i32 fps);
+i32 Surface_getFPSCap(const Surface *surface);
 u64 Surface_getPresentCount(const Surface *surface);
 fn Surface_poll(Surface *surface);
 // Fresh offscreen/capture rendering; host publication still respects the cap.

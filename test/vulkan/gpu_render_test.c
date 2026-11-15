@@ -10,7 +10,7 @@
 #include "lang/image.h"
 #include "vulkan/vulkan_backend.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -20,13 +20,13 @@ static int g_fail = 0;
     } while (0)
 
 // Reads RGB channels at one pixel for rendered-output assertions.
-static fn at(const Image *img, int x, int y, int *r, int *g, int *b) {
+static fn at(const Image *img, i32 x, i32 y, i32 *r, i32 *g, i32 *b) {
     const u8 *p = Image_pixels(img) + (bytes)y * Image_stride(img) + (bytes)x * 4;
     *r = p[0]; *g = p[1]; *b = p[2];
 }
 
 // Verifies Vulkan rendering, clipping, and device-loss recovery behavior.
-int main() {
+i32 main() {
     Graphics_register(VulkanBackend_row());
     CHECK(Graphics_use(BACKEND_VULKAN));
     CHECK(Graphics_backendId() == BACKEND_VULKAN);
@@ -44,7 +44,7 @@ int main() {
     CHECK(Graphics_capture(shot));
     CHECK(Image_width(shot) == 64 && Image_height(shot) == 64);
 
-    int r, g, b;
+    i32 r, g, b;
     at(shot, 16, 32, &r, &g, &b);
     CHECK(r == 255 && g == 0 && b == 0);            // left = red
     at(shot, 48, 32, &r, &g, &b);

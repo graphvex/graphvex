@@ -8,7 +8,7 @@
 
 #include "vulkan/surface.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -18,7 +18,7 @@ static int g_fail = 0;
     } while (0)
 
 // a recording host blit: proves Surface_present hands over native + image
-static int g_presentCalls = 0;
+static i32 g_presentCalls = 0;
 static any g_seenNative = nullptr;
 static Image *g_seenImage = nullptr;
 static bool g_blitOk = true;
@@ -26,7 +26,7 @@ static bool g_blitOk = true;
 // Test callback records surface presentation and returns its configured result.
 static bool recordPresent(Surface *surface, any userdata) {
     g_presentCalls++;
-    (*(int*) userdata)++;
+    (*(i32*) userdata)++;
     g_seenNative = Surface_handle(surface);
     g_seenImage = Surface_presentImage(surface);
     return g_blitOk;
@@ -34,10 +34,10 @@ static bool recordPresent(Surface *surface, any userdata) {
 
 // a board revalidate step, recorded
 // Counts board revalidation callbacks.
-static fn countReval(Board *board, any ud) { (discard)board; (*(int*) ud)++; }
+static fn countReval(Board *board, any ud) { (discard)board; (*(i32*) ud)++; }
 
 // Exercises surface lifecycle, presentation admission, and board revalidation.
-int main() {
+i32 main() {
     Surface *s = Surface((any) 0xCAFE, 100, 50);
     CHECK(s != nullptr);
     CHECK(Surface_isValid(s));
@@ -54,7 +54,7 @@ int main() {
     CHECK(!Surface_present(s));
 
     // a registered host blit receives the native handle + the present image
-    int hits = 0;
+    i32 hits = 0;
     Surface_onPresent(s, recordPresent, &hits);
     CHECK(Surface_present(s));
     CHECK(g_presentCalls == 1 && hits == 1);
@@ -79,10 +79,10 @@ int main() {
     // then presents the finished image
     Surface_onPresent(s, recordPresent, &hits);   // reinstall a passing blit
     Board *bd = Board(100, 50);
-    int stepRuns = 0;
+    i32 stepRuns = 0;
     Board_addRevalidator(bd, countReval, &stepRuns);
     Surface_addBoard(s, bd);
-    int callsBefore = g_presentCalls;
+    i32 callsBefore = g_presentCalls;
     Surface_revalidate(s);
     CHECK(stepRuns == 1);                          // board revalidated first
     CHECK(g_presentCalls == callsBefore + 1);      // then presented

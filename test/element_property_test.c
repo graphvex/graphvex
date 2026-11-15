@@ -13,7 +13,7 @@
 #include "ui/element.h"
 #include "ui/property.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -23,12 +23,12 @@ static int g_fail = 0;
     } while (0)
 
 // Returns the alpha channel at the requested image pixel.
-static int alpha_at(const Image *img, int x, int y) {
+static i32 alpha_at(const Image *img, i32 x, i32 y) {
     return Image_pixels(img)[(bytes)y * Image_stride(img) + (bytes)x * 4 + 3];
 }
 
 // Verifies element placement properties affect paint and hit behavior.
-int main() {
+i32 main() {
     // 1. sharing a bound: two Elements, one Property
     Element *a = Element();
     Element_setSize(a, 100, 50);

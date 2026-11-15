@@ -45,7 +45,7 @@
  *   SurfacePresentFn presentFn; // borrowed host blit (NULL = offscreen)
  *   any presentUser; // passed to presentFn
  *   Board  **boards;      // borrowed layers (owned by the caller)
- *   int      boardCount, boardCap;
+ *   i32      boardCount, boardCap;
  *
  * FUNCTION REGISTRY (exported by vulkan/surface.h):
  * ----------------------------------------------------------------------------
@@ -70,8 +70,8 @@ struct Surface {
     SurfacePresentFn presentFn;   // borrowed host blit (nullable = offscreen)
     any presentUser;            // passed to presentFn
     Board **boards;    // borrowed layers composited into the present image
-    int boardCount, boardCap;
-    int fpsCap;
+    i32 boardCount, boardCap;
+    i32 fpsCap;
     u64 lastPresent, presentCount;
     bool pending;
     SurfaceClockFn clockFn;
@@ -148,12 +148,12 @@ static bool surfaceDue(Surface *surface) {
 }
 
 // Sets the presentation cap; -1 disables it and nonpositive alternatives are ignored.
-fn Surface_setFPSCap(Surface *surface, int fps) {
+fn Surface_setFPSCap(Surface *surface, i32 fps) {
     if (!surface || (fps != -1 && fps <= 0) || (*surface).fpsCap == fps) return;
     (*surface).fpsCap = fps;
 }
 // Returns the configured cap, or zero when surface is null.
-int Surface_getFPSCap(const Surface *surface) { return surface ? (*surface).fpsCap : 0; }
+i32 Surface_getFPSCap(const Surface *surface) { return surface ? (*surface).fpsCap : 0; }
 // Returns the count of successful host presentation callbacks.
 u64 Surface_getPresentCount(const Surface *surface) { return surface ? (*surface).presentCount : 0; }
 // Installs a clock callback and resets present timing and count for deterministic scheduling.
@@ -185,7 +185,7 @@ bool Surface_present(Surface *surface) {
 fn Surface_addBoard(Surface *surface, Board *board) {
     if (!surface || !board) return;
     if ((*surface).boardCount == (*surface).boardCap) {
-        int cap = (*surface).boardCap ? (*surface).boardCap * 2 : 2;
+        i32 cap = (*surface).boardCap ? (*surface).boardCap * 2 : 2;
         Board **grown = realloc((*surface).boards, (bytes)cap * sizeof *grown);
         if (!grown) return;
         (*surface).boards = grown;
@@ -197,7 +197,7 @@ fn Surface_addBoard(Surface *surface, Board *board) {
 // Removes the first matching borrowed board while preserving the order of remaining boards.
 fn Surface_removeBoard(Surface *surface, Board *board) {
     if (!surface || !board) return;
-    for (int i = 0; i < (*surface).boardCount; i++) {
+    for (i32 i = 0; i < (*surface).boardCount; i++) {
         if ((*surface).boards[i] != board) continue;
         memmove(&(*surface).boards[i], &(*surface).boards[i + 1],
                 (bytes)((*surface).boardCount - i - 1) * sizeof *(*surface).boards);
@@ -224,7 +224,7 @@ fn Surface_poll(Surface *surface) {
 // Revalidates each attached board in order, then attempts one presentation.
 fn Surface_revalidateNow(Surface *surface) {
     if (!surface) return;
-    for (int i = 0; i < (*surface).boardCount; i++)
+    for (i32 i = 0; i < (*surface).boardCount; i++)
         Board_revalidate((*surface).boards[i]);
     Surface_present(surface);
 }

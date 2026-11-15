@@ -63,7 +63,7 @@ static bytes buildPng(u8 *out, u32 width, u32 height, u8 colorType,
 // Owner-local stderr capture: each rejection must emit exactly one diagnosed
 // line naming its cause, and admitted paths must stay quiet.
 static FILE *diagnostics;
-static int savedStderr;
+static i32 savedStderr;
 static fn beginDiagnostics() {
     fflush(stderr);
     diagnostics = tmpfile();
@@ -92,7 +92,7 @@ static fn endDiagnostics(bytes expected, const char *fragment) {
     fclose(diagnostics);
 }
 
-int main() {
+i32 main() {
     static const u8 sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
     assert(Png_isPng(sig, sizeof sig));
     assert(!Png_isPng(nullptr, 8) && !Png_isPng(sig, 4));

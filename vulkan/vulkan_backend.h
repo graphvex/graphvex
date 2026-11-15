@@ -32,9 +32,9 @@ fn VulkanBackend_unbindSurface();
 // A pool of imported surface targets (d64 buffering): add a surface once,
 // then select which one present renders into. add returns a slot (>=0) or -1.
 // use(-1) returns to the private readback target. cleanup releases them all.
-int  VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx);
-bool VulkanBackend_useSurface(int slot);
-fn VulkanBackend_removeSurface(int slot);
+i32  VulkanBackend_addSurface(any iosurface, u32 widthPx, u32 heightPx);
+bool VulkanBackend_useSurface(i32 slot);
+fn VulkanBackend_removeSurface(i32 slot);
 fn VulkanBackend_cleanupSurfaces();
 
 // The live quad batch (tests/debug); valid between begin() and present().

@@ -98,7 +98,7 @@ static fn failures() {
 }
 
 // Runs image round-trip, alpha/gain, and failure-contract scenarios.
-int main() {
+i32 main() {
     round_trip();
     alpha_and_gain();
     failures();

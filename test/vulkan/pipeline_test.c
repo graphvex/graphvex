@@ -9,7 +9,7 @@
 
 #include "vulkan/pipeline.h"
 
-static int g_fail = 0;
+static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
         if (!(cond)) {                                                     \
@@ -19,7 +19,7 @@ static int g_fail = 0;
     } while (0)
 
 // Writes exactly the requested fixture bytes to a temporary file.
-static int write_file(const char *path, const_any data, unsigned n) {
+static i32 write_file(const char *path, const_any data, u32 n) {
     FILE *f = fopen(path, "wb");
     if (!f) return 0;
     bytes w = fwrite(data, 1, n, f);
@@ -28,10 +28,10 @@ static int write_file(const char *path, const_any data, unsigned n) {
 }
 
 // Tests shader-pipeline setup and cleanup across invalid shader inputs.
-int main() {
+i32 main() {
     // in-memory SPIR-V placeholder Bytes
-    unsigned char vs[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-    unsigned char fs[16] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
+    u8 vs[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    u8 fs[16] = {16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
     PipelineDesc d = {vs, sizeof vs, fs, sizeof fs, 72, 8};
     Pipeline *p = Pipeline_new(&d);
     CHECK(Pipeline_isValid(p));

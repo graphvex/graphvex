@@ -7,13 +7,13 @@
 #include "vulkan/vulkan_backend.h"
 
 // Numeric fixture/scope proof only: gallery appearance remains user-owned.
-static Color pixel(const Image *image, unsigned x, unsigned y) {
+static Color pixel(const Image *image, u32 x, u32 y) {
     const u8 *p = Image_pixels(image) + (bytes) y * Image_stride(image) + (bytes) x * 4;
     return COLOR_RGBA(p[0], p[1], p[2], p[3]);
 }
 
 // Checks deterministic gallery fixture creation and rendered sample pixels.
-int main() {
+i32 main() {
     assert(!FilterGallery_photoFromPath("/nonexistent-filter-gallery-photo.png", 1, 1));
     assert(!FilterGallery_photoFromPath(nullptr, 0, 1));
     assert(!FilterGallery_photoFromPath(nullptr, UINT32_MAX, UINT32_MAX));
@@ -30,7 +30,7 @@ int main() {
     Image *textures[3] = {nullptr};
     Image *original = FilterGallery_photo(FILTER_GALLERY_WIDTH, FILTER_GALLERY_HEIGHT);
     assert(original);
-    for (unsigned i = 0; i < 3; ++i) {
+    for (u32 i = 0; i < 3; ++i) {
         assert(FilterGallery_render(gpu,i,&views[i]));
         assert(FilterGallery_renderSampled(gpu,i,&textures[i]));
         assert(Image_isDrawable(textures[i]) && !Image_pixels(textures[i]));
@@ -59,18 +59,18 @@ int main() {
     assert(Graphics_register(VulkanBackend_row()) && Graphics_use(BACKEND_VULKAN));
     assert(Graphics_resize(FILTER_GALLERY_WIDTH, FILTER_GALLERY_HEIGHT));
     Image *capture = Image();
-    for (unsigned i = 0; i < 3; ++i) {
+    for (u32 i = 0; i < 3; ++i) {
         assert(Graphics_begin() && Graphics_clear(COLOR_CLEAR));
         assert(Graphics_drawImage(textures[i], &(Rect){0,0,FILTER_GALLERY_WIDTH,FILTER_GALLERY_HEIGHT}));
         assert(Graphics_end() && Graphics_capture(capture));
-        for (unsigned y = 0; y < FILTER_GALLERY_HEIGHT; ++y)
-            for (unsigned x = 0; x < FILTER_GALLERY_WIDTH; ++x)
+        for (u32 y = 0; y < FILTER_GALLERY_HEIGHT; ++y)
+            for (u32 x = 0; x < FILTER_GALLERY_WIDTH; ++x)
                 assert(pixel(capture,x,y) == pixel(views[i],x,y));
         assert(VulkanBackend_vertexBytes() == 6u * sizeof(VkVertex));
         Image_destroy(textures[i]);
     }
     Image_destroy(capture);
-    for (unsigned i = 0; i < 3; ++i)
+    for (u32 i = 0; i < 3; ++i)
         Image_destroy(views[i]);
     Image_destroy(original);
     assert(Device_isValid(device));

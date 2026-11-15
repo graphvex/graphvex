@@ -31,15 +31,15 @@ enum {
 typedef struct Point { f32 x, y; } Point;
 
 // The point `part` names, in the rect's own space (null-safe; clamps).
-Point Part_point(Rect rect, int part);
+Point Part_point(Rect rect, i32 part);
 
 typedef struct Element Element;
 
 typedef struct ElementDesc {
     f32 width, height;      // native px
     f32 offsetX, offsetY;   // added to the anchor point
-    int   anchor;             // PART_* on the PARENT (default TOP_LEFT)
-    int   pivot;              // PART_* on the ELEMENT (default TOP_LEFT)
+    i32   anchor;             // PART_* on the PARENT (default TOP_LEFT)
+    i32   pivot;              // PART_* on the ELEMENT (default TOP_LEFT)
     f32 radius;             // corner radius (also clips children when > 0)
     Color background;
     Color border;
@@ -72,10 +72,10 @@ bool Element_isDirty(const Element *element);
 
 // ── tree ────────────────────────────────────────────────────────────────────
 Element *Element_add(Element *parent, Element *child);
-Element *Element_addAt(Element *parent, Element *child, int index);
+Element *Element_addAt(Element *parent, Element *child, i32 index);
 bool Element_remove(Element *child);
-int Element_count(const Element *element);
-Element *Element_child(const Element *element, int index);
+i32 Element_count(const Element *element);
+Element *Element_child(const Element *element, i32 index);
 Element *Element_parent(const Element *element);
 Element *Element_root(Element *element);
 
@@ -89,8 +89,8 @@ Element *Element_setSize(Element *element, f32 width, f32 height);
 Element *Element_setMinimumSize(Element *element, f32 width, f32 height);
 Element *Element_setMaximumSize(Element *element, f32 width, f32 height);
 Element *Element_setOffset(Element *element, f32 x, f32 y);
-Element *Element_setAnchor(Element *element, int anchor);
-Element *Element_setPivot(Element *element, int pivot);
+Element *Element_setAnchor(Element *element, i32 anchor);
+Element *Element_setPivot(Element *element, i32 pivot);
 Element *Element_setTag(Element *element, const char *tag);
 
 // ── visual ──────────────────────────────────────────────────────────────────
@@ -137,8 +137,8 @@ Rect Element_bounds(const Element *element, Rect parent);
 f32 Element_width(const Element *element);
 f32 Element_height(const Element *element);
 f32 Element_radius(const Element *element);
-int   Element_anchor(const Element *element);
-int   Element_pivot(const Element *element);
+i32   Element_anchor(const Element *element);
+i32   Element_pivot(const Element *element);
 bool  Element_isValid(const Element *element);
 bool  Element_isVisible(const Element *element);
 bool  Element_isPressed(const Element *element);
@@ -146,8 +146,8 @@ const char *Element_tag(const Element *element);
 
 // Inert per-node cursor preference. -1 inherits; nonnegative values are
 // interpreted by the UI host, never by this renderer. Not shared with Property.
-Element *Element_setCursorPreference(Element *element, int cursor);
-int Element_cursorPreference(const Element *element);
+Element *Element_setCursorPreference(Element *element, i32 cursor);
+i32 Element_cursorPreference(const Element *element);
 
 // Paint this element at an ABSOLUTE rect, then its children (resolved against
 // that rect). A parent with radius > 0 clips its children to the rounded shape.
