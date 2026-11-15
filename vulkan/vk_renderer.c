@@ -780,7 +780,7 @@ static bool vk_drawImage(const Image *image, const Rect *dst) {
 static bool vk_drawText(const Rect *rect, const char *text, const Brush *brush) {
     if (!s_batch || !rect) return false;
     VkBatch_glyph(s_batch, *rect, 0u, brush ? (*brush).color : COLOR_WHITE);
-    (fn)text;
+    (discard)text;
     return true;
 }
 
@@ -812,7 +812,7 @@ const Backend *VulkanBackend_row() {
 
 // Binds the host's native presentation layer and configures the renderer in native pixels.
 bool VulkanBackend_bind(any nativeLayer, u32 widthPx, u32 heightPx) {
-    (fn)nativeLayer;
+    (discard)nativeLayer;
     if (!init_vulkan()) return false;
     return vk_resize(widthPx, heightPx);
 }

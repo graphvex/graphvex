@@ -34,7 +34,7 @@ static bool recordPresent(Surface *surface, any userdata) {
 
 // a board revalidate step, recorded
 // Counts board revalidation callbacks.
-static fn countReval(Board *board, any ud) { (fn)board; (*(int*) ud)++; }
+static fn countReval(Board *board, any ud) { (discard)board; (*(int*) ud)++; }
 
 // Exercises surface lifecycle, presentation admission, and board revalidation.
 int main() {

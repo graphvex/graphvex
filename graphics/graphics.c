@@ -510,7 +510,7 @@ static bool raster_fillRect(const Rect *rect, const Brush *brush) {
 }
 
 static bool raster_imageRun(Rect run, Color color, any context) {
-    (fn) context;
+    (discard) context;
     Brush brush = {color, 0, 0, 0, 0};
     return raster_fillRect(&run, &brush);
 }
@@ -527,9 +527,9 @@ static bool raster_drawImage(const Image *image, const Rect *dst) {
 
 static bool raster_drawText(const Rect *rect, const char *text, const Brush *brush) {
     // Text metrics/glyphs are a later slice; the core records intent only.
-    (fn)rect;
-    (fn)text;
-    (fn)brush;
+    (discard)rect;
+    (discard)text;
+    (discard)brush;
     return true;
 }
 

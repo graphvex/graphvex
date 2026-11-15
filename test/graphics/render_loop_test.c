@@ -22,10 +22,10 @@ static int g_probed = 0;
 static int g_window = 0;
 
 // Counts each render-loop probe callback invocation.
-static fn probe(any ud, d64 dt) { (fn)ud; (fn)dt; g_probed++; }
+static fn probe(any ud, d64 dt) { (discard)ud; (discard)dt; g_probed++; }
 // Counts presentation callbacks and returns the configured test result.
 static bool present(any window, d64 dt, any ud) {
-    (fn)window; (fn)dt; (fn)ud;
+    (discard)window; (discard)dt; (discard)ud;
     g_presented++;
     return true;
 }

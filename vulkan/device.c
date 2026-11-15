@@ -58,7 +58,7 @@ static fn set_err(Device *c, const char *msg) {
 }
 
 Device *Device_create(bool enableValidation) {
-    (fn)enableValidation;   // validation layers land in a debug slice
+    (discard)enableValidation;   // validation layers land in a debug slice
     Device *c = calloc(1, sizeof *c);
     if (!c) return nullptr;
     set_err(c, "ok");
