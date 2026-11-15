@@ -635,10 +635,10 @@ static bool render() {
 
     VkClearValue clear;
     memset(&clear, 0, sizeof clear);
-    clear.color.f3232[0] = cf(s_clear);
-    clear.color.f3232[1] = cf(s_clear << 8);
-    clear.color.f3232[2] = cf(s_clear << 16);
-    clear.color.f3232[3] = (f32)(s_clear & 0xFFu) / 255.0f;
+    clear.color.float32[0] = cf(s_clear);
+    clear.color.float32[1] = cf(s_clear << 8);
+    clear.color.float32[2] = cf(s_clear << 16);
+    clear.color.float32[3] = (f32)(s_clear & 0xFFu) / 255.0f;
     VkRenderPassBeginInfo rpBegin = {0}; rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpBegin.renderPass = rp;
     rpBegin.framebuffer = fb;
