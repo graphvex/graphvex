@@ -3,7 +3,7 @@
 
 #include "vex.h"
 #include "vulkan/device.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 typedef struct SampledImage SampledImage;
 /* Owner-thread/external synchronization. Borrows Device, which must outlive all

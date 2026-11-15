@@ -1,6 +1,6 @@
 #include "vex.h"
 #include "graphics/image_runs.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 #include <assert.h>
 #include <math.h>

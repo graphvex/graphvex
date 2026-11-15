@@ -1,5 +1,5 @@
 #include "vex.h"
-#include "graphvex/lang/board.h"
+#include "lang/board.h"
 
 #include <stdlib.h>
 

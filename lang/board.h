@@ -3,7 +3,7 @@
 
 #include "vex.h"
 #include "graphics/graphics.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 // graphvex R3 — board.h
 //

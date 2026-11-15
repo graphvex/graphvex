@@ -1,5 +1,5 @@
 #include "vex.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 #include <stdlib.h>
 #include <string.h>

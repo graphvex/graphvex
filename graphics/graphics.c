@@ -2,7 +2,7 @@
 #include "graphics/graphics.h"
 #include "graphics/image_runs.h"
 
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -3,7 +3,7 @@
 
 #include "vex.h"
 #include "vulkan/device.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 typedef struct GpuScope GpuScope;
 enum { GPU_SCOPE_BACKDROP, GPU_SCOPE_FOREGROUND, GPU_SCOPE_ELEMENT };

@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #include "graphics/graphics.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 #include "nio/property_pool.h"
 #include "ui/element.h"
 #include "ui/property.h"

@@ -2,8 +2,8 @@
 #define GRAPHICS_SURFACE_H
 
 #include "vex.h"
-#include "graphvex/lang/image.h"
-#include "graphvex/lang/board.h"
+#include "lang/image.h"
+#include "lang/board.h"
 
 // graphvex R3 — vulkan/surface.h
 //

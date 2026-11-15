@@ -6,7 +6,7 @@
 #include "vex.h"
 #include <stdio.h>
 
-#include "graphvex/lang/board.h"
+#include "lang/board.h"
 
 static int g_fail = 0;
 #define CHECK(cond)                                                        \

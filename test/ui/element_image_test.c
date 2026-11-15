@@ -6,7 +6,7 @@
 #include "vex.h"
 #include <assert.h>
 #include <stdio.h>
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 #include "ui/element.h"
 
 // Verifies image-backed elements paint, update, and reject invalid images.

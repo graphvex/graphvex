@@ -10,7 +10,7 @@
 #define VK_USE_PLATFORM_METAL_EXT 1
 #include <vulkan/vulkan.h>
 
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 #include "vulkan/sampled_image.h"
 #include "quad_vert_spv.h"
 #include "quad_frag_spv.h"

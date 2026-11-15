@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #include "graphics/graphics.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 static int g_fail = 0;
 #define CHECK(cond)                                                        \

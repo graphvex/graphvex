@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "nio/property_pool.h"
-#include "graphvex/lang/image.h"
+#include "lang/image.h"
 
 ;;DEFINITION
 /**
