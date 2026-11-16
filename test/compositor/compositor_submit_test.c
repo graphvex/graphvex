@@ -1,6 +1,6 @@
 #include "vex.h"
 #include "compositor/compositor_submit.h"
-#include "../../compositor/compositor_image.h"
+#include "compositor/compositor_image.h"
 #include "lang/image.h"
 
 #include <assert.h>

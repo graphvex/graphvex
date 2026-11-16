@@ -7,7 +7,7 @@
  * Gaps: OOM injection, automatic tree/scope planner and other platforms. */
 
 #include "vex.h"
-#include "../../compositor/color_pass.h"
+#include "compositor/color_pass.h"
 #include "test_support.h"
 #include <vulkan/vulkan.h>
 #include <assert.h>

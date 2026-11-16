@@ -7,7 +7,7 @@
  * Allocation fault injection and rounded/translucent scenes remain gaps. */
 
 #include "vex.h"
-#include "../../compositor/compositor_scope.h"
+#include "compositor/compositor_scope.h"
 
 #include <assert.h>
 #include <limits.h>

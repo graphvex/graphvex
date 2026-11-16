@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "../../compositor/filter_pool.h"
+#include "compositor/filter_pool.h"
 
 static i32 failures;
 static u32 expectedDiagnostics;

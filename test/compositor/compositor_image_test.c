@@ -5,7 +5,7 @@
  * Allocation failure injection and platform alternatives remain gaps. */
 
 #include "vex.h"
-#include "../../compositor/compositor_image.h"
+#include "compositor/compositor_image.h"
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
