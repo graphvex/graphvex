@@ -2,23 +2,23 @@
 
 ## Constitution Link
 
-gist.md (`../../metadata/gists/preferences/gist.md`) is the compressed law list; all universal laws bind this repository. Read one on demand: `./tools/prefs law "<title>"`. Universal laws are inherited, never restated.
+gist.md (`../../../../metadata/gists/preferences/gist.md`) is the compressed law list; all universal laws bind this repository. Read one on demand: `./tools/prefs law "<title>"`. Universal laws are inherited, never restated.
 
-Tier: core (R3 GPU Driver). Owns: shaders, GPU dispatch, synchronization, graphics language, element tree, widget compositor. Borrows: Vexspoke CPU/behavior, Relational Engine memory/storage.
+Tier: core (GPU Driver). Owns: shaders, GPU dispatch, synchronization, graphics language, element tree, widget compositor. Borrows: Vexspoke CPU/behavior, Relational Engine memory/storage.
 
 ## Exclusive Laws
 
 | Law Title | Scope | Enforcement |
-| **Unified Graphics Abstraction Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **Strict 0xRRGGBBAA Color Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **SPIR-V Shader Deployment Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **Ecosystem Vulkan Safety Nets Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **Seam Canvas Pixel Mapping Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **R3 Graphics Language & Board Compositor Law** | R3 GPU Driver | Mandatory for `graphvex` |
-| **UI Graphics Source Placement Law** | R3 graphics primitives | Mandatory for `graphvex` |
-| **Absolute Rendering & Event Bound Law** | R3 element geometry/composition | Mandatory for `graphvex` |
-| **Ordered Filter & Scatter Composition Law** | R3 widget compositor | Mandatory for `graphvex` |
-| **Independent Scene Cadence Law** | R3 composition/image handoff | Mandatory for `graphvex` |
+| **Unified Graphics Abstraction Law** | core GPU Driver | Mandatory for `graphvex` |
+| **Strict 0xRRGGBBAA Color Law** | core GPU Driver | Mandatory for `graphvex` |
+| **SPIR-V Shader Deployment Law** | core GPU Driver | Mandatory for `graphvex` |
+| **Ecosystem Vulkan Safety Nets Law** | core GPU Driver | Mandatory for `graphvex` |
+| **Seam Canvas Pixel Mapping Law** | core GPU Driver | Mandatory for `graphvex` |
+| **Graphics Language & Board Compositor Law** | core GPU Driver | Mandatory for `graphvex` |
+| **UI Graphics Source Placement Law** | core graphics primitives | Mandatory for `graphvex` |
+| **Absolute Rendering & Event Bound Law** | core element geometry/composition | Mandatory for `graphvex` |
+| **Ordered Filter & Scatter Composition Law** | core widget compositor | Mandatory for `graphvex` |
+| **Independent Scene Cadence Law** | core composition/image handoff | Mandatory for `graphvex` |
 
 ### Unified Graphics Abstraction Law
 
@@ -60,10 +60,10 @@ Tier: core (R3 GPU Driver). Owns: shaders, GPU dispatch, synchronization, graphi
 * Seam `CALayer` frame in logical points; `contentsScale` = `backingScaleFactor` (`2.0` on Retina) so native pixels map 1:1.
 * The seam canvas is the window's only `CAMetalLayer`; no per-pane surfaces or swapchains.
 
-### R3 Graphics Language & Board Compositor Law
+### Graphics Language & Board Compositor Law
 
 * `graphvex` owns the backend-agnostic graphics language, graphical element tree and widget compositor: placement, isolated groups, images, filters, masks, render dependencies, ordered composition.
-* Darling (R4) is the widget interface; it submits Graphvex graphics records, never a competing filter/render compositor.
+* Darling (`core` UI) is the widget interface; it submits Graphvex graphics records, never a competing filter/render compositor.
 * `lang/` owns the graphics vocabulary: `device`, `image`, `filter`, `filter_stack`, `compositor`, `graphics_component`, `element_node`, `transform`.
 * Naming marks the layer: placement type `GraphicsComponent` (graphvex), never `Component` (darling's interface); container `ElementNode` (graphvex), never darling's container.
 * `AUTO` = sentinel with per-class equivalence; `lang/size.h` owns `SIZE_AUTO`; `w == SIZE_AUTO` resolves to the element's AUTO equivalence — its class default.
@@ -73,7 +73,7 @@ Tier: core (R3 GPU Driver). Owns: shaders, GPU dispatch, synchronization, graphi
 
 * Graphical panel/label implementations live under `src/ui/<kind>/`; public vocabulary under `src/lang`.
 * Graphvex owns element-tree composition and filter execution under `src/compositor`.
-* Editing, focus, layout policy, application behavior remain Darling's; Graphvex borrows R2 public contracts only, never Darling headers.
+* Editing, focus, layout policy, application behavior remain Darling's; Graphvex borrows `lifetime` and `vexspoke` (`core`) public contracts only, never Darling headers.
 
 ### Absolute Rendering & Event Bound Law
 
