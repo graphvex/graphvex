@@ -37,12 +37,17 @@ struct PropertyPool {
     Pool *slots;
 };
 
+;;GETTER
+static Pool *PropertyPool_slots(const PropertyPool *pp) { return (*pp).slots; }
+;;SETTER
+static fn PropertyPool_setSlots(PropertyPool *pp, Pool *slots) { (*pp).slots = slots; }
+
 // Creates a typed pool for stable Property records.
 PropertyPool *PropertyPool_0() {
     PropertyPool *pp = calloc(1, sizeof *pp);
     if (!pp) return nullptr;
-    (*pp).slots = Pool_new(sizeof(Property), PROPERTY_POOL_BLOCK_CAP);
-    if (!(*pp).slots) { free(pp); return nullptr; }
+    PropertyPool_setSlots(pp, Pool_new(sizeof(Property), PROPERTY_POOL_BLOCK_CAP));
+    if (!PropertyPool_slots(pp)) { free(pp); return nullptr; }
     return pp;
 }
 
@@ -58,14 +63,14 @@ PropertyPool *PropertyPool_default() {
 // Destroys the pool and all of its backing storage; do not use on the shared default pool.
 fn PropertyPool_destroy(PropertyPool *pool) {
     if (!pool) return;
-    Pool_destroy((*pool).slots);
+    Pool_destroy(PropertyPool_slots(pool));
     free(pool);
 }
 
 // Allocates a stable property slot and copies init, or the default property when init is null.
 Property *PropertyPool_alloc(PropertyPool *pool, const Property *init) {
     if (!pool) return nullptr;
-    Property *p = Pool_alloc((*pool).slots);
+    Property *p = Pool_alloc(PropertyPool_slots(pool));
     if (!p) return nullptr;
     *p = init ? *init : Property_default();
     return p;
@@ -73,10 +78,10 @@ Property *PropertyPool_alloc(PropertyPool *pool, const Property *init) {
 
 // Returns a property slot to its pool; the pointer must belong to that pool.
 fn PropertyPool_release(PropertyPool *pool, Property *property) {
-    if (pool && property) Pool_release((*pool).slots, property);
+    if (pool && property) Pool_release(PropertyPool_slots(pool), property);
 }
 
 // Returns the number of outstanding property slots, or zero for null.
 u32 PropertyPool_live(const PropertyPool *pool) {
-    return pool ? Pool_live((*pool).slots) : 0u;
+    return pool ? Pool_live(PropertyPool_slots(pool)) : 0u;
 }
