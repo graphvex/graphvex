@@ -15,15 +15,26 @@ typedef struct RunsState {
     Color color;
 } RunsState;
 
+;;GETTER
+static u32 RunsState_count(const RunsState *s) { return (*s).count; }
+;;SETTER
+static fn RunsState_setCount(RunsState *s, u32 count) { (*s).count = count; }
+;;GETTER
+static bool RunsState_accept(const RunsState *s) { return (*s).accept; }
+;;SETTER
+static fn RunsState_setFirst(RunsState *s, Rect first) { (*s).first = first; }
+;;SETTER
+static fn RunsState_setColor(RunsState *s, Color color) { (*s).color = color; }
+
 // Records each visited image run and color into the supplied test state.
 static bool record(Rect run, Color color, any userdata) {
     RunsState *state = userdata;
-    if (!(*state).count) {
-        (*state).first = run;
-        (*state).color = color;
+    if (!RunsState_count(state)) {
+        RunsState_setFirst(state, run);
+        RunsState_setColor(state, color);
     }
-    ++(*state).count;
-    return (*state).accept;
+    RunsState_setCount(state, RunsState_count(state) + 1);
+    return RunsState_accept(state);
 }
 
 // Tests run visitation, clipping, format rejection, and callback failure.
