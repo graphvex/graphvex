@@ -9,6 +9,21 @@
 #include "nio/property_pool.h"
 #include "ui/property.h"
 
+;;GETTER
+static Color Property_background(const Property *p) { return (*p).background; }
+;;GETTER
+static f32 Property_radius(const Property *p) { return (*p).radius; }
+;;GETTER
+static f32 Property_x(const Property *p) { return (*p).x; }
+;;SETTER
+static fn Property_setX(Property *p, f32 x) { (*p).x = x; }
+;;GETTER
+static f32 Property_y(const Property *p) { return (*p).y; }
+;;GETTER
+static f32 Property_rawW(const Property *p) { return (*p).w; }
+;;GETTER
+static f32 Property_rawH(const Property *p) { return (*p).h; }
+
 static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -27,8 +42,8 @@ i32 main() {
     // default
     Property *a = PropertyPool_alloc(pool, nullptr);
     CHECK(a != nullptr);
-    CHECK((*a).background == COLOR_WHITE);
-    CHECK((*a).radius == 0.0f);
+    CHECK(Property_background(a) == COLOR_WHITE);
+    CHECK(Property_radius(a) == 0.0f);
 
     // explicit
     Property bound = {0};
@@ -36,27 +51,27 @@ i32 main() {
     bound.background = COLOR_RGBA(120, 190, 220, 255);
     Property *b = PropertyPool_alloc(pool, &bound);
     CHECK(b != nullptr);
-    CHECK((*b).x == 10 && (*b).y == 20 && (*b).w == 100 && (*b).h == 50);
-    CHECK((*b).radius == 12 && (*b).background == COLOR_RGBA(120, 190, 220, 255));
+    CHECK(Property_x(b) == 10 && Property_y(b) == 20 && Property_rawW(b) == 100 && Property_rawH(b) == 50);
+    CHECK(Property_radius(b) == 12 && Property_background(b) == COLOR_RGBA(120, 190, 220, 255));
     CHECK(PropertyPool_live(pool) == 2);
 
     // sharing: two Elements point at ONE record; a write through either is seen
     Property *shared = b;
-    (*shared).x = 42;
-    CHECK((*b).x == 42);
+    Property_setX(shared, 42);
+    CHECK(Property_x(b) == 42);
 
     // grow well past the first 64-slot block; earlier records stay put
     Property *kept = a;
     for (i32 i = 0; i < 200; i++) CHECK(PropertyPool_alloc(pool, &bound) != nullptr);
     CHECK(PropertyPool_live(pool) == 202);
-    CHECK((*kept).background == COLOR_WHITE);   // never moved
+    CHECK(Property_background(kept) == COLOR_WHITE);   // never moved
 
     PropertyPool_release(pool, b);
     CHECK(PropertyPool_live(pool) == 201);
     // release then alloc reuses the slot, re-defaulted
     Property *reused = PropertyPool_alloc(pool, nullptr);
     CHECK(reused == b);
-    CHECK((*reused).background == COLOR_WHITE && (*reused).x == 0);
+    CHECK(Property_background(reused) == COLOR_WHITE && Property_x(reused) == 0);
 
     PropertyPool_destroy(pool);
     printf("property_pool_test: ALL PASS\n");
