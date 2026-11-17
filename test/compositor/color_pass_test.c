@@ -30,13 +30,24 @@ typedef struct TestImage {
     VkFramebuffer framebuffer;
 } TestImage;
 
+;;GETTER
+static VkImage TestImage_image(const TestImage *t) { return (*t).image; }
+;;GETTER
+static VkDeviceMemory TestImage_memory(const TestImage *t) { return (*t).memory; }
+;;GETTER
+static VkImageView TestImage_view(const TestImage *t) { return (*t).view; }
+;;GETTER
+static VkFramebuffer TestImage_framebuffer(const TestImage *t) { return (*t).framebuffer; }
+;;GETTER
+static VkMemoryPropertyFlags VkMemoryType_propertyFlags(const VkMemoryType *t) { return (*t).propertyFlags; }
+
 // Finds a compatible Vulkan memory type for the requested properties.
 static u32 memoryType(u32 bits, VkMemoryPropertyFlags flags) {
     VkPhysicalDeviceMemoryProperties properties;
     vkGetPhysicalDeviceMemoryProperties(physical, &properties);
     for (u32 i = 0; i < properties.memoryTypeCount; ++i) {
         VkMemoryType *type = &properties.memoryTypes[i];
-        if ((bits & (1u << i)) && ((*type).propertyFlags & flags) == flags)
+        if ((bits & (1u << i)) && (VkMemoryType_propertyFlags(type) & flags) == flags)
             return i;
     }
     assert(false && "required test memory type unavailable");
@@ -86,10 +97,10 @@ static TestImage image(VkRenderPass pass) {
 }
 // Releases the image fixture's framebuffer, view, image, and memory.
 static fn destroyImage(TestImage *self) {
-    vkDestroyFramebuffer(device, (*self).framebuffer, nullptr);
-    vkDestroyImageView(device, (*self).view, nullptr);
-    vkDestroyImage(device, (*self).image, nullptr);
-    vkFreeMemory(device, (*self).memory, nullptr);
+    vkDestroyFramebuffer(device, TestImage_framebuffer(self), nullptr);
+    vkDestroyImageView(device, TestImage_view(self), nullptr);
+    vkDestroyImage(device, TestImage_image(self), nullptr);
+    vkFreeMemory(device, TestImage_memory(self), nullptr);
 }
 // Records an image layout transition and its access dependency.
 static fn transition(VkCommandBuffer cmd, VkImage target, VkImageLayout old,
@@ -151,7 +162,7 @@ static fn oracle(const f32 *p, FilterToken token, f32 *out) {
 static fn draw(ColorPass *pass, VkCommandBuffer cmd, VkRenderPass render,
                  TestImage *target, VkDescriptorSet descriptor, FilterToken token) {
     VkRenderPassBeginInfo begin = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = render, .framebuffer = (*target).framebuffer,
+        .renderPass = render, .framebuffer = TestImage_framebuffer(target),
         .renderArea = {{0, 0}, {WIDTH, HEIGHT}}};
     vkCmdBeginRenderPass(cmd, &begin, VK_SUBPASS_CONTENTS_INLINE);
     assert(ColorPass_record(pass, (any) cmd, (any) descriptor, WIDTH, HEIGHT, token));
@@ -287,7 +298,7 @@ i32 main() {
             draw(pass, cmd, render, &second, descriptors[1], last);
             final = &second;
         }
-        vkCmdCopyImageToBuffer(cmd, (*final).image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback, 1, &copy);
+        vkCmdCopyImageToBuffer(cmd, TestImage_image(final), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback, 1, &copy);
         VkBufferMemoryBarrier host = {.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
             .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,

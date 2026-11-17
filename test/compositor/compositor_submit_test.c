@@ -6,6 +6,13 @@
 #include <assert.h>
 #include <limits.h>
 
+;;GETTER
+static i32 DrawCmd_kind(const DrawCmd *cmd) { return (*cmd).kind; }
+;;GETTER
+static const Image *DrawCmd_image(const DrawCmd *cmd) { return (*cmd).image; }
+;;GETTER
+static Rect DrawCmd_dst(const DrawCmd *cmd) { return (*cmd).dst; }
+
 // Owns compositor_submit.{h,c}: null/empty, exact placement, borrowed output
 // lifetime, blur halo and raster submission. No GPU, OOM
 // injection, concurrency or end-to-end linear-light presentation proof.
@@ -43,9 +50,9 @@ i32 main() {
 
     const DrawCmd *command = DisplayList_cmds(list);
 
-    assert((*command).kind == CMD_IMAGE && (*command).image == output);
+    assert(DrawCmd_kind(command) == CMD_IMAGE && DrawCmd_image(command) == output);
 
-    Rect dst = (*command).dst;
+    Rect dst = DrawCmd_dst(command);
 
     assert(dst.x == 4 && dst.y == 5);
 
