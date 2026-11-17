@@ -8,6 +8,9 @@
 
 #include "vulkan/vk_batch.h"
 
+;;GETTER
+static bytes VkBatch_count(const VkBatch *b) { return (*b).count; }
+
 static i32 g_fail = 0;
 #define CHECK(cond)                                                        \
     do {                                                                   \
@@ -21,20 +24,20 @@ static i32 g_fail = 0;
 i32 main() {
     VkBatch *b = VkBatch();
     CHECK(b != nullptr);
-    CHECK((*b).count == 0);
+    CHECK(VkBatch_count(b) == 0);
     CHECK(VkBatch_vertices(b, nullptr, 0) == 0);
 
     // a rect appends one quad; an empty rect is ignored
     VkBatch_rect(b, (Rect){1, 2, 3, 4}, &(Brush){COLOR_WHITE, 0, 0, 0, 0});
-    CHECK((*b).count == 1);
+    CHECK(VkBatch_count(b) == 1);
     VkBatch_rect(b, (Rect){0, 0, 0, 5}, &(Brush){COLOR_WHITE, 0, 0, 0, 0});
-    CHECK((*b).count == 1);
+    CHECK(VkBatch_count(b) == 1);
     VkBatch_rect(b, (Rect){0, 0, 5, 0}, nullptr);   // null brush ignored
-    CHECK((*b).count == 1);
+    CHECK(VkBatch_count(b) == 1);
 
     // a glyph appends a mode-2 quad with its atlas layer
     VkBatch_glyph(b, (Rect){0, 0, 8, 8}, 2, COLOR_BLACK);
-    CHECK((*b).count == 2);
+    CHECK(VkBatch_count(b) == 2);
 
     // 6 vertices per quad; the query never writes when capacity is i16
     CHECK(VkBatch_vertices(b, nullptr, 0) == 12);
@@ -59,7 +62,7 @@ i32 main() {
     Image *img = Image_2(16, 16);
     Image_setLayer(img, 1);
     VkBatch_image(b, img, (Rect){0, 0, 16, 16}, (Rect){0, 0, 32, 32});
-    CHECK((*b).count == 3);
+    CHECK(VkBatch_count(b) == 3);
     CHECK(VkBatch_vertices(b, nullptr, 0) == 18);
     VkVertex v3[18];
     CHECK(VkBatch_vertices(b, v3, 18) == 18);
@@ -71,12 +74,12 @@ i32 main() {
 
     // null image / null batch are no-ops
     VkBatch_image(b, nullptr, (Rect){0, 0, 1, 1}, (Rect){0, 0, 1, 1});
-    CHECK((*b).count == 3);
+    CHECK(VkBatch_count(b) == 3);
     VkBatch_rect(nullptr, (Rect){0, 0, 1, 1}, &(Brush){COLOR_WHITE, 0, 0, 0, 0});
 
     // clear resets; free is null-safe
     VkBatch_clear(b);
-    CHECK((*b).count == 0);
+    CHECK(VkBatch_count(b) == 0);
     VkBatch_free(b);
     VkBatch_free(nullptr);
 
