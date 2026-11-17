@@ -32,6 +32,27 @@ typedef struct Slot {
     FilterToken tokens[COMPOSITOR_MAX_FILTERS];
 } Slot;
 
+;;GETTER
+static inline u32 Slot_references(const Slot *self) { return (*self).references; }
+;;SETTER
+static inline fn Slot_setReferences(Slot *self, u32 v) { (*self).references = v; }
+;;GETTER
+static inline u16 Slot_generation(const Slot *self) { return (*self).generation; }
+;;SETTER
+static inline fn Slot_setGeneration(Slot *self, u16 v) { (*self).generation = v; }
+;;GETTER
+static inline bytes Slot_count(const Slot *self) { return (*self).count; }
+;;SETTER
+static inline fn Slot_setCount(Slot *self, bytes v) { (*self).count = v; }
+;;GETTER
+static inline bool Slot_retired(const Slot *self) { return (*self).retired; }
+;;SETTER
+static inline fn Slot_setRetired(Slot *self, bool v) { (*self).retired = v; }
+;;GETTER
+static inline FilterToken *Slot_tokensMut(Slot *self) { return (*self).tokens; }
+;;GETTER
+static inline const FilterToken *Slot_tokens(const Slot *self) { return (*self).tokens; }
+
 _Static_assert(FILTER_POOL_MAX_CAPACITY <= SIZE_MAX / sizeof(Slot),
                "configured slot budget must fit allocation size");
 
@@ -41,6 +62,17 @@ struct FilterPool {
     u32 live;
     Slot *slots;
 };
+
+;;SETTER
+static inline fn FilterPool_setCapacity(FilterPool *self, u32 v) { (*self).capacity = v; }
+;;SETTER
+static inline fn FilterPool_setMaxRecipeFilters(FilterPool *self, u32 v) { (*self).maxRecipeFilters = v; }
+;;SETTER
+static inline fn FilterPool_setLive(FilterPool *self, u32 v) { (*self).live = v; }
+;;GETTER
+static inline Slot *FilterPool_slots(const FilterPool *self) { return (*self).slots; }
+;;SETTER
+static inline fn FilterPool_setSlots(FilterPool *self, Slot *v) { (*self).slots = v; }
 
 // Reports a rejected cold operation and returns its status unchanged.
 static FilterPoolStatus reject(FilterPoolStatus status) {
@@ -59,10 +91,10 @@ static FilterPoolStatus lookup(const FilterPool *pool, FilterToken token,
     u16 generation = (u16) (payload >> 32);
     if (!generation)
         return FILTER_POOL_INVALID;
-    if (index >= (*pool).capacity)
+    if (index >= FilterPool_capacity(pool))
         return FILTER_POOL_STALE;
-    Slot *slot = &(*pool).slots[index];
-    if (!(*slot).references || (*slot).generation != generation)
+    Slot *slot = &FilterPool_slots(pool)[index];
+    if (!Slot_references(slot) || Slot_generation(slot) != generation)
         return FILTER_POOL_STALE;
     *out = slot;
     return FILTER_POOL_OK;
@@ -83,9 +115,9 @@ FilterPoolStatus FilterPool_2(FilterPoolConfig config, FilterPool **out) {
         free(pool);
         return reject(FILTER_POOL_NO_MEMORY);
     }
-    (*pool).capacity = config.capacity;
-    (*pool).maxRecipeFilters = config.maxRecipeFilters;
-    (*pool).slots = slots;
+    FilterPool_setCapacity(pool, config.capacity);
+    FilterPool_setMaxRecipeFilters(pool, config.maxRecipeFilters);
+    FilterPool_setSlots(pool, slots);
     for (u32 i = 0; i < config.capacity; ++i)
         slots[i].generation = 1;
     *out = pool;
@@ -96,9 +128,9 @@ FilterPoolStatus FilterPool_2(FilterPoolConfig config, FilterPool **out) {
 FilterPoolStatus FilterPool_destroy(FilterPool *pool) {
     if (!pool)
         return FILTER_POOL_OK;
-    if ((*pool).live)
+    if (FilterPool_live(pool))
         return reject(FILTER_POOL_BUSY);
-    free((*pool).slots);
+    free(FilterPool_slots(pool));
     free(pool);
     return FILTER_POOL_OK;
 }
@@ -108,7 +140,7 @@ FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
                                   bytes count, FilterToken *out) {
     if (!pool || !out || (count && !tokens))
         return reject(FILTER_POOL_INVALID);
-    if (count > (*pool).maxRecipeFilters)
+    if (count > FilterPool_maxRecipeFilters(pool))
         return reject(FILTER_POOL_LIMIT);
     for (bytes i = 0; i < count; ++i)
         if (Filter_id(tokens[i]) == FILTER_POOL_ID)
@@ -118,17 +150,17 @@ FilterPoolStatus FilterPool_insert(FilterPool *pool, const FilterToken *tokens,
                                                      tokens, count, &unused);
     if (status != COMPOSITOR_OK)
         return reject((FilterPoolStatus) status);
-    for (u32 i = 0; i < (*pool).capacity; ++i) {
-        Slot *slot = &(*pool).slots[i];
-        if ((*slot).references || (*slot).retired)
+    for (u32 i = 0; i < FilterPool_capacity(pool); ++i) {
+        Slot *slot = &FilterPool_slots(pool)[i];
+        if (Slot_references(slot) || Slot_retired(slot))
             continue;
         if (count)
-            memcpy((*slot).tokens, tokens, count * sizeof *tokens);
-        (*slot).count = count;
-        (*slot).references = 1;
-        ++(*pool).live;
+            memcpy(Slot_tokensMut(slot), tokens, count * sizeof *tokens);
+        Slot_setCount(slot, count);
+        Slot_setReferences(slot, 1);
+        FilterPool_setLive(pool, FilterPool_live(pool) + 1);
         *out = ((u64) FILTER_POOL_ID << 48) |
-               ((u64) (*slot).generation << 32) | i;
+               ((u64) Slot_generation(slot) << 32) | i;
         return FILTER_POOL_OK;
     }
     return reject(FILTER_POOL_LIMIT);
@@ -140,9 +172,9 @@ FilterPoolStatus FilterPool_retain(FilterPool *pool, FilterToken token) {
     FilterPoolStatus status = lookup(pool, token, &slot);
     if (status != FILTER_POOL_OK)
         return reject(status);
-    if ((*slot).references == UINT32_MAX)
+    if (Slot_references(slot) == UINT32_MAX)
         return reject(FILTER_POOL_LIMIT);
-    ++(*slot).references;
+    Slot_setReferences(slot, Slot_references(slot) + 1);
     return FILTER_POOL_OK;
 }
 
@@ -152,14 +184,16 @@ FilterPoolStatus FilterPool_release(FilterPool *pool, FilterToken token) {
     FilterPoolStatus status = lookup(pool, token, &slot);
     if (status != FILTER_POOL_OK)
         return reject(status);
-    if (--(*slot).references)
+    u32 nextRefs = Slot_references(slot) - 1;
+    Slot_setReferences(slot, nextRefs);
+    if (nextRefs)
         return FILTER_POOL_OK;
-    --(*pool).live;
-    (*slot).count = 0;
-    if ((*slot).generation == UINT16_MAX)
-        (*slot).retired = true;
+    FilterPool_setLive(pool, FilterPool_live(pool) - 1);
+    Slot_setCount(slot, 0);
+    if (Slot_generation(slot) == UINT16_MAX)
+        Slot_setRetired(slot, true);
     else
-        ++(*slot).generation;
+        Slot_setGeneration(slot, Slot_generation(slot) + 1);
     return FILTER_POOL_OK;
 }
 
@@ -171,13 +205,14 @@ FilterPoolStatus FilterPool_snapshot(const FilterPool *pool, FilterToken token,
     FilterPoolStatus status = lookup(pool, token, &slot);
     if (status != FILTER_POOL_OK)
         return reject(status);
-    if (!outCount || ((*slot).count && !outTokens))
+    bytes count = Slot_count(slot);
+    if (!outCount || (count && !outTokens))
         return reject(FILTER_POOL_INVALID);
-    if (capacity < (*slot).count)
+    if (capacity < count)
         return reject(FILTER_POOL_LIMIT);
-    if ((*slot).count)
-        memcpy(outTokens, (*slot).tokens, (*slot).count * sizeof *outTokens);
-    *outCount = (*slot).count;
+    if (count)
+        memcpy(outTokens, Slot_tokens(slot), count * sizeof *outTokens);
+    *outCount = count;
     return FILTER_POOL_OK;
 }
 
@@ -203,11 +238,12 @@ FilterPoolStatus FilterPool_compose(const FilterPool *pool,
         FilterPoolStatus status = lookup(pool, tokens[i], &slot);
         if (status != FILTER_POOL_OK)
             return reject(status);
-        if ((*slot).count > COMPOSITOR_MAX_FILTERS - count)
+        bytes slotCount = Slot_count(slot);
+        if (slotCount > COMPOSITOR_MAX_FILTERS - count)
             return reject(FILTER_POOL_LIMIT);
-        if ((*slot).count)
-            memcpy(expanded + count, (*slot).tokens, (*slot).count * sizeof *expanded);
-        count += (*slot).count;
+        if (slotCount)
+            memcpy(expanded + count, Slot_tokens(slot), slotCount * sizeof *expanded);
+        count += slotCount;
     }
     return reject((FilterPoolStatus) Compositor_compose(sources, sourceCount, expanded, count, out));
 }
@@ -240,11 +276,11 @@ static fn format(const FilterPool *pool, bool structure, char *dest, bytes cap,
     else if (structure)
         length = snprintf(dest, cap,
             "FilterPool{capacity=%u,maxRecipeFilters=%u,live=%u,slots=%p}",
-            (*pool).capacity, (*pool).maxRecipeFilters, (*pool).live,
-            (any) (*pool).slots);
+            FilterPool_capacity(pool), FilterPool_maxRecipeFilters(pool), FilterPool_live(pool),
+            (any) FilterPool_slots(pool));
     else
         length = snprintf(dest, cap, "FilterPool(live=%u,capacity=%u)",
-                          (*pool).live, (*pool).capacity);
+                          FilterPool_live(pool), FilterPool_capacity(pool));
     if (outTruncated)
         *outTruncated = length < 0 || (bytes) length >= cap;
 }

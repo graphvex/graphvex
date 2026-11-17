@@ -28,6 +28,23 @@ struct ColorPass {
     VkPipeline pipeline;
 };
 
+;;GETTER
+static inline VkDevice ColorPass_device(const ColorPass *self) { return (*self).device; }
+;;SETTER
+static inline fn ColorPass_setDevice(ColorPass *self, VkDevice v) { (*self).device = v; }
+;;GETTER
+static inline VkDescriptorSetLayout ColorPass_descriptorLayout(const ColorPass *self) { return (*self).descriptorLayout; }
+;;GETTER
+static inline VkDescriptorSetLayout *ColorPass_descriptorLayoutMut(ColorPass *self) { return &(*self).descriptorLayout; }
+;;GETTER
+static inline VkPipelineLayout ColorPass_layout(const ColorPass *self) { return (*self).layout; }
+;;GETTER
+static inline VkPipelineLayout *ColorPass_layoutMut(ColorPass *self) { return &(*self).layout; }
+;;GETTER
+static inline VkPipeline ColorPass_pipeline(const ColorPass *self) { return (*self).pipeline; }
+;;GETTER
+static inline VkPipeline *ColorPass_pipelineMut(ColorPass *self) { return &(*self).pipeline; }
+
 // Checks supported color-filter IDs and their finite, operation-specific payload ranges.
 static bool tokenValid(FilterToken token) {
     u16 id = Filter_id(token);
@@ -67,12 +84,12 @@ ColorPass *ColorPass_zero() { return ColorPass_0(); }
 fn ColorPass_destroy(ColorPass *self) {
     if (!self)
         return;
-    if ((*self).pipeline)
-        vkDestroyPipeline((*self).device, (*self).pipeline, nullptr);
-    if ((*self).layout)
-        vkDestroyPipelineLayout((*self).device, (*self).layout, nullptr);
-    if ((*self).descriptorLayout)
-        vkDestroyDescriptorSetLayout((*self).device, (*self).descriptorLayout, nullptr);
+    if (ColorPass_pipeline(self))
+        vkDestroyPipeline(ColorPass_device(self), ColorPass_pipeline(self), nullptr);
+    if (ColorPass_layout(self))
+        vkDestroyPipelineLayout(ColorPass_device(self), ColorPass_layout(self), nullptr);
+    if (ColorPass_descriptorLayout(self))
+        vkDestroyDescriptorSetLayout(ColorPass_device(self), ColorPass_descriptorLayout(self), nullptr);
     free(self);
 }
 
@@ -92,15 +109,15 @@ ColorPass *ColorPass_6(Device *device, any nativeRenderPass,
         THROW("ColorPass allocation failed");
         return nullptr;
     }
-    (*self).device = (VkDevice) Device_native(device);
+    ColorPass_setDevice(self, (VkDevice) Device_native(device));
     VkShaderModule vertex = VK_NULL_HANDLE, fragment = VK_NULL_HANDLE;
     VkShaderModuleCreateInfo sm = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .codeSize = vertexBytes, .pCode = vertexWords};
-    VkResult result = vkCreateShaderModule((*self).device, &sm, nullptr, &vertex);
+    VkResult result = vkCreateShaderModule(ColorPass_device(self), &sm, nullptr, &vertex);
     if (result != VK_SUCCESS)
         goto failed;
     sm.codeSize = fragmentBytes; sm.pCode = fragmentWords;
-    result = vkCreateShaderModule((*self).device, &sm, nullptr, &fragment);
+    result = vkCreateShaderModule(ColorPass_device(self), &sm, nullptr, &fragment);
     if (result != VK_SUCCESS)
         goto failed;
     VkDescriptorSetLayoutBinding binding = {.binding = 0,
@@ -108,14 +125,14 @@ ColorPass *ColorPass_6(Device *device, any nativeRenderPass,
         .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT};
     VkDescriptorSetLayoutCreateInfo dl = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = 1, .pBindings = &binding};
-    result = vkCreateDescriptorSetLayout((*self).device, &dl, nullptr, &(*self).descriptorLayout);
+    result = vkCreateDescriptorSetLayout(ColorPass_device(self), &dl, nullptr, ColorPass_descriptorLayoutMut(self));
     if (result != VK_SUCCESS)
         goto failed;
     VkPushConstantRange push = {.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT, .size = 8};
     VkPipelineLayoutCreateInfo pl = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1, .pSetLayouts = &(*self).descriptorLayout,
+        .setLayoutCount = 1, .pSetLayouts = ColorPass_descriptorLayoutMut(self),
         .pushConstantRangeCount = 1, .pPushConstantRanges = &push};
-    result = vkCreatePipelineLayout((*self).device, &pl, nullptr, &(*self).layout);
+    result = vkCreatePipelineLayout(ColorPass_device(self), &pl, nullptr, ColorPass_layoutMut(self));
     if (result != VK_SUCCESS)
         goto failed;
     VkPipelineShaderStageCreateInfo stages[] = {
@@ -142,18 +159,18 @@ ColorPass *ColorPass_6(Device *device, any nativeRenderPass,
         .stageCount = 2, .pStages = stages, .pVertexInputState = &vi,
         .pInputAssemblyState = &ia, .pViewportState = &vp, .pRasterizationState = &rs,
         .pMultisampleState = &ms, .pColorBlendState = &cb, .pDynamicState = &dy,
-        .layout = (*self).layout, .renderPass = (VkRenderPass) nativeRenderPass};
-    result = vkCreateGraphicsPipelines((*self).device, VK_NULL_HANDLE, 1, &gp, nullptr, &(*self).pipeline);
+        .layout = ColorPass_layout(self), .renderPass = (VkRenderPass) nativeRenderPass};
+    result = vkCreateGraphicsPipelines(ColorPass_device(self), VK_NULL_HANDLE, 1, &gp, nullptr, ColorPass_pipelineMut(self));
     if (result != VK_SUCCESS)
         goto failed;
-    vkDestroyShaderModule((*self).device, fragment, nullptr);
-    vkDestroyShaderModule((*self).device, vertex, nullptr);
+    vkDestroyShaderModule(ColorPass_device(self), fragment, nullptr);
+    vkDestroyShaderModule(ColorPass_device(self), vertex, nullptr);
     return self;
 failed:
     if (fragment)
-        vkDestroyShaderModule((*self).device, fragment, nullptr);
+        vkDestroyShaderModule(ColorPass_device(self), fragment, nullptr);
     if (vertex)
-        vkDestroyShaderModule((*self).device, vertex, nullptr);
+        vkDestroyShaderModule(ColorPass_device(self), vertex, nullptr);
     ColorPass_destroy(self);
     THROW("ColorPass Vulkan creation failed: %d", (i32) result);
     return nullptr;
@@ -161,7 +178,7 @@ failed:
 
 // Returns the owned descriptor-set layout as an opaque handle for descriptor allocation.
 any ColorPass_getDescriptorLayout(const ColorPass *self) {
-    return self ? (any) (*self).descriptorLayout : nullptr;
+    return self ? (any) ColorPass_descriptorLayout(self) : nullptr;
 }
 // Records viewport, bindings, filter constants, and a fullscreen triangle into the command buffer.
 bool ColorPass_record(const ColorPass *self, any nativeCommandBuffer,
@@ -178,9 +195,9 @@ bool ColorPass_record(const ColorPass *self, any nativeCommandBuffer,
     VkRect2D scissor = {{0, 0}, {width, height}};
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, (*self).pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, (*self).layout, 0, 1, &ds, 0, nullptr);
-    vkCmdPushConstants(cmd, (*self).layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof push, push);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ColorPass_pipeline(self));
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ColorPass_layout(self), 0, 1, &ds, 0, nullptr);
+    vkCmdPushConstants(cmd, ColorPass_layout(self), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof push, push);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     return true;
 }
@@ -196,7 +213,7 @@ static fn format(const ColorPass *self, bool structure, char *dest, bytes cap, b
         count = snprintf(dest, cap, "nullptr");
     else if (structure)
         count = snprintf(dest, cap, "ColorPass{device=%p,descriptorLayout=%p,layout=%p,pipeline=%p}",
-            (any) (*self).device, (any) (*self).descriptorLayout, (any) (*self).layout, (any) (*self).pipeline);
+            (any) ColorPass_device(self), (any) ColorPass_descriptorLayout(self), (any) ColorPass_layout(self), (any) ColorPass_pipeline(self));
     else
         count = snprintf(dest, cap, "ColorPass(Vulkan texture color)");
     if (outTruncated)

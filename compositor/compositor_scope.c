@@ -59,20 +59,23 @@ CompositorStatus Compositor_crop(const CompositorSurface *source,
 
 // Validates scope inputs and verifies backdrop coverage for every requested filter tap.
 static CompositorStatus sceneCheck(const CompositorScopeDesc *desc) {
-    if (!desc || ((*desc).foregroundCount && !(*desc).foreground))
+    if (!desc)
         return COMPOSITOR_INVALID;
-    if ((*desc).radius)
+    CompositorScopeDesc d = *desc;
+    if (d.foregroundCount && !d.foreground)
+        return COMPOSITOR_INVALID;
+    if (d.radius)
         return COMPOSITOR_UNSUPPORTED;
-    if ((*desc).foregroundCount > COMPOSITOR_MAX_SOURCES)
+    if (d.foregroundCount > COMPOSITOR_MAX_SOURCES)
         return COMPOSITOR_LIMIT;
-    CompositorStatus status = CompositorSurface_validate((*desc).priorScene);
+    CompositorStatus status = CompositorSurface_validate(d.priorScene);
     if (status != COMPOSITOR_OK)
         return status;
-    CompositorBounds prior = CompositorSurface_bounds((*desc).priorScene);
-    CompositorBounds panel = (*desc).panelBounds;
+    CompositorBounds prior = CompositorSurface_bounds(d.priorScene);
+    CompositorBounds panel = d.panelBounds;
     if (!prior.width || !panel.width || !panel.height)
         return COMPOSITOR_INVALID;
-    const f32 *pixels = CompositorSurface_constPixels((*desc).priorScene);
+    const f32 *pixels = CompositorSurface_constPixels(d.priorScene);
     for (bytes i = 0; i < (bytes) prior.width * prior.height; ++i)
         if (pixels[4 * i + 3] != 1)
             return COMPOSITOR_UNSUPPORTED;
@@ -82,20 +85,20 @@ static CompositorStatus sceneCheck(const CompositorScopeDesc *desc) {
         return status;
     if (!contains(prior, panel))
         return COMPOSITOR_LIMIT;
-    status = Compositor_filterBounds(panel, (*desc).backdropFilters,
-                                     (*desc).backdropFilterCount, &support);
+    status = Compositor_filterBounds(panel, d.backdropFilters,
+                                     d.backdropFilterCount, &support);
     if (status != COMPOSITOR_OK)
         return status;
     if (!contains(prior, support))
         return COMPOSITOR_LIMIT;
     /* Validate even an empty foreground's stack; apply performs source-specific
      * support/work checks after isolation. Element starts at panel bounds. */
-    status = Compositor_filterBounds((CompositorBounds) {0}, (*desc).foregroundFilters,
-                                     (*desc).foregroundFilterCount, &support);
+    status = Compositor_filterBounds((CompositorBounds) {0}, d.foregroundFilters,
+                                     d.foregroundFilterCount, &support);
     if (status != COMPOSITOR_OK)
         return status;
-    return Compositor_filterBounds(panel, (*desc).elementFilters,
-                                    (*desc).elementFilterCount, &support);
+    return Compositor_filterBounds(panel, d.elementFilters,
+                                    d.elementFilterCount, &support);
 }
 
 /* Destination is a private opaque prior copy. No full-scene source-over call:
@@ -138,68 +141,69 @@ CompositorStatus Compositor_scopedScene(const CompositorScopeDesc *desc,
     CompositorStatus status = sceneCheck(desc);
     if (status != COMPOSITOR_OK)
         return status;
+    CompositorScopeDesc d = *desc;
     CompositorSurface *snapshot = nullptr, *backdrop = nullptr, *panel = nullptr;
     CompositorSurface *foreground = nullptr, *clippedForeground = nullptr;
     CompositorSurface *clippedDecoration = nullptr, *filteredPanel = nullptr, *scene = nullptr;
-    status = CompositorSurface_create((*desc).panelBounds, &panel);
+    status = CompositorSurface_create(d.panelBounds, &panel);
     if (status != COMPOSITOR_OK)
         goto cleanup;
-    if ((*desc).backdropFilterCount) {
+    if (d.backdropFilterCount) {
         CompositorBounds halo;
-        status = Compositor_filterBounds((*desc).panelBounds, (*desc).backdropFilters,
-                                         (*desc).backdropFilterCount, &halo);
+        status = Compositor_filterBounds(d.panelBounds, d.backdropFilters,
+                                         d.backdropFilterCount, &halo);
         if (status != COMPOSITOR_OK)
             goto cleanup;
-        status = Compositor_crop((*desc).priorScene, halo, &snapshot);
+        status = Compositor_crop(d.priorScene, halo, &snapshot);
         if (status != COMPOSITOR_OK)
             goto cleanup;
         const CompositorSurface *sources[] = {snapshot};
-        status = Compositor_compose(sources, 1, (*desc).backdropFilters,
-                                    (*desc).backdropFilterCount, &backdrop);
+        status = Compositor_compose(sources, 1, d.backdropFilters,
+                                    d.backdropFilterCount, &backdrop);
         if (status != COMPOSITOR_OK)
             goto cleanup;
         CompositorSurface_destroy(snapshot);
         snapshot = nullptr;
-        status = Compositor_crop(backdrop, (*desc).panelBounds, &snapshot);
+        status = Compositor_crop(backdrop, d.panelBounds, &snapshot);
         if (status != COMPOSITOR_OK)
             goto cleanup;
         /* Prior snapshot is opaque and includes all taps. Fixed scatter's
          * alpha sum can round slightly below one; enforce exact coverage 1
          * in the proven fully supported crop, not edge renormalization. */
         f32 *p = CompositorSurface_pixels(snapshot);
-        CompositorBounds b = (*desc).panelBounds;
+        CompositorBounds b = d.panelBounds;
         for (bytes i = 0; i < (bytes) b.width * b.height; ++i)
             p[4 * i + 3] = 1;
         CompositorSurface_destroy(panel);
         panel = snapshot;
         snapshot = nullptr;
     }
-    if ((*desc).decoration) {
-        status = Compositor_crop((*desc).decoration, (*desc).panelBounds, &clippedDecoration);
+    if (d.decoration) {
+        status = Compositor_crop(d.decoration, d.panelBounds, &clippedDecoration);
         if (status != COMPOSITOR_OK)
             goto cleanup;
         status = Compositor_sourceOver(clippedDecoration, panel);
         if (status != COMPOSITOR_OK)
             goto cleanup;
     }
-    status = Compositor_compose((*desc).foreground, (*desc).foregroundCount,
-                                (*desc).foregroundFilters, (*desc).foregroundFilterCount,
+    status = Compositor_compose(d.foreground, d.foregroundCount,
+                                d.foregroundFilters, d.foregroundFilterCount,
                                 &foreground);
     if (status != COMPOSITOR_OK)
         goto cleanup;
-    status = Compositor_crop(foreground, (*desc).panelBounds, &clippedForeground);
+    status = Compositor_crop(foreground, d.panelBounds, &clippedForeground);
     if (status != COMPOSITOR_OK)
         goto cleanup;
     status = Compositor_sourceOver(clippedForeground, panel);
     if (status != COMPOSITOR_OK)
         goto cleanup;
     const CompositorSurface *sources[] = {panel};
-    status = Compositor_compose(sources, 1, (*desc).elementFilters,
-                                (*desc).elementFilterCount, &filteredPanel);
+    status = Compositor_compose(sources, 1, d.elementFilters,
+                                d.elementFilterCount, &filteredPanel);
     if (status != COMPOSITOR_OK)
         goto cleanup;
-    status = Compositor_crop((*desc).priorScene,
-                             CompositorSurface_bounds((*desc).priorScene), &scene);
+    status = Compositor_crop(d.priorScene,
+                             CompositorSurface_bounds(d.priorScene), &scene);
     if (status != COMPOSITOR_OK)
         goto cleanup;
     status = replacementCopy(filteredPanel, scene);
