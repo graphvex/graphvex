@@ -62,19 +62,39 @@ struct Board {
     i32 revalidateCount, revalidateCap;
 };
 
+;;SETTER
+static inline fn Board_setImage(Board *self, Image *v) { (*self).image = v; }
+;;GETTER
+static inline _Atomic u64 *Board_generationMut(Board *self) { return &(*self).generation; }
+;;GETTER
+static inline BoardRevalidateFn *Board_revalidators(const Board *self) { return (*self).revalidators; }
+;;SETTER
+static inline fn Board_setRevalidators(Board *self, BoardRevalidateFn *v) { (*self).revalidators = v; }
+;;GETTER
+static inline any *Board_revalidateUd(const Board *self) { return (*self).revalidateUd; }
+;;SETTER
+static inline fn Board_setRevalidateUd(Board *self, any *v) { (*self).revalidateUd = v; }
+;;GETTER
+static inline i32 Board_revalidateCount(const Board *self) { return (*self).revalidateCount; }
+;;SETTER
+static inline fn Board_setRevalidateCount(Board *self, i32 v) { (*self).revalidateCount = v; }
+;;GETTER
+static inline i32 Board_revalidateCap(const Board *self) { return (*self).revalidateCap; }
+;;SETTER
+static inline fn Board_setRevalidateCap(Board *self, i32 v) { (*self).revalidateCap = v; }
+
 // Creates a retained RGBA image target from the descriptor, using 1x1 defaults when absent.
 Board *Board_new(const BoardDesc *desc) {
     Board *b = calloc(1, sizeof *b);
     if (!b) return nullptr;
-    u32 w = desc ? (*desc).width : 1;
-    u32 h = desc ? (*desc).height : 1;
-    u32 usage = desc ? (*desc).usage : (IMAGE_USAGE_RENDER | IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER);
-    ImageDesc id = {w ? w : 1u, h ? h : 1u, IMAGE_FORMAT_RGBA8, usage};
-    (*b).image = Image_new(&id);
-    if (!(*b).image) {
+    BoardDesc d = desc ? *desc : (BoardDesc){1, 1, IMAGE_USAGE_RENDER | IMAGE_USAGE_SAMPLED | IMAGE_USAGE_TRANSFER};
+    ImageDesc id = {d.width ? d.width : 1u, d.height ? d.height : 1u, IMAGE_FORMAT_RGBA8, d.usage};
+    Image *image = Image_new(&id);
+    if (!image) {
         free(b);
         return nullptr;
     }
+    Board_setImage(b, image);
     return b;
 }
 
@@ -89,40 +109,41 @@ Board *Board_2(u32 width, u32 height) {
 // Destroys the owned image and callback arrays; null is ignored.
 fn Board_destroy(Board *board) {
     if (!board) return;
-    Image_destroy((*board).image);
-    free((*board).revalidators);
-    free((*board).revalidateUd);
+    Image_destroy(Board_image(board));
+    free(Board_revalidators(board));
+    free(Board_revalidateUd(board));
     free(board);
 }
 
 // Resizes the image target, preserving its allocation when the current capacity fits.
 bool Board_resize(Board *board, u32 width, u32 height) {
-    if (!board || !(*board).image) return false;
-    if (Image_width((*board).image) == width && Image_height((*board).image) == height) return true;
-    return Image_resize((*board).image, width, height);
+    Image *image = Board_image(board);
+    if (!board || !image) return false;
+    if (Image_width(image) == width && Image_height(image) == height) return true;
+    return Image_resize(image, width, height);
 }
 
 // Advances the atomic generation to announce newly published board content.
 fn Board_publish(Board *board) {
     if (!board) return;
-    atomic_fetch_add(&(*board).generation, 1u);
+    atomic_fetch_add(Board_generationMut(board), 1u);
 }
 
 // Fills the board's image with the supplied packed color when the board is valid.
 fn Board_fill(Board *board, Color color) {
-    if (board && (*board).image) Image_fill((*board).image, color);
+    if (board && Board_image(board)) Image_fill(Board_image(board), color);
 }
 
 // Returns the image width, or zero when the board or image is absent.
-u32 Board_width(const Board *board) { return board && (*board).image ? Image_width((*board).image) : 0u; }
+u32 Board_width(const Board *board) { return board && Board_image(board) ? Image_width(Board_image(board)) : 0u; }
 // Returns the image height, or zero when the board or image is absent.
-u32 Board_height(const Board *board) { return board && (*board).image ? Image_height((*board).image) : 0u; }
+u32 Board_height(const Board *board) { return board && Board_image(board) ? Image_height(Board_image(board)) : 0u; }
 // Reads the atomic publish generation, or zero for a null board.
 u64 Board_generation(const Board *board) {
     return board ? atomic_load(&(*board).generation) : 0u;
 }
 // Reports whether the board has a nonempty image target.
-bool Board_isValid(const Board *board) { return board && Image_isValid((*board).image); }
+bool Board_isValid(const Board *board) { return board && Image_isValid(Board_image(board)); }
 // Returns the board-owned image as a borrowed pointer, or nullptr for a null board.
 Image *Board_image(const Board *board) { return board ? (*board).image : nullptr; }
 // Returns the opaque native handle without transferring ownership.
@@ -132,30 +153,34 @@ any Board_native(const Board *board) { return board ? (*board).native : nullptr;
 // Appends a borrowed callback and userdata pair; invalid input or growth failure leaves it unadded.
 fn Board_addRevalidator(Board *board, BoardRevalidateFn fn, any userdata) {
     if (!board || !fn) return;
-    if ((*board).revalidateCount == (*board).revalidateCap) {
-        i32 cap = (*board).revalidateCap ? (*board).revalidateCap * 2 : 4;
-        BoardRevalidateFn *steps = realloc((*board).revalidators, (bytes)cap * sizeof *steps);
-        any *uds = realloc((*board).revalidateUd, (bytes)cap * sizeof *uds);
+    if (Board_revalidateCount(board) == Board_revalidateCap(board)) {
+        i32 cap = Board_revalidateCap(board) ? Board_revalidateCap(board) * 2 : 4;
+        BoardRevalidateFn *steps = realloc(Board_revalidators(board), (bytes)cap * sizeof *steps);
+        any *uds = realloc(Board_revalidateUd(board), (bytes)cap * sizeof *uds);
         if (!steps || !uds) return;   // best-effort; keep whatever we had
-        (*board).revalidators = steps;
-        (*board).revalidateUd = uds;
-        (*board).revalidateCap = cap;
+        Board_setRevalidators(board, steps);
+        Board_setRevalidateUd(board, uds);
+        Board_setRevalidateCap(board, cap);
     }
-    (*board).revalidators[(*board).revalidateCount] = fn;
-    (*board).revalidateUd[(*board).revalidateCount] = userdata;
-    (*board).revalidateCount++;
+    i32 count = Board_revalidateCount(board);
+    Board_revalidators(board)[count] = fn;
+    Board_revalidateUd(board)[count] = userdata;
+    Board_setRevalidateCount(board, count + 1);
 }
 
 // Removes all registered callbacks without freeing their borrowed userdata.
 fn Board_clearRevalidators(Board *board) {
     if (!board) return;
-    (*board).revalidateCount = 0;
+    Board_setRevalidateCount(board, 0);
 }
 
 // Runs registered callbacks in order, then publishes the board once.
 fn Board_revalidate(Board *board) {
     if (!board) return;
-    for (i32 i = 0; i < (*board).revalidateCount; i++)
-        (*board).revalidators[i](board, (*board).revalidateUd[i]);
+    BoardRevalidateFn *revalidators = Board_revalidators(board);
+    any *uds = Board_revalidateUd(board);
+    i32 count = Board_revalidateCount(board);
+    for (i32 i = 0; i < count; i++)
+        revalidators[i](board, uds[i]);
     Board_publish(board);   // the board changed; wake the demand loop
 }

@@ -42,6 +42,39 @@ struct Image {
     ImageGpuRefFn gpuRelease;
 };
 
+;;SETTER
+static inline fn Image_setWidth(Image *self, u32 v) { (*self).width = v; }
+;;SETTER
+static inline fn Image_setHeight(Image *self, u32 v) { (*self).height = v; }
+;;GETTER
+static inline u32 Image_capW(const Image *self) { return (*self).capW; }
+;;SETTER
+static inline fn Image_setCapW(Image *self, u32 v) { (*self).capW = v; }
+;;GETTER
+static inline u32 Image_capH(const Image *self) { return (*self).capH; }
+;;SETTER
+static inline fn Image_setCapH(Image *self, u32 v) { (*self).capH = v; }
+;;SETTER
+static inline fn Image_setFormat(Image *self, u32 v) { (*self).format = v; }
+;;SETTER
+static inline fn Image_setUsage(Image *self, u32 v) { (*self).usage = v; }
+;;SETTER
+static inline fn Image_setPixels(Image *self, u8 *v) { (*self).pixels = v; }
+;;SETTER
+static inline fn Image_setGpuResource(Image *self, any v) { (*self).gpuResource = v; }
+;;SETTER
+static inline fn Image_setGpuDevice(Image *self, any v) { (*self).gpuDevice = v; }
+;;SETTER
+static inline fn Image_setGpuDescriptor(Image *self, any v) { (*self).gpuDescriptor = v; }
+;;GETTER
+static inline ImageGpuRefFn Image_gpuRetain(const Image *self) { return (*self).gpuRetain; }
+;;SETTER
+static inline fn Image_setGpuRetain(Image *self, ImageGpuRefFn v) { (*self).gpuRetain = v; }
+;;GETTER
+static inline ImageGpuRefFn Image_gpuRelease(const Image *self) { return (*self).gpuRelease; }
+;;SETTER
+static inline fn Image_setGpuRelease(Image *self, ImageGpuRefFn v) { (*self).gpuRelease = v; }
+
 static fn clamp_dims(u32 *w, u32 *h) {
     if (*w == 0) *w = 1;
     if (*h == 0) *h = 1;
@@ -51,11 +84,12 @@ static fn clamp_dims(u32 *w, u32 *h) {
 Image *Image_new(const ImageDesc *desc) {
     Image *img = calloc(1, sizeof *img);
     if (!img) return nullptr;
-    (*img).width = desc ? (*desc).width : 1;
-    (*img).height = desc ? (*desc).height : 1;
-    (*img).format = desc ? (*desc).format : IMAGE_FORMAT_RGBA8;
-    (*img).usage = desc ? (*desc).usage : IMAGE_USAGE_NONE;
-    clamp_dims(&(*img).width, &(*img).height);
+    ImageDesc d = desc ? *desc : (ImageDesc){1, 1, IMAGE_FORMAT_RGBA8, IMAGE_USAGE_NONE};
+    clamp_dims(&d.width, &d.height);
+    Image_setWidth(img, d.width);
+    Image_setHeight(img, d.height);
+    Image_setFormat(img, d.format);
+    Image_setUsage(img, d.usage);
     return img;
 }
 
@@ -77,7 +111,7 @@ fn Image_destroy(Image *image) {
     if (!image) return;
     if (!Image_clearGpu(image))
         return;
-    free((*image).pixels);
+    free(Image_pixels(image));
     free(image);
 }
 
@@ -91,24 +125,24 @@ bool Image_ensureShadow(Image *image, u32 width, u32 height) {
         return false;
     // GROW-ONLY: reuse the existing allocation whenever it already fits, so a
     // shrinking viewport (or a resize wobble) never reallocs and never refills.
-    if ((*image).pixels && width <= (*image).capW && height <= (*image).capH) {
-        (*image).width = width;
-        (*image).height = height;
+    if (Image_pixels(image) && width <= Image_capW(image) && height <= Image_capH(image)) {
+        Image_setWidth(image, width);
+        Image_setHeight(image, height);
         return true;
     }
-    u32 nw = (*image).capW > width ? (*image).capW : width;
-    u32 nh = (*image).capH > height ? (*image).capH : height;
+    u32 nw = Image_capW(image) > width ? Image_capW(image) : width;
+    u32 nh = Image_capH(image) > height ? Image_capH(image) : height;
     while (nw < width) nw += nw / 2 + 64;
     while (nh < height) nh += nh / 2 + 64;
     if ((u64) nw * nh > SIZE_MAX / 4u)
         return false;
-    u8 *grown = realloc((*image).pixels, (bytes)nw * (bytes)nh * 4u);
+    u8 *grown = realloc(Image_pixels(image), (bytes)nw * (bytes)nh * 4u);
     if (!grown) return false;
-    (*image).pixels = grown;
-    (*image).capW = nw;
-    (*image).capH = nh;
-    (*image).width = width;
-    (*image).height = height;
+    Image_setPixels(image, grown);
+    Image_setCapW(image, nw);
+    Image_setCapH(image, nh);
+    Image_setWidth(image, width);
+    Image_setHeight(image, height);
     return true;
 }
 
@@ -121,9 +155,10 @@ bool Image_resize(Image *image, u32 width, u32 height) {
 bool Image_upload(const u8 *rgba, u32 width, u32 height, Image *dest) {
     if (!dest || !rgba) return false;
     if (!Image_ensureShadow(dest, width, height)) return false;
-    bytes stride = (bytes)((*dest).capW) * 4u;
+    bytes stride = Image_stride(dest);
+    u8 *pixels = Image_pixels(dest);
     for (u32 y = 0; y < height; y++) {
-        memcpy((*dest).pixels + (bytes)y * stride, rgba + (bytes)y * width * 4u, (bytes)width * 4u);
+        memcpy(pixels + (bytes)y * stride, rgba + (bytes)y * width * 4u, (bytes)width * 4u);
     }
     return true;
 }
@@ -133,15 +168,17 @@ fn Image_fill(Image *image, Color color) {
     if (!image) return;
     if (!Image_clearGpu(image))
         return;
-    if (!(*image).pixels && !Image_ensureShadow(image, (*image).width, (*image).height)) return;
+    if (!Image_pixels(image) && !Image_ensureShadow(image, Image_width(image), Image_height(image))) return;
     u8 r = (u8)Color_red(color);
     u8 g = (u8)Color_green(color);
     u8 b = (u8)Color_blue(color);
     u8 a = (u8)Color_alpha(color);
-    bytes stride = (bytes)((*image).capW) * 4u;
-    for (u32 y = 0; y < (*image).height; y++) {
-        u8 *row = (*image).pixels + (bytes)y * stride;
-        for (u32 x = 0; x < (*image).width; x++) {
+    bytes stride = Image_stride(image);
+    u8 *pixels = Image_pixels(image);
+    u32 w = Image_width(image), h = Image_height(image);
+    for (u32 y = 0; y < h; y++) {
+        u8 *row = pixels + (bytes)y * stride;
+        for (u32 x = 0; x < w; x++) {
             row[x * 4 + 0] = r;
             row[x * 4 + 1] = g;
             row[x * 4 + 2] = b;
@@ -159,19 +196,21 @@ u32 Image_format(const Image *image) { return image ? (*image).format : IMAGE_FO
 // Returns the declared usage flags, or IMAGE_USAGE_NONE for null.
 u32 Image_usage(const Image *image) { return image ? (*image).usage : IMAGE_USAGE_NONE; }
 // Returns allocated RGBA row stride in bytes, or zero for null.
-bytes Image_stride(const Image *image) { return image ? (bytes)((*image).capW) * 4u : 0u; }
+bytes Image_stride(const Image *image) { return image ? (bytes)Image_capW(image) * 4u : 0u; }
 // Returns the mutable CPU pixel buffer, or nullptr when image is null.
 u8 *Image_pixels(const Image *image) { return image ? (*image).pixels : nullptr; }
 // Reports whether the logical image extent is nonempty.
-bool Image_isValid(const Image *image) { return image && (*image).width > 0 && (*image).height > 0; }
+bool Image_isValid(const Image *image) { return image && Image_width(image) > 0 && Image_height(image) > 0; }
 
 // Returns the borrowed opaque backend-native handle.
 any Image_native(const Image *image) { return image ? (*image).native : nullptr; }
 // Returns the borrowed opaque IOSurface handle.
+;;GETTER
 any Image_iosurface(const Image *image) { return image ? (*image).ioSurface : nullptr; }
 // Stores a borrowed opaque backend-native handle without taking ownership.
 fn Image_setNative(Image *image, any native) { if (image) (*image).native = native; }
 // Stores a borrowed opaque IOSurface handle without taking ownership.
+;;SETTER
 fn Image_setIOSurface(Image *image, any ioSurface) { if (image) (*image).ioSurface = ioSurface; }
 // Returns the image's atlas or sampler layer index.
 u32 Image_layer(const Image *image) { return image ? (*image).layer : 0u; }
@@ -192,13 +231,13 @@ bool Image_isDrawable(const Image *image) {
 bool Image_clearGpu(Image *image) {
     if (!image)
         return false;
-    if ((*image).gpuResource && !(*image).gpuRelease((*image).gpuResource))
+    if (Image_gpuResource(image) && !Image_gpuRelease(image)(Image_gpuResource(image)))
         return false;
-    (*image).gpuResource = nullptr;
-    (*image).gpuDevice = nullptr;
-    (*image).gpuDescriptor = nullptr;
-    (*image).gpuRetain = nullptr;
-    (*image).gpuRelease = nullptr;
+    Image_setGpuResource(image, nullptr);
+    Image_setGpuDevice(image, nullptr);
+    Image_setGpuDescriptor(image, nullptr);
+    Image_setGpuRetain(image, nullptr);
+    Image_setGpuRelease(image, nullptr);
     return true;
 }
 // Retains and installs a complete GPU binding, replacing the previous binding only after admission.
@@ -208,8 +247,8 @@ bool Image_bindGpu(Image *image, any resource, any device, any descriptor,
         THROW("Image GPU binding requires a complete validated resource");
         return false;
     }
-    if ((*image).gpuResource == resource && (*image).gpuDevice == device &&
-        (*image).gpuDescriptor == descriptor && (*image).gpuRetain == retain && (*image).gpuRelease == release)
+    if (Image_gpuResource(image) == resource && Image_gpuDevice(image) == device &&
+        Image_gpuDescriptor(image) == descriptor && Image_gpuRetain(image) == retain && Image_gpuRelease(image) == release)
         return true;
     if (!retain(resource)) {
         THROW("Image GPU reference rejected");
@@ -219,10 +258,10 @@ bool Image_bindGpu(Image *image, any resource, any device, any descriptor,
         release(resource);
         return false;
     }
-    (*image).gpuResource = resource;
-    (*image).gpuDevice = device;
-    (*image).gpuDescriptor = descriptor;
-    (*image).gpuRetain = retain;
-    (*image).gpuRelease = release;
+    Image_setGpuResource(image, resource);
+    Image_setGpuDevice(image, device);
+    Image_setGpuDescriptor(image, descriptor);
+    Image_setGpuRetain(image, retain);
+    Image_setGpuRelease(image, release);
     return true;
 }
