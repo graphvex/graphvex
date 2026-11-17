@@ -64,11 +64,36 @@ static bool s_hasBaseClip = false; // explicit clip outside a display-list scope
 
 const Backend *RasterGraphics_row();   // defined below
 
+;;GETTER
+static u32 Backend_id(const Backend *b) { return (*b).id; }
+;;GETTER
+static bool Backend_callBegin(const Backend *b) { return (*b).begin ? (*b).begin() : false; }
+;;GETTER
+static bool Backend_callEnd(const Backend *b) { return (*b).end ? (*b).end() : false; }
+;;GETTER
+static bool Backend_callPresent(const Backend *b) { return (*b).present ? (*b).present() : false; }
+;;GETTER
+static bool Backend_callResize(const Backend *b, u32 w, u32 h) { return (*b).resize ? (*b).resize(w, h) : false; }
+;;GETTER
+static bool Backend_callClear(const Backend *b, Color c) { return (*b).clear ? (*b).clear(c) : false; }
+;;GETTER
+static bool Backend_callClip(const Backend *b, const Rect *r, f32 rad) { return (*b).clip ? (*b).clip(r, rad) : false; }
+;;GETTER
+static bool Backend_hasClip(const Backend *b) { return (*b).clip != nullptr; }
+;;GETTER
+static bool Backend_callFillRect(const Backend *b, const Rect *r, const Brush *br) { return (*b).fillRect ? (*b).fillRect(r, br) : false; }
+;;GETTER
+static bool Backend_callDrawImage(const Backend *b, const Image *img, const Rect *dst) { return (*b).drawImage ? (*b).drawImage(img, dst) : false; }
+;;GETTER
+static bool Backend_callDrawText(const Backend *b, const Rect *r, const char *t, const Brush *br) { return (*b).drawText ? (*b).drawText(r, t, br) : false; }
+;;GETTER
+static bool Backend_callCapture(const Backend *b, Image *dest) { return (*b).capture ? (*b).capture(dest) : false; }
+
 // Registers or replaces a backend descriptor by ID.
 bool Graphics_register(const Backend *row) {
-    if (!row || (*row).id == BACKEND_NONE) return false;
+    if (!row || Backend_id(row) == BACKEND_NONE) return false;
     for (i32 i = 0; i < s_rowCount; i++) {
-        if ((*s_rows[i]).id == (*row).id) { s_rows[i] = row; return true; }
+        if (Backend_id(s_rows[i]) == Backend_id(row)) { s_rows[i] = row; return true; }
     }
     if (s_rowCount >= MAX_BACKENDS) return false;
     s_rows[s_rowCount++] = row;
@@ -78,40 +103,40 @@ bool Graphics_register(const Backend *row) {
 // Selects a registered backend and configures its callbacks for current dimensions.
 bool Graphics_use(u32 backendId) {
     for (i32 i = 0; i < s_rowCount; i++) {
-        if ((*s_rows[i]).id == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
+        if (Backend_id(s_rows[i]) == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
     }
     // convenience: the raster backend self-registers on first use
     if (backendId == BACKEND_RASTER) {
         Graphics_register(RasterGraphics_row());
         for (i32 i = 0; i < s_rowCount; i++)
-            if ((*s_rows[i]).id == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
+            if (Backend_id(s_rows[i]) == backendId) { s_current = s_rows[i]; s_hasBaseClip = false; return true; }
     }
     return false;
 }
 
 // Returns the active backend ID, or BACKEND_NONE when no backend is selected.
-u32 Graphics_backendId() { return s_current ? (*s_current).id : BACKEND_NONE; }
+u32 Graphics_backendId() { return s_current ? Backend_id(s_current) : BACKEND_NONE; }
 const Backend *Graphics_current() { return s_current; }
 
 // ── forwarders (call through the active row; false when none) ───────────────
-bool Graphics_begin()   { return s_current && (*s_current).begin   ? (*s_current).begin()   : false; }
+bool Graphics_begin()   { return s_current ? Backend_callBegin(s_current) : false; }
 // Forwards frame completion to the active backend when provided.
-bool Graphics_end()     { return s_current && (*s_current).end     ? (*s_current).end()     : false; }
+bool Graphics_end()     { return s_current ? Backend_callEnd(s_current) : false; }
 // Forwards presentation to the active backend when provided.
-bool Graphics_present() { return s_current && (*s_current).present ? (*s_current).present() : false; }
+bool Graphics_present() { return s_current ? Backend_callPresent(s_current) : false; }
 // Resizes the active backend and updates graphics clip state on success.
 bool Graphics_resize(u32 w, u32 h) {
-    bool ok = s_current && (*s_current).resize ? (*s_current).resize(w, h) : false;
+    bool ok = s_current ? Backend_callResize(s_current, w, h) : false;
     if (ok) s_hasBaseClip = false;
     return ok;
 }
 // Clears the active backend with color when its clear callback exists.
 bool Graphics_clear(Color color) {
-    return s_current && (*s_current).clear ? (*s_current).clear(color) : false;
+    return s_current ? Backend_callClear(s_current, color) : false;
 }
 // Installs the base rounded clip used by subsequent drawing operations.
 bool Graphics_clipRounded(const Rect *rect, f32 radius) {
-    if (!s_current || !(*s_current).clip || !(*s_current).clip(rect, radius)) return false;
+    if (!s_current || !Backend_callClip(s_current, rect, radius)) return false;
     s_hasBaseClip = rect != nullptr;
     if (rect) { s_baseClip.dst = *rect; s_baseClip.radius = fmaxf(radius, 0); }
     return true;
@@ -120,19 +145,19 @@ bool Graphics_clipRounded(const Rect *rect, f32 radius) {
 bool Graphics_clip(const Rect *rect) { return Graphics_clipRounded(rect, 0.0f); }
 // Forwards a rectangle fill to the active backend.
 bool Graphics_fillRect(const Rect *rect, const Brush *brush) {
-    return s_current && (*s_current).fillRect ? (*s_current).fillRect(rect, brush) : false;
+    return s_current ? Backend_callFillRect(s_current, rect, brush) : false;
 }
 // Forwards an image draw to the active backend.
 bool Graphics_drawImage(const Image *image, const Rect *dst) {
-    return s_current && (*s_current).drawImage ? (*s_current).drawImage(image, dst) : false;
+    return s_current ? Backend_callDrawImage(s_current, image, dst) : false;
 }
 // Forwards a text draw to the active backend.
 bool Graphics_drawText(const Rect *rect, const char *text, const Brush *brush) {
-    return s_current && (*s_current).drawText ? (*s_current).drawText(rect, text, brush) : false;
+    return s_current ? Backend_callDrawText(s_current, rect, text, brush) : false;
 }
 // Captures the active backend into dest when its capture callback is available.
 bool Graphics_capture(Image *dest) {
-    return s_current && (*s_current).capture ? (*s_current).capture(dest) : false;
+    return s_current ? Backend_callCapture(s_current, dest) : false;
 }
 
 // ── the display list ────────────────────────────────────────────────────────
@@ -144,6 +169,92 @@ struct DisplayList {
     bytes clipCap, clipDepth; // reserved nesting depth and recording depth
 };
 
+;;GETTER
+static DrawCmd *DisplayList_items(const DisplayList *dl) { return (*dl).items; }
+;;SETTER
+static fn DisplayList_setItems(DisplayList *dl, DrawCmd *items) { (*dl).items = items; }
+;;GETTER
+static bytes DisplayList_rawCount(const DisplayList *dl) { return (*dl).count; }
+;;SETTER
+static fn DisplayList_setCount(DisplayList *dl, bytes count) { (*dl).count = count; }
+;;GETTER
+static bytes DisplayList_cap(const DisplayList *dl) { return (*dl).cap; }
+;;SETTER
+static fn DisplayList_setCap(DisplayList *dl, bytes cap) { (*dl).cap = cap; }
+;;GETTER
+static bytes *DisplayList_clipStack(const DisplayList *dl) { return (*dl).clipStack; }
+;;SETTER
+static fn DisplayList_setClipStack(DisplayList *dl, bytes *stack) { (*dl).clipStack = stack; }
+;;GETTER
+static bytes DisplayList_clipCap(const DisplayList *dl) { return (*dl).clipCap; }
+;;SETTER
+static fn DisplayList_setClipCap(DisplayList *dl, bytes cap) { (*dl).clipCap = cap; }
+;;GETTER
+static bytes DisplayList_clipDepth(const DisplayList *dl) { return (*dl).clipDepth; }
+;;SETTER
+static fn DisplayList_setClipDepth(DisplayList *dl, bytes depth) { (*dl).clipDepth = depth; }
+
+;;GETTER
+static i32 DrawCmd_kind(const DrawCmd *c) { return (*c).kind; }
+;;SETTER
+static fn DrawCmd_setKind(DrawCmd *c, i32 kind) { (*c).kind = kind; }
+;;GETTER
+static Rect DrawCmd_dst(const DrawCmd *c) { return (*c).dst; }
+;;SETTER
+static fn DrawCmd_setDst(DrawCmd *c, Rect dst) { (*c).dst = dst; }
+;;GETTER
+static Rect DrawCmd_src(const DrawCmd *c) { return (*c).src; }
+;;SETTER
+static fn DrawCmd_setSrc(DrawCmd *c, Rect src) { (*c).src = src; }
+;;GETTER
+static Color DrawCmd_color(const DrawCmd *c) { return (*c).color; }
+;;SETTER
+static fn DrawCmd_setColor(DrawCmd *c, Color color) { (*c).color = color; }
+;;GETTER
+static f32 DrawCmd_radius(const DrawCmd *c) { return (*c).radius; }
+;;SETTER
+static fn DrawCmd_setRadius(DrawCmd *c, f32 radius) { (*c).radius = radius; }
+;;GETTER
+static Color DrawCmd_borderColor(const DrawCmd *c) { return (*c).borderColor; }
+;;SETTER
+static fn DrawCmd_setBorderColor(DrawCmd *c, Color color) { (*c).borderColor = color; }
+;;GETTER
+static f32 DrawCmd_border(const DrawCmd *c) { return (*c).border; }
+;;SETTER
+static fn DrawCmd_setBorder(DrawCmd *c, f32 border) { (*c).border = border; }
+;;GETTER
+static f32 DrawCmd_blur(const DrawCmd *c) { return (*c).blur; }
+;;SETTER
+static fn DrawCmd_setBlur(DrawCmd *c, f32 blur) { (*c).blur = blur; }
+;;GETTER
+static const Image *DrawCmd_image(const DrawCmd *c) { return (*c).image; }
+;;SETTER
+static fn DrawCmd_setImage(DrawCmd *c, const Image *img) { (*c).image = img; }
+;;GETTER
+static const char *DrawCmd_text(const DrawCmd *c) { return (*c).text; }
+;;SETTER
+static fn DrawCmd_setText(DrawCmd *c, const char *text) { (*c).text = text; }
+
+;;GETTER
+static Color Brush_color(const Brush *b) { return (*b).color; }
+;;GETTER
+static f32 Brush_radius(const Brush *b) { return (*b).radius; }
+;;GETTER
+static Color Brush_border(const Brush *b) { return (*b).border; }
+;;GETTER
+static f32 Brush_borderWidth(const Brush *b) { return (*b).borderWidth; }
+;;GETTER
+static f32 Brush_blur(const Brush *b) { return (*b).blur; }
+
+;;GETTER
+static f32 Rect_x(const Rect *r) { return (*r).x; }
+;;GETTER
+static f32 Rect_y(const Rect *r) { return (*r).y; }
+;;GETTER
+static f32 Rect_w(const Rect *r) { return (*r).w; }
+;;GETTER
+static f32 Rect_h(const Rect *r) { return (*r).h; }
+
 DisplayList *DisplayList_0() {
     DisplayList *dl = calloc(1, sizeof *dl);
     return dl;
@@ -152,23 +263,27 @@ DisplayList *DisplayList_0() {
 // Frees the command array and display-list record.
 fn DisplayList_free(DisplayList *dl) {
     if (!dl) return;
-    free((*dl).items);
-    free((*dl).clipStack);
+    free(DisplayList_items(dl));
+    free(DisplayList_clipStack(dl));
     free(dl);
 }
 
 // Resets the command count and clip stack while retaining allocated capacity.
 fn DisplayList_clear(DisplayList *dl) {
-    if (dl) { (*dl).count = 0; (*dl).clipDepth = 0; }
+    if (dl) { DisplayList_setCount(dl, 0); DisplayList_setClipDepth(dl, 0); }
 }
 
 static DrawCmd *dl_push(DisplayList *dl) {
-    if ((*dl).count == (*dl).cap) {
-        (*dl).cap = (*dl).cap ? (*dl).cap * 2 : 64;
-        (*dl).items = realloc((*dl).items, (*dl).cap * sizeof *(*dl).items);
-        if (!(*dl).items) { (*dl).cap = 0; (*dl).count = 0; return nullptr; }
+    if (DisplayList_rawCount(dl) == DisplayList_cap(dl)) {
+        bytes cap = DisplayList_cap(dl) ? DisplayList_cap(dl) * 2 : 64;
+        DrawCmd *items = realloc(DisplayList_items(dl), cap * sizeof *items);
+        if (!items) { DisplayList_setCap(dl, 0); DisplayList_setCount(dl, 0); return nullptr; }
+        DisplayList_setItems(dl, items);
+        DisplayList_setCap(dl, cap);
     }
-    DrawCmd *c = &(*dl).items[(*dl).count++];
+    bytes idx = DisplayList_rawCount(dl);
+    DisplayList_setCount(dl, idx + 1);
+    DrawCmd *c = &DisplayList_items(dl)[idx];
     memset(c, 0, sizeof *c);
     return c;
 }
@@ -178,13 +293,13 @@ fn DisplayList_rect(DisplayList *dl, Rect dst, const Brush *brush) {
     if (!dl || !brush || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
-    (*c).kind = CMD_RECT;
-    (*c).dst = dst;
-    (*c).color = (*brush).color;
-    (*c).radius = (*brush).radius;
-    (*c).borderColor = (*brush).border;
-    (*c).border = (*brush).borderWidth;
-    (*c).blur = (*brush).blur;
+    DrawCmd_setKind(c, CMD_RECT);
+    DrawCmd_setDst(c, dst);
+    DrawCmd_setColor(c, Brush_color(brush));
+    DrawCmd_setRadius(c, Brush_radius(brush));
+    DrawCmd_setBorderColor(c, Brush_border(brush));
+    DrawCmd_setBorder(c, Brush_borderWidth(brush));
+    DrawCmd_setBlur(c, Brush_blur(brush));
 }
 
 // Appends an image draw command and retains its image for deferred submission.
@@ -192,10 +307,10 @@ fn DisplayList_image(DisplayList *dl, const Image *image, Rect src, Rect dst) {
     if (!dl || !image || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
-    (*c).kind = CMD_IMAGE;
-    (*c).dst = dst;
-    (*c).src = src;
-    (*c).image = image;
+    DrawCmd_setKind(c, CMD_IMAGE);
+    DrawCmd_setDst(c, dst);
+    DrawCmd_setSrc(c, src);
+    DrawCmd_setImage(c, image);
 }
 
 // Appends a text command with copied text and color data.
@@ -203,10 +318,10 @@ fn DisplayList_text(DisplayList *dl, Rect dst, const char *text, Color color) {
     if (!dl || !text || Rect_isEmpty(dst)) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
-    (*c).kind = CMD_TEXT;
-    (*c).dst = dst;
-    (*c).text = text;
-    (*c).color = color;
+    DrawCmd_setKind(c, CMD_TEXT);
+    DrawCmd_setDst(c, dst);
+    DrawCmd_setText(c, text);
+    DrawCmd_setColor(c, color);
 }
 
 // Pushes a rectangular clip command and records its stack entry.
@@ -217,19 +332,19 @@ fn DisplayList_clip(DisplayList *dl, Rect rect) {
 // Pushes a rounded clip command and records its stack entry.
 fn DisplayList_clipRounded(DisplayList *dl, Rect rect, f32 radius) {
     if (!dl) return;
-    if ((*dl).clipDepth == (*dl).clipCap) {
-        bytes cap = (*dl).clipCap ? (*dl).clipCap * 2 : 8;
-        bytes *grown = realloc((*dl).clipStack, cap * sizeof *grown);
+    if (DisplayList_clipDepth(dl) == DisplayList_clipCap(dl)) {
+        bytes cap = DisplayList_clipCap(dl) ? DisplayList_clipCap(dl) * 2 : 8;
+        bytes *grown = realloc(DisplayList_clipStack(dl), cap * sizeof *grown);
         if (!grown) return;
-        (*dl).clipStack = grown;
-        (*dl).clipCap = cap;
+        DisplayList_setClipStack(dl, grown);
+        DisplayList_setClipCap(dl, cap);
     }
     DrawCmd *c = dl_push(dl);
     if (!c) return;
-    (*dl).clipDepth++;
-    (*c).kind = CMD_CLIP_PUSH;
-    (*c).dst = rect;
-    (*c).radius = radius > 0.0f ? radius : 0.0f;   // 0 = rectangular scissor
+    DisplayList_setClipDepth(dl, DisplayList_clipDepth(dl) + 1);
+    DrawCmd_setKind(c, CMD_CLIP_PUSH);
+    DrawCmd_setDst(c, rect);
+    DrawCmd_setRadius(c, radius > 0.0f ? radius : 0.0f);   // 0 = rectangular scissor
 }
 
 // Pops one nested clip when present and appends the matching unclip command.
@@ -237,27 +352,28 @@ fn DisplayList_unclip(DisplayList *dl) {
     if (!dl) return;
     DrawCmd *c = dl_push(dl);
     if (!c) return;
-    (*c).kind = CMD_CLIP_POP;
-    if ((*dl).clipDepth > 0) (*dl).clipDepth--;
+    DrawCmd_setKind(c, CMD_CLIP_POP);
+    if (DisplayList_clipDepth(dl) > 0) DisplayList_setClipDepth(dl, DisplayList_clipDepth(dl) - 1);
 }
 
 // Returns the number of recorded commands, or zero for null.
-bytes DisplayList_count(const DisplayList *dl) { return dl ? (*dl).count : 0; }
-const DrawCmd *DisplayList_cmds(const DisplayList *dl) { return dl ? (*dl).items : nullptr; }
+bytes DisplayList_count(const DisplayList *dl) { return dl ? DisplayList_rawCount(dl) : 0; }
+const DrawCmd *DisplayList_cmds(const DisplayList *dl) { return dl ? DisplayList_items(dl) : nullptr; }
 
 // Submit original geometry; scissors must never resize rounded boxes or UVs.
 static bool submit_draw(const DrawCmd *cmd) {
-    Brush brush = {(*cmd).color, (*cmd).radius, (*cmd).borderColor, (*cmd).border, (*cmd).blur};
-    switch ((*cmd).kind) {
-        case CMD_RECT: return Graphics_fillRect(&(*cmd).dst, &brush);
-        case CMD_IMAGE: return Graphics_drawImage((*cmd).image, &(*cmd).dst);
-        case CMD_TEXT: return Graphics_drawText(&(*cmd).dst, (*cmd).text, &brush);
+    Brush brush = {DrawCmd_color(cmd), DrawCmd_radius(cmd), DrawCmd_borderColor(cmd), DrawCmd_border(cmd), DrawCmd_blur(cmd)};
+    Rect dst = DrawCmd_dst(cmd);
+    switch (DrawCmd_kind(cmd)) {
+        case CMD_RECT: return Graphics_fillRect(&dst, &brush);
+        case CMD_IMAGE: return Graphics_drawImage(DrawCmd_image(cmd), &dst);
+        case CMD_TEXT: return Graphics_drawText(&dst, DrawCmd_text(cmd), &brush);
         default: return false;
     }
 }
 
 static bool submit_clip(const Rect *rect, f32 radius) {
-    return (*s_current).clip && (*s_current).clip(rect, radius);
+    return Backend_hasClip(s_current) && Backend_callClip(s_current, rect, radius);
 }
 
 static const DrawCmd *submit_mask(DisplayList *dl, bytes index) {
@@ -265,7 +381,7 @@ static const DrawCmd *submit_mask(DisplayList *dl, bytes index) {
         if (index == 0) return &s_baseClip;
         --index;
     }
-    return &(*dl).items[(*dl).clipStack[index]];
+    return &DisplayList_items(dl)[DisplayList_clipStack(dl)[index]];
 }
 
 static bool submit_span(const DrawCmd *cmd, Rect span) {
@@ -278,14 +394,15 @@ static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, bytes depth) {
         return submit_clip(nullptr, 0) && submit_draw(cmd);
     if (depth == 1) {
         const DrawCmd *mask = submit_mask(dl, 0);
-        return submit_clip(&(*mask).dst, (*mask).radius) && submit_draw(cmd);
+        Rect maskDst = DrawCmd_dst(mask);
+        return submit_clip(&maskDst, DrawCmd_radius(mask)) && submit_draw(cmd);
     }
-    Rect bounds = (*cmd).dst;
+    Rect bounds = DrawCmd_dst(cmd);
     bool rounded = false;
     for (bytes i = 0; i < depth; ++i) {
         const DrawCmd *mask = submit_mask(dl, i);
-        bounds = Rect_intersect(bounds, (*mask).dst);
-        rounded |= (*mask).radius > 0.0f;
+        bounds = Rect_intersect(bounds, DrawCmd_dst(mask));
+        rounded |= DrawCmd_radius(mask) > 0.0f;
     }
     if (Rect_isEmpty(bounds)) return true;
     if (!rounded) return submit_clip(&bounds, 0) && submit_draw(cmd);
@@ -301,8 +418,8 @@ static bool submit_masks(DisplayList *dl, const DrawCmd *cmd, bytes depth) {
         f32 left = bounds.x, right = bounds.x + bounds.w;
         for (bytes i = 0; i < depth; ++i) {
             const DrawCmd *mask = submit_mask(dl, i);
-            Rect r = (*mask).dst;
-            f32 radius = fminf((*mask).radius, fminf(r.w, r.h) * 0.5f);
+            Rect r = DrawCmd_dst(mask);
+            f32 radius = fminf(DrawCmd_radius(mask), fminf(r.w, r.h) * 0.5f);
             if (radius <= 0.0f) continue;
             f32 qy = fabsf(y + 0.5f - r.y - r.h * 0.5f) - (r.h * 0.5f - radius);
             f32 inset = qy > 0.0f ? radius - sqrtf(fmaxf(0.0f, radius * radius - qy * qy)) : 0.0f;
@@ -325,12 +442,12 @@ bool Graphics_submit(DisplayList *dl) {
     if (!dl || !s_current) return false;
     bytes depth = 0;
     bool ok = true;
-    for (bytes i = 0; i < (*dl).count && ok; ++i) {
-        const DrawCmd *cmd = &(*dl).items[i];
-        if ((*cmd).kind == CMD_CLIP_PUSH) {
-            if (depth >= (*dl).clipCap) { ok = false; break; }
-            (*dl).clipStack[depth++] = i;
-        } else if ((*cmd).kind == CMD_CLIP_POP) {
+    for (bytes i = 0; i < DisplayList_rawCount(dl) && ok; ++i) {
+        const DrawCmd *cmd = &DisplayList_items(dl)[i];
+        if (DrawCmd_kind(cmd) == CMD_CLIP_PUSH) {
+            if (depth >= DisplayList_clipCap(dl)) { ok = false; break; }
+            DisplayList_clipStack(dl)[depth++] = i;
+        } else if (DrawCmd_kind(cmd) == CMD_CLIP_POP) {
             if (depth == 0) { ok = false; break; }
             --depth;
         } else {
@@ -445,14 +562,14 @@ static f32 sd_round_box(f32 px, f32 py, f32 hw, f32 hh, f32 r) {
 // area grew.
 static bool raster_fillRect(const Rect *rect, const Brush *brush) {
     if (!s_px || !rect || !brush) return false;
-    f32 blur = (*brush).blur > 0.0f ? (*brush).blur : 0.0f;
-    f32 cx = (*rect).x + (*rect).w * 0.5f;
-    f32 cy = (*rect).y + (*rect).h * 0.5f;
-    f32 hw = (*rect).w * 0.5f - blur;
-    f32 hh = (*rect).h * 0.5f - blur;
+    f32 blur = Brush_blur(brush) > 0.0f ? Brush_blur(brush) : 0.0f;
+    f32 cx = Rect_x(rect) + Rect_w(rect) * 0.5f;
+    f32 cy = Rect_y(rect) + Rect_h(rect) * 0.5f;
+    f32 hw = Rect_w(rect) * 0.5f - blur;
+    f32 hh = Rect_h(rect) * 0.5f - blur;
     if (hw < 0.0f) hw = 0.0f;
     if (hh < 0.0f) hh = 0.0f;
-    f32 r = (*brush).radius;
+    f32 r = Brush_radius(brush);
     f32 rmax = hw < hh ? hw : hh;
     if (r > rmax) r = rmax;
     if (r < 0.0f) r = 0.0f;
@@ -492,10 +609,10 @@ static bool raster_fillRect(const Rect *rect, const Brush *brush) {
                 if (a <= 0.0f) continue;
                 if (a > 1.0f) a = 1.0f;
             }
-            f32 stroke = (*brush).borderWidth > 0.0f ? (*brush).borderWidth : 0.0f;
+            f32 stroke = Brush_borderWidth(brush) > 0.0f ? Brush_borderWidth(brush) : 0.0f;
             f32 borderMix = stroke > 0.0f ? fminf(fmaxf(d + stroke + 0.5f, 0.0f), 1.0f) : 0.0f;
-            f32 borderAlpha = (f32) Color_alpha((*brush).border) / 255.0f * borderMix;
-            Color fill = (*brush).color, border = (*brush).border;
+            f32 borderAlpha = (f32) Color_alpha(Brush_border(brush)) / 255.0f * borderMix;
+            Color fill = Brush_color(brush), border = Brush_border(brush);
             u32 red = (u32) ((f32) Color_red(fill) * (1 - borderAlpha) + (f32) Color_red(border) * borderAlpha + 0.5f);
             u32 green = (u32) ((f32) Color_green(fill) * (1 - borderAlpha) + (f32) Color_green(border) * borderAlpha + 0.5f);
             u32 blue = (u32) ((f32) Color_blue(fill) * (1 - borderAlpha) + (f32) Color_blue(border) * borderAlpha + 0.5f);

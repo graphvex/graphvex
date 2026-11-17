@@ -35,18 +35,33 @@ Viewport Viewport_0() {
     return v;
 }
 
+;;GETTER
+static f32 Viewport_rawWidth(const Viewport *v) { return (*v).width; }
+;;SETTER
+static fn Viewport_setWidth(Viewport *v, f32 width) { (*v).width = width; }
+;;GETTER
+static f32 Viewport_rawHeight(const Viewport *v) { return (*v).height; }
+;;SETTER
+static fn Viewport_setHeight(Viewport *v, f32 height) { (*v).height = height; }
+;;GETTER
+static f32 Viewport_rawScale(const Viewport *v) { return (*v).scale; }
+;;SETTER
+static fn Viewport_setScale(Viewport *v, f32 scale) { (*v).scale = scale; }
+;;SETTER
+static fn Viewport_setScissor(Viewport *v, Rect scissor) { (*v).scissor = scissor; }
+
 // Updates native-pixel extent, sanitizes the scale to a positive value, and resets the scissor.
 fn Viewport_resize(Viewport *v, f32 framebufferWidthPx, f32 framebufferHeightPx,
                      f32 backingScale) {
     if (!v) return;
-    (*v).width = framebufferWidthPx;
-    (*v).height = framebufferHeightPx;
-    (*v).scale = backingScale > 0.0f ? backingScale : 1.0f;
-    (*v).scissor = (Rect){0, 0, framebufferWidthPx, framebufferHeightPx};
+    Viewport_setWidth(v, framebufferWidthPx);
+    Viewport_setHeight(v, framebufferHeightPx);
+    Viewport_setScale(v, backingScale > 0.0f ? backingScale : 1.0f);
+    Viewport_setScissor(v, (Rect){0, 0, framebufferWidthPx, framebufferHeightPx});
 }
 
 // Uses the configured positive backing scale, defaulting to one for absent or invalid viewports.
-static f32 s(const Viewport *v) { return (v && (*v).scale > 0.0f) ? (*v).scale : 1.0f; }
+static f32 s(const Viewport *v) { return (v && Viewport_rawScale(v) > 0.0f) ? Viewport_rawScale(v) : 1.0f; }
 
 // Converts a logical x coordinate to native pixels.
 f32 Viewport_x(const Viewport *v, f32 pointX) { return pointX * s(v); }
@@ -71,8 +86,8 @@ ViewportPoint Viewport_toPoints(const Viewport *v, f32 px, f32 py) {
 // Converts the stored native-pixel extent to logical dimensions for supplied outputs.
 ViewportSize Viewport_logicalSize(const Viewport *v) {
     f32 sc = s(v);
-    return (ViewportSize) { (v ? (*v).width : 0.0f) / sc, (v ? (*v).height : 0.0f) / sc };
+    return (ViewportSize) { (v ? Viewport_rawWidth(v) : 0.0f) / sc, (v ? Viewport_rawHeight(v) : 0.0f) / sc };
 }
 
 // Reports true for a null viewport or an extent with a non-positive dimension.
-bool Viewport_isEmpty(const Viewport *v) { return !v || (*v).width <= 0.0f || (*v).height <= 0.0f; }
+bool Viewport_isEmpty(const Viewport *v) { return !v || Viewport_rawWidth(v) <= 0.0f || Viewport_rawHeight(v) <= 0.0f; }
