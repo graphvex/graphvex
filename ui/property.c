@@ -61,26 +61,47 @@ static f32 property_clamp(f32 value, f32 min, f32 max) {
     return value;
 }
 
+;;GETTER
+static f32 Property_rawW(const Property *property) { return (*property).w; }
+;;GETTER
+static f32 Property_rawH(const Property *property) { return (*property).h; }
+;;GETTER
+static f32 Property_minW(const Property *property) { return (*property).minW; }
+;;SETTER
+static fn Property_setMinW(Property *property, f32 v) { (*property).minW = v; }
+;;GETTER
+static f32 Property_minH(const Property *property) { return (*property).minH; }
+;;SETTER
+static fn Property_setMinH(Property *property, f32 v) { (*property).minH = v; }
+;;GETTER
+static f32 Property_maxW(const Property *property) { return (*property).maxW; }
+;;SETTER
+static fn Property_setMaxW(Property *property, f32 v) { (*property).maxW = v; }
+;;GETTER
+static f32 Property_maxH(const Property *property) { return (*property).maxH; }
+;;SETTER
+static fn Property_setMaxH(Property *property, f32 v) { (*property).maxH = v; }
+
 // Sets nonnegative minimum dimensions; zero disables each minimum.
 fn Property_setMinSize(Property *property, f32 width, f32 height) {
     if (!property) return;
-    (*property).minW = width > 0.0f ? width : 0.0f;
-    (*property).minH = height > 0.0f ? height : 0.0f;
+    Property_setMinW(property, width > 0.0f ? width : 0.0f);
+    Property_setMinH(property, height > 0.0f ? height : 0.0f);
 }
 
 // Sets nonnegative maximum dimensions; zero means no upper bound.
 fn Property_setMaxSize(Property *property, f32 width, f32 height) {
     if (!property) return;
-    (*property).maxW = width > 0.0f ? width : 0.0f;
-    (*property).maxH = height > 0.0f ? height : 0.0f;
+    Property_setMaxW(property, width > 0.0f ? width : 0.0f);
+    Property_setMaxH(property, height > 0.0f ? height : 0.0f);
 }
 
 // Returns the stored width clamped to configured limits, or zero for null.
 f32 Property_width(const Property *property) {
-    return property ? property_clamp((*property).w, (*property).minW, (*property).maxW) : 0.0f;
+    return property ? property_clamp(Property_rawW(property), Property_minW(property), Property_maxW(property)) : 0.0f;
 }
 
 // Returns the stored height clamped to configured limits, or zero for null.
 f32 Property_height(const Property *property) {
-    return property ? property_clamp((*property).h, (*property).minH, (*property).maxH) : 0.0f;
+    return property ? property_clamp(Property_rawH(property), Property_minH(property), Property_maxH(property)) : 0.0f;
 }
