@@ -52,9 +52,26 @@ struct Device {
     char error[256];
 };
 
+;;GETTER
+static inline VkInstance *Device_instanceMut(Device *self) { return &(*self).instance; }
+;;SETTER
+static inline fn Device_setPhysical(Device *self, VkPhysicalDevice v) { (*self).physical = v; }
+;;GETTER
+static inline VkDevice *Device_deviceMut(Device *self) { return &(*self).device; }
+;;GETTER
+static inline VkQueue *Device_queueMut(Device *self) { return &(*self).queue; }
+;;SETTER
+static inline fn Device_setQueueFamily(Device *self, u32 v) { (*self).queueFamily = v; }
+;;SETTER
+static inline fn Device_setMetalObjects(Device *self, bool v) { (*self).metalObjects = v; }
+;;GETTER
+static inline char *Device_deviceNameMut(Device *self) { return (*self).deviceName; }
+;;GETTER
+static inline char *Device_errorMut(Device *self) { return (*self).error; }
+
 // Copies a bounded diagnostic into the device record when one is available.
 static fn set_err(Device *c, const char *msg) {
-    snprintf((*c).error, sizeof (*c).error, "%s", msg);
+    snprintf(Device_errorMut(c), 256, "%s", msg);
 }
 
 Device *Device_create(bool enableValidation) {
@@ -82,33 +99,33 @@ Device *Device_create(bool enableValidation) {
     ici.enabledExtensionCount = extCount;
     ici.ppEnabledExtensionNames = exts;
     ici.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-    if (vkCreateInstance(&ici, nullptr, &(*c).instance) != VK_SUCCESS) {
+    if (vkCreateInstance(&ici, nullptr, Device_instanceMut(c)) != VK_SUCCESS) {
         set_err(c, "vkCreateInstance failed (is a Vulkan/MoltenVK driver installed?)");
         Device_destroy(c);
         return nullptr;
     }
 
     u32 count = 0;
-    if (vkEnumeratePhysicalDevices((*c).instance, &count, nullptr) != VK_SUCCESS || count == 0) {
+    if (vkEnumeratePhysicalDevices((VkInstance) Device_instance(c), &count, nullptr) != VK_SUCCESS || count == 0) {
         set_err(c, "no Vulkan physical devices");
         Device_destroy(c);
         return nullptr;
     }
     VkPhysicalDevice *devs = calloc(count, sizeof *devs);
     if (!devs) { Device_destroy(c); return nullptr; }
-    vkEnumeratePhysicalDevices((*c).instance, &count, devs);
-    (*c).physical = devs[0];
+    vkEnumeratePhysicalDevices((VkInstance) Device_instance(c), &count, devs);
+    Device_setPhysical(c, devs[0]);
     free(devs);
 
     VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties((*c).physical, &props);
-    snprintf((*c).deviceName, sizeof (*c).deviceName, "%s", props.deviceName);
+    vkGetPhysicalDeviceProperties((VkPhysicalDevice) Device_physical(c), &props);
+    snprintf(Device_deviceNameMut(c), 256, "%s", props.deviceName);
 
     u32 qn = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties((*c).physical, &qn, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties((VkPhysicalDevice) Device_physical(c), &qn, nullptr);
     VkQueueFamilyProperties *qf = calloc(qn ? qn : 1, sizeof *qf);
     if (!qf) { Device_destroy(c); return nullptr; }
-    vkGetPhysicalDeviceQueueFamilyProperties((*c).physical, &qn, qf);
+    vkGetPhysicalDeviceQueueFamilyProperties((VkPhysicalDevice) Device_physical(c), &qn, qf);
     i32 chosen = -1;
     for (u32 i = 0; i < qn; i++) {
         if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) { chosen = (i32)i; break; }
@@ -119,12 +136,12 @@ Device *Device_create(bool enableValidation) {
         Device_destroy(c);
         return nullptr;
     }
-    (*c).queueFamily = (u32)chosen;
+    Device_setQueueFamily(c, (u32)chosen);
 
     f32 prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {0};
     qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    qci.queueFamilyIndex = (*c).queueFamily;
+    qci.queueFamilyIndex = Device_queueFamily(c);
     qci.queueCount = 1;
     qci.pQueuePriorities = &prio;
 
@@ -137,18 +154,18 @@ Device *Device_create(bool enableValidation) {
     // it when present. VK_EXT_metal_objects (Apple) lets us import an IOSurface
     // as a render target — the zero-copy seam. Both are enabled only if present.
     u32 extN = 0;
-    vkEnumerateDeviceExtensionProperties((*c).physical, nullptr, &extN, nullptr);
+    vkEnumerateDeviceExtensionProperties((VkPhysicalDevice) Device_physical(c), nullptr, &extN, nullptr);
     VkExtensionProperties *devExts = calloc(extN ? extN : 1, sizeof *devExts);
     const char *want[2];
     u32 wantN = 0;
     if (devExts) {
-        vkEnumerateDeviceExtensionProperties((*c).physical, nullptr, &extN, devExts);
+        vkEnumerateDeviceExtensionProperties((VkPhysicalDevice) Device_physical(c), nullptr, &extN, devExts);
         for (u32 i = 0; i < extN; i++) {
             if (!strcmp(devExts[i].extensionName, "VK_KHR_portability_subset"))
                 want[wantN++] = "VK_KHR_portability_subset";
             else if (!strcmp(devExts[i].extensionName, "VK_EXT_metal_objects")) {
                 want[wantN++] = "VK_EXT_metal_objects";
-                (*c).metalObjects = true;
+                Device_setMetalObjects(c, true);
             }
         }
         free(devExts);
@@ -156,27 +173,31 @@ Device *Device_create(bool enableValidation) {
     dci.enabledExtensionCount = wantN;
     dci.ppEnabledExtensionNames = wantN ? want : nullptr;
 
-    if (vkCreateDevice((*c).physical, &dci, nullptr, &(*c).device) != VK_SUCCESS) {
+    if (vkCreateDevice((VkPhysicalDevice) Device_physical(c), &dci, nullptr, Device_deviceMut(c)) != VK_SUCCESS) {
         set_err(c, "vkCreateDevice failed");
         Device_destroy(c);
         return nullptr;
     }
-    vkGetDeviceQueue((*c).device, (*c).queueFamily, 0, &(*c).queue);
+    vkGetDeviceQueue((VkDevice) Device_native(c), Device_queueFamily(c), 0, Device_queueMut(c));
     return c;
 }
 
 // Destroys owned Vulkan handles and device metadata; null is ignored.
 fn Device_destroy(Device *c) {
     if (!c) return;
-    if ((*c).device) vkDestroyDevice((*c).device, nullptr);
-    if ((*c).instance) vkDestroyInstance((*c).instance, nullptr);
+    if (Device_native(c)) vkDestroyDevice((VkDevice) Device_native(c), nullptr);
+    if (Device_instance(c)) vkDestroyInstance((VkInstance) Device_instance(c), nullptr);
     free(c);
 }
 
 // Reports whether the wrapper currently owns a non-null logical device.
+;;GETTER
 bool Device_isValid(const Device *c) { return c && (*c).device != VK_NULL_HANDLE; }
+;;GETTER
 const char *Device_lastError(const Device *c) { return c ? (*c).error : "null device"; }
+;;GETTER
 const char *Device_name(const Device *c) { return c ? (*c).deviceName : ""; }
+;;GETTER
 any Device_native(const Device *c) { return c ? (any) ((*c).device) : nullptr; }
 any Device_instance(const Device *c) { return c ? (any) ((*c).instance) : nullptr; }
 any Device_physical(const Device *c) { return c ? (any) ((*c).physical) : nullptr; }
@@ -184,4 +205,5 @@ any Device_queue(const Device *c) { return c ? (any) ((*c).queue) : nullptr; }
 // Returns the selected graphics queue-family index, or zero for null.
 u32 Device_queueFamily(const Device *c) { return c ? (*c).queueFamily : 0u; }
 // Reports whether the device enabled VK_EXT_metal_objects.
+;;GETTER
 bool Device_hasMetalObjects(const Device *c) { return c && (*c).metalObjects; }

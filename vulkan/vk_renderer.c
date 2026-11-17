@@ -71,6 +71,19 @@ typedef struct VkSurfaceSlot {
 } VkSurfaceSlot;
 static VkSurfaceSlot s_surfaces[VK_SURFACE_MAX];
 
+;;GETTER
+static inline VkFramebuffer VkSurfaceSlot_fb(const VkSurfaceSlot *self) { return (*self).fb; }
+;;GETTER
+static inline u32 VkSurfaceSlot_w(const VkSurfaceSlot *self) { return (*self).w; }
+;;GETTER
+static inline u32 VkSurfaceSlot_h(const VkSurfaceSlot *self) { return (*self).h; }
+;;GETTER
+static inline bytes VkBatch_count(const VkBatch *self) { return (*self).count; }
+;;GETTER
+static inline VkQuad *VkBatch_quads(const VkBatch *self) { return (*self).quads; }
+;;SETTER
+static inline fn VkQuad_setTexture(VkQuad *self, u32 v) { (*self).texture = v; }
+
 // What the renderer draws into, as one word. PRIVATE is the offscreen readback
 // target; SLOT names one entry in s_surfaces[]. The slot index is consulted
 // ONLY when kind == SLOT, and every write goes through the three helpers below,
@@ -246,9 +259,9 @@ static bool create_target(u32 w, u32 h) {
 static fn surface_slot_destroy(i32 i) {
     if (i < 0 || i >= VK_SURFACE_MAX) return;
     VkSurfaceSlot *slot = &s_surfaces[i];
-    if ((*slot).fb) { vkDestroyFramebuffer(s_device, (*slot).fb, nullptr); (*slot).fb = VK_NULL_HANDLE; }
-    if ((*slot).view) { vkDestroyImageView(s_device, (*slot).view, nullptr); (*slot).view = VK_NULL_HANDLE; }
-    if ((*slot).image) { vkDestroyImage(s_device, (*slot).image, nullptr); (*slot).image = VK_NULL_HANDLE; }
+    if (s_surfaces[i].fb) { vkDestroyFramebuffer(s_device, s_surfaces[i].fb, nullptr); }
+    if (s_surfaces[i].view) { vkDestroyImageView(s_device, s_surfaces[i].view, nullptr); }
+    if (s_surfaces[i].image) { vkDestroyImage(s_device, s_surfaces[i].image, nullptr); }
     *slot = (VkSurfaceSlot){0};
 }
 
@@ -259,7 +272,6 @@ static i32 surface_slot_add(any iosurface, u32 w, u32 h) {
     for (i32 k = 0; k < VK_SURFACE_MAX; k++)
         if (!s_surfaces[k].used) { i = k; break; }
     if (i < 0) return -1;
-    VkSurfaceSlot *slot = &s_surfaces[i];
     VkImportMetalIOSurfaceInfoEXT imp = {0};
     imp.sType = VK_STRUCTURE_TYPE_IMPORT_METAL_IO_SURFACE_INFO_EXT;
     imp.ioSurface = (IOSurfaceRef) iosurface;
@@ -276,26 +288,32 @@ static i32 surface_slot_add(any iosurface, u32 w, u32 h) {
     ii.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                VK_IMAGE_USAGE_SAMPLED_BIT;
     ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VK_ERR(vkCreateImage(s_device, &ii, nullptr, &(*slot).image));
+    VkImage image = VK_NULL_HANDLE;
+    VK_ERR(vkCreateImage(s_device, &ii, nullptr, &image));
+    s_surfaces[i].image = image;
     // No vkBindImageMemory: the imported IOSurface already backs this image.
     VkImageViewCreateInfo vi = {0}; vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    vi.image = (*slot).image;
+    vi.image = image;
     vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
     vi.format = VK_FORMAT_R8G8B8A8_UNORM;
     vi.subresourceRange = (VkImageSubresourceRange){VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    VK_ERR(vkCreateImageView(s_device, &vi, nullptr, &(*slot).view));
+    VkImageView view = VK_NULL_HANDLE;
+    VK_ERR(vkCreateImageView(s_device, &vi, nullptr, &view));
+    s_surfaces[i].view = view;
     VkFramebufferCreateInfo fi = {0}; fi.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fi.renderPass = s_rpPresent;
     fi.attachmentCount = 1;
-    fi.pAttachments = &(*slot).view;
+    fi.pAttachments = &view;
     fi.width = w;
     fi.height = h;
     fi.layers = 1;
-    VK_ERR(vkCreateFramebuffer(s_device, &fi, nullptr, &(*slot).fb));
-    (*slot).surface = iosurface;
-    (*slot).w = w;
-    (*slot).h = h;
-    (*slot).used = true;
+    VkFramebuffer fb = VK_NULL_HANDLE;
+    VK_ERR(vkCreateFramebuffer(s_device, &fi, nullptr, &fb));
+    s_surfaces[i].fb = fb;
+    s_surfaces[i].surface = iosurface;
+    s_surfaces[i].w = w;
+    s_surfaces[i].h = h;
+    s_surfaces[i].used = true;
     return i;
 }
 
@@ -593,10 +611,10 @@ static bool render() {
     u32 rw, rh;
     bool imported;
     if (slot) {
-        fb = (*slot).fb;
+        fb = VkSurfaceSlot_fb(slot);
         rp = s_rpPresent;
-        rw = (*slot).w;
-        rh = (*slot).h;
+        rw = VkSurfaceSlot_w(slot);
+        rh = VkSurfaceSlot_h(slot);
         imported = true;
     } else {
         if (s_w <= 0 || s_h <= 0) return false;
@@ -765,21 +783,26 @@ static bool vk_drawImage(const Image *image, const Rect *dst) {
     SampledImage *sampled = Image_gpuResource(image);
     if (!SampledImage_retain(sampled))
         return false;
-    bytes before = (*s_batch).count;
+    bytes before = VkBatch_count(s_batch);
     VkBatch_image(s_batch, image, (Rect){0,0,(f32) Image_width(image),(f32) Image_height(image)}, *dst);
-    if ((*s_batch).count != before + 1u) {
+    if (VkBatch_count(s_batch) != before + 1u) {
         SampledImage_release(sampled);
         return false;
     }
-    VkQuad *quad = &(*s_batch).quads[before];
-    (*quad).texture = 0; // each descriptor is a one-layer texture, not atlas ID
+    VkQuad *quad = &VkBatch_quads(s_batch)[before];
+    VkQuad_setTexture(quad, 0); // each descriptor is a one-layer texture, not atlas ID
     s_imageDraws[s_imageDrawCount++] = (VkImageDraw){before, sampled};
     return true;
 }
 // Records text glyph quads using the current atlas and brush color.
 static bool vk_drawText(const Rect *rect, const char *text, const Brush *brush) {
     if (!s_batch || !rect) return false;
-    VkBatch_glyph(s_batch, *rect, 0u, brush ? (*brush).color : COLOR_WHITE);
+    Color color = COLOR_WHITE;
+    if (brush) {
+        Brush br = *brush;
+        color = br.color;
+    }
+    VkBatch_glyph(s_batch, *rect, 0u, color);
     (discard)text;
     return true;
 }

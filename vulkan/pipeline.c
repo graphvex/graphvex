@@ -45,6 +45,23 @@ struct Pipeline {
     any native;       // opaque VkPipeline
 };
 
+;;GETTER
+static inline any Pipeline_vert(const Pipeline *self) { return (*self).vert; }
+;;SETTER
+static inline fn Pipeline_setVert(Pipeline *self, any v) { (*self).vert = v; }
+;;SETTER
+static inline fn Pipeline_setVertSize(Pipeline *self, u32 v) { (*self).vertSize = v; }
+;;GETTER
+static inline any Pipeline_frag(const Pipeline *self) { return (*self).frag; }
+;;SETTER
+static inline fn Pipeline_setFrag(Pipeline *self, any v) { (*self).frag = v; }
+;;SETTER
+static inline fn Pipeline_setFragSize(Pipeline *self, u32 v) { (*self).fragSize = v; }
+;;SETTER
+static inline fn Pipeline_setVertexStride(Pipeline *self, u32 v) { (*self).vertexStride = v; }
+;;SETTER
+static inline fn Pipeline_setPushConstantSize(Pipeline *self, u32 v) { (*self).pushConstantSize = v; }
+
 static any slurp(const char *path, u32 *outSize) {
     FILE *f = fopen(path, "rb");
     if (!f) return nullptr;
@@ -63,21 +80,25 @@ static any slurp(const char *path, u32 *outSize) {
 }
 
 Pipeline *Pipeline_new(const PipelineDesc *desc) {
-    if (!desc || !(*desc).vertSpirv || !(*desc).fragSpirv) return nullptr;
+    if (!desc) return nullptr;
+    PipelineDesc d = *desc;
+    if (!d.vertSpirv || !d.fragSpirv) return nullptr;
     Pipeline *p = calloc(1, sizeof *p);
     if (!p) return nullptr;
-    (*p).vert = malloc((*desc).vertSize);
-    (*p).frag = malloc((*desc).fragSize);
-    if (!(*p).vert || !(*p).frag) {
+    any v = malloc(d.vertSize);
+    any f = malloc(d.fragSize);
+    Pipeline_setVert(p, v);
+    Pipeline_setFrag(p, f);
+    if (!v || !f) {
         Pipeline_destroy(p);
         return nullptr;
     }
-    memcpy((*p).vert, (*desc).vertSpirv, (*desc).vertSize);
-    memcpy((*p).frag, (*desc).fragSpirv, (*desc).fragSize);
-    (*p).vertSize = (*desc).vertSize;
-    (*p).fragSize = (*desc).fragSize;
-    (*p).vertexStride = (*desc).vertexStride;
-    (*p).pushConstantSize = (*desc).pushConstantSize;
+    memcpy(v, d.vertSpirv, d.vertSize);
+    memcpy(f, d.fragSpirv, d.fragSize);
+    Pipeline_setVertSize(p, d.vertSize);
+    Pipeline_setFragSize(p, d.fragSize);
+    Pipeline_setVertexStride(p, d.vertexStride);
+    Pipeline_setPushConstantSize(p, d.pushConstantSize);
     return p;
 }
 
@@ -101,14 +122,14 @@ Pipeline *Pipeline_fromFiles(const char *vertSpvPath, const char *fragSpvPath,
 // Destroys the owned pipeline and layout objects; null is ignored.
 fn Pipeline_destroy(Pipeline *pipeline) {
     if (!pipeline) return;
-    free((*pipeline).vert);
-    free((*pipeline).frag);
+    free(Pipeline_vert(pipeline));
+    free(Pipeline_frag(pipeline));
     free(pipeline);
 }
 
 // Reports whether the wrapper has vertex and fragment stages and a positive vertex stride.
 bool Pipeline_isValid(const Pipeline *pipeline) {
-    return pipeline && (*pipeline).vert && (*pipeline).frag && (*pipeline).vertexStride > 0;
+    return pipeline && Pipeline_vert(pipeline) && Pipeline_frag(pipeline) && Pipeline_vertexStride(pipeline) > 0;
 }
 
 // Returns the configured vertex stride, or zero when pipeline is null.

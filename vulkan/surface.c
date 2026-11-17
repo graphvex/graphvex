@@ -78,6 +78,67 @@ struct Surface {
     any clockUser;
 };
 
+;;GETTER
+static inline any Surface_native(const Surface *self) { return (*self).native; }
+;;SETTER
+static inline fn Surface_setNative(Surface *self, any v) { (*self).native = v; }
+;;SETTER
+static inline fn Surface_setWidth(Surface *self, u32 v) { (*self).width = v; }
+;;SETTER
+static inline fn Surface_setHeight(Surface *self, u32 v) { (*self).height = v; }
+;;GETTER
+static inline Image *Surface_presentField(const Surface *self) { return (*self).present; }
+;;SETTER
+static inline fn Surface_setPresent(Surface *self, Image *v) { (*self).present = v; }
+;;GETTER
+static inline bool Surface_presented(const Surface *self) { return (*self).presented; }
+;;SETTER
+static inline fn Surface_setPresented(Surface *self, bool v) { (*self).presented = v; }
+;;GETTER
+static inline SurfacePresentFn Surface_presentFn(const Surface *self) { return (*self).presentFn; }
+;;SETTER
+static inline fn Surface_setPresentFn(Surface *self, SurfacePresentFn v) { (*self).presentFn = v; }
+;;GETTER
+static inline any Surface_presentUser(const Surface *self) { return (*self).presentUser; }
+;;SETTER
+static inline fn Surface_setPresentUser(Surface *self, any v) { (*self).presentUser = v; }
+;;GETTER
+static inline Board **Surface_boards(const Surface *self) { return (*self).boards; }
+;;SETTER
+static inline fn Surface_setBoards(Surface *self, Board **v) { (*self).boards = v; }
+;;GETTER
+static inline i32 Surface_boardCount(const Surface *self) { return (*self).boardCount; }
+;;SETTER
+static inline fn Surface_setBoardCount(Surface *self, i32 v) { (*self).boardCount = v; }
+;;GETTER
+static inline i32 Surface_boardCap(const Surface *self) { return (*self).boardCap; }
+;;SETTER
+static inline fn Surface_setBoardCap(Surface *self, i32 v) { (*self).boardCap = v; }
+;;GETTER
+static inline i32 Surface_fpsCap(const Surface *self) { return (*self).fpsCap; }
+;;SETTER
+static inline fn Surface_setFpsCap(Surface *self, i32 v) { (*self).fpsCap = v; }
+;;GETTER
+static inline u64 Surface_lastPresent(const Surface *self) { return (*self).lastPresent; }
+;;SETTER
+static inline fn Surface_setLastPresent(Surface *self, u64 v) { (*self).lastPresent = v; }
+;;GETTER
+static inline u64 Surface_presentCount(const Surface *self) { return (*self).presentCount; }
+;;SETTER
+static inline fn Surface_setPresentCount(Surface *self, u64 v) { (*self).presentCount = v; }
+;;GETTER
+static inline bool Surface_pending(const Surface *self) { return (*self).pending; }
+;;SETTER
+static inline fn Surface_setPending(Surface *self, bool v) { (*self).pending = v; }
+;;GETTER
+static inline SurfaceClockFn Surface_clockFn(const Surface *self) { return (*self).clockFn; }
+;;SETTER
+static inline fn Surface_setClockFn(Surface *self, SurfaceClockFn v) { (*self).clockFn = v; }
+;;GETTER
+static inline any Surface_clockUser(const Surface *self) { return (*self).clockUser; }
+;;SETTER
+static inline fn Surface_setClockUser(Surface *self, any v) { (*self).clockUser = v; }
+
 // Creates an offscreen surface with a 1x1 retained image.
 Surface *Surface_0() { return Surface_3(nullptr, 0, 0); }
 
@@ -85,34 +146,35 @@ Surface *Surface_0() { return Surface_3(nullptr, 0, 0); }
 Surface *Surface_3(any native, u32 width, u32 height) {
     Surface *s = calloc(1, sizeof *s);
     if (!s) return nullptr;
-    (*s).native = native;
-    (*s).fpsCap = -1;
-    (*s).width = width;
-    (*s).height = height;
+    Surface_setNative(s, native);
+    Surface_setFpsCap(s, -1);
+    Surface_setWidth(s, width);
+    Surface_setHeight(s, height);
     ImageDesc d = {width ? width : 1u, height ? height : 1u, IMAGE_FORMAT_RGBA8,
                    IMAGE_USAGE_RENDER | IMAGE_USAGE_TRANSFER | IMAGE_USAGE_SAMPLED};
-    (*s).present = Image_new(&d);
-    if (!(*s).present) {
+    Image *present = Image_new(&d);
+    if (!present) {
         free(s);
         return nullptr;
     }
+    Surface_setPresent(s, present);
     return s;
 }
 
 // Destroys the retained image and board directory without destroying borrowed boards or native handle.
 fn Surface_destroy(Surface *surface) {
     if (!surface) return;
-    Image_destroy((*surface).present);
-    free((*surface).boards);
+    Image_destroy(Surface_presentField(surface));
+    free(Surface_boards(surface));
     free(surface);
 }
 
 // Updates native-pixel dimensions and resizes the retained image, using at least 1x1 backing.
 bool Surface_resize(Surface *surface, u32 width, u32 height) {
-    if (!surface || !(*surface).present) return false;
-    (*surface).width = width;
-    (*surface).height = height;
-    return Image_resize((*surface).present, width ? width : 1u, height ? height : 1u);
+    if (!surface || !Surface_presentField(surface)) return false;
+    Surface_setWidth(surface, width);
+    Surface_setHeight(surface, height);
+    return Image_resize(Surface_presentField(surface), width ? width : 1u, height ? height : 1u);
 }
 
 // Returns the configured native-pixel width, or zero for null.
@@ -120,88 +182,96 @@ u32 Surface_width(const Surface *surface) { return surface ? (*surface).width : 
 // Returns the configured native-pixel height, or zero for null.
 u32 Surface_height(const Surface *surface) { return surface ? (*surface).height : 0u; }
 // Reports whether the retained presentation image exists.
-bool Surface_isValid(const Surface *surface) { return surface && (*surface).present != nullptr; }
+bool Surface_isValid(const Surface *surface) { return surface && Surface_presentField(surface) != nullptr; }
 // Returns the borrowed native host handle.
-any Surface_handle(const Surface *surface) { return surface ? (*surface).native : nullptr; }
+any Surface_handle(const Surface *surface) { return surface ? Surface_native(surface) : nullptr; }
 // Returns the retained presentation image as a borrowed pointer.
-Image *Surface_presentImage(Surface *surface) { return surface ? (*surface).present : nullptr; }
+Image *Surface_presentImage(Surface *surface) { return surface ? Surface_presentField(surface) : nullptr; }
 
 // Installs the host presentation callback and its borrowed userdata.
 fn Surface_onPresent(Surface *surface, SurfacePresentFn fn, any userdata) {
     if (!surface) return;
-    (*surface).presentFn = fn;
-    (*surface).presentUser = userdata;
+    Surface_setPresentFn(surface, fn);
+    Surface_setPresentUser(surface, userdata);
 }
 
 // Reads time from the configured clock callback or the monotonic system clock.
 static u64 surfaceNow(Surface *surface) {
-    if ((*surface).clockFn) return (*surface).clockFn((*surface).clockUser);
+    if (Surface_clockFn(surface)) return Surface_clockFn(surface)(Surface_clockUser(surface));
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     return (u64)ts.tv_sec * 1000000000ULL + (u64)ts.tv_nsec;
 }
 
 // Reports whether the FPS cap permits another presentation at the current time.
 static bool surfaceDue(Surface *surface) {
-    return (*surface).fpsCap == -1 || !(*surface).presentCount ||
-        surfaceNow(surface) - (*surface).lastPresent >=
-        (1000000000ULL + (u64)(*surface).fpsCap - 1) / (u64)(*surface).fpsCap;
+    i32 cap = Surface_fpsCap(surface);
+    return cap == -1 || !Surface_presentCount(surface) ||
+        surfaceNow(surface) - Surface_lastPresent(surface) >=
+        (1000000000ULL + (u64)cap - 1) / (u64)cap;
 }
 
 // Sets the presentation cap; -1 disables it and nonpositive alternatives are ignored.
 fn Surface_setFPSCap(Surface *surface, i32 fps) {
-    if (!surface || (fps != -1 && fps <= 0) || (*surface).fpsCap == fps) return;
-    (*surface).fpsCap = fps;
+    if (!surface || (fps != -1 && fps <= 0) || Surface_fpsCap(surface) == fps) return;
+    Surface_setFpsCap(surface, fps);
 }
 // Returns the configured cap, or zero when surface is null.
-i32 Surface_getFPSCap(const Surface *surface) { return surface ? (*surface).fpsCap : 0; }
+i32 Surface_getFPSCap(const Surface *surface) { return surface ? Surface_fpsCap(surface) : 0; }
 // Returns the count of successful host presentation callbacks.
-u64 Surface_getPresentCount(const Surface *surface) { return surface ? (*surface).presentCount : 0; }
+u64 Surface_getPresentCount(const Surface *surface) { return surface ? Surface_presentCount(surface) : 0; }
 // Installs a clock callback and resets present timing and count for deterministic scheduling.
 fn Surface_setClock(Surface *surface, SurfaceClockFn fn, any userdata) {
     if (!surface) return;
-    (*surface).clockFn = fn; (*surface).clockUser = userdata;
-    (*surface).lastPresent = 0; (*surface).presentCount = 0;
+    Surface_setClockFn(surface, fn);
+    Surface_setClockUser(surface, userdata);
+    Surface_setLastPresent(surface, 0);
+    Surface_setPresentCount(surface, 0);
 }
 
 // Hands the retained image to the host when due; a missing callback or failed callback returns false.
 bool Surface_present(Surface *surface) {
-    if (!surface || !(*surface).present) return false;
-    if (!surfaceDue(surface)) { (*surface).pending = true; return false; }
+    if (!surface || !Surface_presentField(surface)) return false;
+    if (!surfaceDue(surface)) { Surface_setPending(surface, true); return false; }
     // The host owns the drawable; we only hand it the finished image. With no
     // blit installed (an offscreen surface) there is nowhere to present.
-    (*surface).presented = (*surface).presentFn
-        ? (*surface).presentFn(surface, (*surface).presentUser)
+    bool ok = Surface_presentFn(surface)
+        ? Surface_presentFn(surface)(surface, Surface_presentUser(surface))
         : false;
-    if ((*surface).presented) {
-        (*surface).lastPresent = surfaceNow(surface);
-        (*surface).presentCount++;
-        (*surface).pending = false;
+    Surface_setPresented(surface, ok);
+    if (ok) {
+        Surface_setLastPresent(surface, surfaceNow(surface));
+        Surface_setPresentCount(surface, Surface_presentCount(surface) + 1);
+        Surface_setPending(surface, false);
     }
-    return (*surface).presented;
+    return ok;
 }
 
 // ── revalidation ────────────────────────────────────────────────────────────
 // Appends a borrowed board to the surface's ordered revalidation list.
 fn Surface_addBoard(Surface *surface, Board *board) {
     if (!surface || !board) return;
-    if ((*surface).boardCount == (*surface).boardCap) {
-        i32 cap = (*surface).boardCap ? (*surface).boardCap * 2 : 2;
-        Board **grown = realloc((*surface).boards, (bytes)cap * sizeof *grown);
+    if (Surface_boardCount(surface) == Surface_boardCap(surface)) {
+        i32 cap = Surface_boardCap(surface) ? Surface_boardCap(surface) * 2 : 2;
+        Board **grown = realloc(Surface_boards(surface), (bytes)cap * sizeof *grown);
         if (!grown) return;
-        (*surface).boards = grown;
-        (*surface).boardCap = cap;
+        Surface_setBoards(surface, grown);
+        Surface_setBoardCap(surface, cap);
     }
-    (*surface).boards[(*surface).boardCount++] = board;
+    i32 count = Surface_boardCount(surface);
+    Surface_boards(surface)[count] = board;
+    Surface_setBoardCount(surface, count + 1);
 }
 
 // Removes the first matching borrowed board while preserving the order of remaining boards.
 fn Surface_removeBoard(Surface *surface, Board *board) {
     if (!surface || !board) return;
-    for (i32 i = 0; i < (*surface).boardCount; i++) {
-        if ((*surface).boards[i] != board) continue;
-        memmove(&(*surface).boards[i], &(*surface).boards[i + 1],
-                (bytes)((*surface).boardCount - i - 1) * sizeof *(*surface).boards);
-        (*surface).boardCount--;
+    Board **boards = Surface_boards(surface);
+    i32 count = Surface_boardCount(surface);
+    for (i32 i = 0; i < count; i++) {
+        if (boards[i] != board) continue;
+        memmove(&boards[i], &boards[i + 1],
+                (bytes)(count - i - 1) * sizeof *boards);
+        Surface_setBoardCount(surface, count - 1);
         return;
     }
 }
@@ -211,20 +281,22 @@ fn Surface_removeBoard(Surface *surface, Board *board) {
 // Marks output pending and polls it, revalidating boards only when presentation is due.
 fn Surface_revalidate(Surface *surface) {
     if (!surface) return;
-    (*surface).pending = true;
+    Surface_setPending(surface, true);
     Surface_poll(surface);
 }
 
 // Revalidates and presents pending output once its configured cap allows it.
 fn Surface_poll(Surface *surface) {
-    if (!surface || !(*surface).pending || !surfaceDue(surface)) return;
+    if (!surface || !Surface_pending(surface) || !surfaceDue(surface)) return;
     Surface_revalidateNow(surface);
 }
 
 // Revalidates each attached board in order, then attempts one presentation.
 fn Surface_revalidateNow(Surface *surface) {
     if (!surface) return;
-    for (i32 i = 0; i < (*surface).boardCount; i++)
-        Board_revalidate((*surface).boards[i]);
+    Board **boards = Surface_boards(surface);
+    i32 count = Surface_boardCount(surface);
+    for (i32 i = 0; i < count; i++)
+        Board_revalidate(boards[i]);
     Surface_present(surface);
 }
