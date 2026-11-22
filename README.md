@@ -1,6 +1,6 @@
-# graphvex (api) — the GPU API
+# graphvex (api), the GPU API
 
-> Branch `another-rewrite`. A clean rewrite; `../api_old/` is the behaviour reference. Nothing here is implemented yet — see `_notes/ideas/graphvex/MANIFEST.md` for the work order.
+> Branch `another-rewrite`. A clean rewrite; `../api_old/` is the behaviour reference. Nothing here is implemented yet, see `_notes/ideas/graphvex/MANIFEST.md` for the work order.
 
 graphvex is **just the API**: backend-agnostic GPU objects (`Image`, `GpuBuffer`, `Pipeline`, `Pass`, `CommandBuffer`, `Fence`, `Semaphore`, `Swapchain`, …) and the drivers that implement them. It draws nothing by itself.
 

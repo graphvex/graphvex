@@ -1,4 +1,4 @@
-# graphvex — Repo-Local Living Preferences
+# graphvex, Repo-Local Living Preferences
 
 ## Constitution Link
 
@@ -7,10 +7,10 @@ gist.md (`../../../../metadata/gists/preferences/gist.md`) is the compressed law
 ## Tier and Ownership
 
 **Tier:** `core` (GPU Driver). graphvex is **just the API**.
-**Owns:** the backend-agnostic GPU object classes (`core/`), the four drivers (`vulkan/`, `metal/`, `direct/`, `wgpu/`), the shader module registry (`shader/`).
+**Owns:** the GPU memory substrate (`vio/`: `VideoPool` -> `VideoArena` -> `vpointer`), the backend-agnostic GPU object classes (`core/`), the four drivers (`vulkan/`, `metal/`, `direct/`, `wgpu/`), and the shader module registry (`shader/`).
 **Does not own:** drawing vocabulary, UI composition or scenes. Those live in sibling core repos:
-* **collage** (`../compositor/`) — rect-first, forward-rendered compositor; owns `lang/`, `paint/`, `text/`, elements, filters.
-* **meld** (`../meld/`) — retained 2D/3D renderer; owns `Mesh`, `Meshlet`, scenes, spaces, terrain.
+* **collage** (`../compositor/`), rect-first, forward-rendered compositor; owns `lang/`, `paint/`, `text/`, elements, filters.
+* **meld** (`../meld/`), retained 2D/3D renderer; owns `Mesh`, `Meshlet`, scenes, spaces, terrain.
 Borrows: lib (`vex.h`), re (`Memory_*`), vexspoke (CPU/behavior). Includes point down only; collage and meld include graphvex, never the reverse, and never each other.
 
 Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `another-rewrite`.
@@ -32,14 +32,12 @@ Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `anoth
 
 ### Unified Graphics Abstraction Law
 
-* Backend-agnostic primitives (`Image`, `Fence`, `Semaphore`, `Swapchain`, `CommandBuffer`, `CommandQueue`, `Surface`, `GraphicsLayer`) decouple app/UI rendering from Vulkan, Metal, Direct3D and WebGPU (wgpu).
-* `Image`/`Swapchain` keep tightly-packed CPU shadow blocks — zero steady-state allocation (RGBA8 at width * height * 4 Bytes) from the re arena (`Memory_alloc`).
-* GPU-GPU ordering (`Semaphore`) advances monotonically, strictly probed, never blocking CPU threads.
-* Surfaces/swapchains bridge into OS compositing layers (`CAMetalLayer` via `GraphicsLayer`, window hooks) by native hardware pixel scaling.
-* Never expose driver handles (`VkImage`, `VkDevice`, `MTLDevice`, `ID3D12Device`, `WGPUDevice`) in client headers.
-* Every fence join and timeline wait obeys `FENCE_WAIT_TIMEOUT_NS` (100ms max); indefinite GPU waits (`UINT64_MAX`) prohibited.
-* graphvex holds no drawing vocabulary: no meshes, fonts, shapes, brushes, strokes, elements or filters.
-* Optional features are `Capability` bits probed once cold; a false bit selects a stated fallback, never an `#ifdef` in a client.
+* Consumers (`ramon`, `collage`, `meld`) see only the unified `Graphics` surface (`Graphics`, `GraphicsImage`, `GraphicsRect`, `GraphicsCommand`, `PixelFormat`, `ColorRGBA`) over `vio/` (`VideoPool`, `VideoArena`, `vpointer`). Zero Vulkan, Metal, Direct3D, or wgpu types, enums, or handles leak into public headers.
+* **No Swapchain:** `Swapchain` is forbidden in the public API. Everything renders into `vpointer`-backed `GraphicsImage` buffers and presents via `Graphics_present(g, nativeSurface, &image)`. Any OS drawable/layer plumbing stays strictly inside the four driver folders.
+* **Zero-Copy Crop + Explicit Copy:** `Graphics_crop(src, x0, y0, x1, y1)` returns a zero-copy `GraphicsImage` sub-view (advancing `vpointer` and preserving parent `strideBytes`). Standalone tightly-packed copies are explicit via `Graphics_copy(g, arena, src)`, `Graphics_copy(g, arena, src, x0, y0, x1, y1)`, and `Graphics_copyTo`.
+* **No Feature Toggles (Bindless Baseline):** `graphvex` does not expose `Capability` toggles or backend feature probes to clients. Bindless image slots are always-on by construction, every `GraphicsImage` is auto-registered at creation (slot `0` reserved for dummy white).
+* Every internal driver wait obeys `FENCE_WAIT_TIMEOUT_NS` (100ms max); indefinite GPU waits (`UINT64_MAX`) are prohibited.
+* `graphvex` holds no drawing vocabulary: no meshes, fonts, shapes, brushes, strokes, elements or filters.
 
 ### Driver Axis Seam Law
 
@@ -64,15 +62,15 @@ Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `anoth
 * The umbrella build (`../../../tools/b`) compiles ahead of time into external build-state `shader/`, choosing the native source per backend when present and cross-compiling otherwise (glslang, spirv-cross, naga/tint, dxc).
 * MSL-only modules are Metal-only by design; there is no MSL → SPIR-V path.
 * A module has one name and one or more sources; the build records which source produced each blob.
-* Modules separate responsibilities — meld: `scene`, `shadow`, `terrain`, `portal`, `procedural`, `post`, `sprite`, `pick`; collage: `compose`, `filter`, `source`, `mask`. Never one unbounded shader spanning widget composition and scene lighting.
+* Modules separate responsibilities, meld: `scene`, `shadow`, `terrain`, `portal`, `procedural`, `post`, `sprite`, `pick`; collage: `compose`, `filter`, `source`, `mask`. Never one unbounded shader spanning widget composition and scene lighting.
 * Shared color/alpha/coordinate helpers have one implementation per language.
 * Darling and vexspoke own no shader blobs.
 
 ### Ecosystem Vulkan Safety Nets Law
 
-* Every Vulkan-touching file carries deterministic handling — same input sequence ⇒ same seam name, decision, log line.
+* Every Vulkan-touching file carries deterministic handling, same input sequence ⇒ same seam name, decision, log line.
 * `VkGuard_check(seam, device, queue, deviceLost)` lives once in `vulkan/vk_guard.h` (header-only, no struct).
-* Under `NDEBUG` the guard is a macro no-op — zero calls, zero branches, unevaluated arguments.
+* Under `NDEBUG` the guard is a macro no-op, zero calls, zero branches, unevaluated arguments.
 * One fixed decision table for every wait/acquire/submit/present: success advances; timeout-with-signal recovers; timeout-unsignaled drops (dirty state intact), retry next tick; device loss latches once at the true site.
 * Every Metal, Direct3D 12 and wgpu file carries the same decision table through its `mtl_guard.h`, `d3d_guard.h`, `wgpu_guard.h`; the device-lost equivalents (`MTLCommandBufferErrorDeviceRemoved`, `DXGI_ERROR_DEVICE_REMOVED`, the wgpu device-lost callback) latch once.
 * Report site is never the cause: on Vulkan `VK_ERROR_DEVICE_LOST`, read MoltenVK's Metal error before touching code.
@@ -86,7 +84,7 @@ Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `anoth
 
 ## Repo-Local Extensions
 
-* None — no managed exceptions to universal laws. (The Driver Axis Seam Law is an exclusive law, not an exception.)
+* None, no managed exceptions to universal laws. (The Driver Axis Seam Law is an exclusive law, not an exception.)
 
 ## Moved Laws
 
@@ -96,5 +94,5 @@ The widget-compositor laws moved to collage with their execution: Graphics Langu
 
 * Feature readiness: graphvex readiness gist.
 * Open blockers: ecosystem blockers gist.
-* Proof lawbook: `tests/test-preferences.md` — `./tools/prefs test "<title>"`.
-* Evidence ledger: `metadata/gists/test-checklist.md` — `python3 tools/test_checklist.py check`.
+* Proof lawbook: `tests/test-preferences.md`, `./tools/prefs test "<title>"`.
+* Evidence ledger: `metadata/gists/test-checklist.md`, `python3 tools/test_checklist.py check`.
