@@ -1,119 +1,25 @@
-# graphvex — R3 graphics foundation (supervised by R1 hotcwap)
+# graphvex (api), the GPU API
 
-## Current State
+> Branch `another-rewrite`. A clean rewrite; `../api_old/` is the behaviour reference. Nothing here is implemented yet, see `_notes/ideas/graphvex/MANIFEST.md` for the work order.
 
-graphvex is an **R3 graphics driver**. Today it provides a working CPU
-graphics/compositor foundation plus a single Vulkan backend row — a substantial
-implementation, **not** a finished production renderer. Every claim below is
-bounded by the recorded evidence in `../../metadata/gists/test-checklist.md`.
+graphvex is **just the API**: backend-agnostic GPU objects (`Image`, `GpuBuffer`, `Pipeline`, `Pass`, `CommandBuffer`, `Fence`, `Semaphore`, `Swapchain`, …) and the drivers that implement them. It draws nothing by itself.
 
-- **Implemented and exercised** (Apple Silicon macOS is the only proven host):
-  the rect-first drawable seam with a headless CPU raster backend (`graphics`),
-  native-pixel `viewport`, present-on-demand `render_loop`, the RGBA8 `image`,
-  the origin-aware CPU compositor with ordered filter tokens and isolated
-  groups, the `ui/element` + `ui/property` tree with separate event and paint
-  bounds, retained offscreen `board`s, and the Vulkan session / pipeline / quad
-  batcher / `vk_renderer` row; `compositor/gpu_scope` executes real Vulkan
-  filter-scatter pipelines.
-- **Recorded proof is partial.** The per-file ledger carries executed evidence
-  for only a minority of graphvex files (for example `image`, `gpu_scope`,
-  `sampled_image`, `image_runs`, and the compositor/filter/vulkan suites); many
-  source and test rows are **unrecorded**. Unrecorded is *not proven* — and it
-  is not a claim that those files fail.
-- **Documented as partial or planned, not proven:** the wider subsystem grades
-  in the readiness matrix (bindless descriptor heaps, meshlets, SDF atlases,
-  zero-copy IOSurface compositing, 3D shading) exceed what the recorded graphvex
-  evidence establishes. The reference compositor still allocates during
-  composition rather than running a pooled hot path; advanced compute/lighting
-  (PBR, particles, OIT) is not implemented.
-- **Platforms:** proven on Apple Silicon macOS 14+ only. Windows and Linux GPU
-  paths and shaders are unproven.
-
-The **rect-first** GPU driver + UI element-tree core. Built by the workspace
-build system [b](https://github.com/vex-graph/b) (local checkout at `../personal/b`).
-
-> **NO SWAPCHAIN, EVER.** We never touch `VK_KHR_swapchain`. Rendering goes into
-> our own `Image`/`Board`s; the on-screen destination is a host-borrowed seam
-> (a `CAMetalLayer` on Apple). See `vulkan/surface.h`.
-
-Current builds consume Vexspoke headers/runtime. The Vertical Integration Law
-permits R3 to borrow either R2 public contract: **Vexspoke** CPU computation,
-math, algorithms, synchronization and behavior, or **Relational Engine**
-memory/storage, stable rows, bindings and native C search over Rust-owned spans.
-Production native IO/NIO now comes from Relational Engine by default, with
-compatible C allocator semantics, not a Rust rewrite. Broader migration is staged.
-R1 owns storage residency/lifetimes. GPU shaders, dispatch, capabilities and
-synchronization stay Graphvex R3; no C/Rust atomic-layout compatibility or
-automatic schema migration is assumed. No R1/R4/R5 headers enter this driver.
-
-## What's here
-
-| Path | What |
-|---|---|
-| `src/graphics/graphics.{h,c}` | the rect-first drawable seam: fill rect / image / text / clip / clear, plus the DisplayList and a headless CPU (raster) backend |
-| `src/graphics/viewport.{h,c}` | points ↔ native px via the backing scale (no virtual canvas) |
-| `src/graphics/render_loop.{h,c}` | present-on-demand: a resting client presents zero frames |
-| `src/image.{h,c}` | RGBA8 pixel buffer (scenes, pixel buffers, IOSurface) with a CPU shadow |
-| `src/compositor` | origin-aware CPU group isolation, linear-premultiplied composition and ordered scatter filters; see [COMPOSITOR.md](COMPOSITOR.md) |
-| `src/lang/filter.h` | 64-bit inline filter-token ABI; `compositor/filter_pool` stores indexed immutable complex recipes |
-| `src/ui/element.{h,c}` | graphical tree with separate event and absolute paint-bound queries |
-| `src/ui/property.{h,c}` | the shared placement record: rect + corner radius + border + shadow + anchor/pivot |
-| `src/board.{h,c}` | a **retained offscreen target**; `Board_publish` bumps the generation that wakes the loop |
-| `src/vulkan/device.{h,c}` | the Vulkan session (instance → device → queue), no presentation |
-| `src/vulkan/surface.{h,c}` | host-borrowed destination + ONE retained present Image |
-| `src/vulkan/pipeline.{h,c}` | the one quad pipeline (SPIR-V shaders + state) |
-| `src/vulkan/vk_batch.{h,c}` | the quad batcher: display list → one vertex buffer |
-| `src/vulkan/vk_renderer.c` | the Vulkan `Backend` row |
-| `src/shaders/quad.{vert,frag}` | the rounded-rect SDF + image/glyph shader (SPIR-V generated by `b`) |
-
-## The model
-
-- **Everything visible is an Element** with a shared `Property` — a rectangle
-  with a corner radius, a background, an optional border, and an optional shadow.
-  Different element kinds are just different property values; there is no
-  subclass zoo.
-- **Anchor / Pivot** — `anchor` is the point on the **parent**, `pivot` the point
-  on the **element** that lands on it (9 parts each: `PART_TOP_LEFT … PART_BOTTOM_RIGHT`),
-  plus an offset. `Element_resolve(element, parentRect)` is pure geometry.
-- **Rendering ownership** — Graphvex owns widget/element composition; Darling
-  owns widget interfaces, input/focus, layout policy and host bridges. The existing
-  flat GPU display list remains available; filtered CPU groups use isolated
-  surfaces and preserve their absolute origin when submitted as images. The new
-  reference compositor allocates on composition and is not yet a pooled hot path.
-- **Two bounds** — event bounds are resolved layout/hit geometry. Absolute bounds
-  conservatively include descendant paint and effects; filter halos do not move
-  anchors or enlarge mouse targets. Ancestor composition clips apply externally.
-- **Demand-driven** — `render_loop` presents only when `markDirty` or a newer
-  board generation demands it; a resting client costs zero frames.
-
-## Build & test
-
-```sh
-cd ~/vexgraph
-./tools/b.sh build          # builds libgraphvex.a + the SPIR-V shaders
-./tools/b.sh test           # runs the graphvex tests (tests/graphvex/, mirrored)
-./tools/b.sh run <test>     # runs one
+```text
+graphvex (api) → collage (rect-first, forward compositor) | meld (retained renderers) → darling (UI, incl. 3D panel)
 ```
 
-The tests live in the workspace `tests` repo, mirrored per unit under
-`tests/graphvex/<dir>/<unit>_test.c` (the Test Tree Mirror Law). The in-repo
-`../tests` and prebuilt `shader/spv/` of the old tree were retired with the rewrite.
+## Deliberate seams
 
-## Scope and Limitations
+1. **Four backends, split by graphics API, not by platform:** `vulkan/`, `metal/`, `direct/`, `wgpu/` (wgpu-native). A driver whose API does not exist on a target fails with `#error` there. This is intentional and does not violate One File, All Platforms: platform branches inside a driver stay in that driver's file.
+2. **Metal drivers are `.m`** (the stated Objective-C exception); Direct3D 12 is Windows-only.
+3. **Vendor headers live only in the driver folders.** Public headers expose opaque structs and `Class_verb` functions; no `Vk*`, `MTL*`, `ID3D12*` or `WGPU*` token in any public header.
+4. **Shaders are GLSL | MSL | WGSL, SPIR-V is the common target.** Each backend keeps its native interpretation. MSL-only modules are Metal-only by design.
+5. **Capabilities are probed once** (bindless, timeline, mesh shader, ray query, …). Missing capabilities select a stated fallback; ray tracing never enters core.
+6. **Every GPU wait is bounded** at 100 ms.
+7. **No drawing vocabulary here.** Fonts, shapes, brushes, filters and elements are collage's; meshes and scenes are meld's.
 
-graphvex covers backend-agnostic graphics primitives, the graphical element-tree
-compositor, and SPIR-V shader deployment. It deliberately does not do the
-following:
+## Layout
 
-- **It never owns a window or a swapchain.** There is no `VK_KHR_swapchain`;
-  rendering targets graphvex `Image`/`Board`s, and the on-screen destination is
-  a host-borrowed seam (a `CAMetalLayer` on Apple).
-- **It includes no R1/R4/R5 headers** and does not own widget semantics,
-  input/focus, layout policy, or host bridges — those stay with `hotcwap` (R1)
-  and `darling-framework` (R4).
-- **It is not a complete production renderer.** Bindless descriptor heaps,
-  meshlets, SDF atlases, 3D shading and advanced lighting remain partial or
-  planned; the reference compositor is not yet a pooled hot path.
-- **It proves no cross-platform GPU path.** Only Apple Silicon macOS 14+ on the
-  local host is exercised; other-host runtime and GPU readiness require their
-  own proof.
+`core/` backend-free classes · `vulkan/ metal/ direct/ wgpu/` drivers · `shader/` module registry · `tests/`
+
+Laws: [graphvex-preferences.md](graphvex-preferences.md).
