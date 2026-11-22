@@ -1,13 +1,14 @@
 #ifndef GRAPHVEX_SHADER_H
 #define GRAPHVEX_SHADER_H
 
-// shader/shader.h — multi-source shader registry (GLSL | MSL | WGSL -> SPIR-V).
-//
-// SPIR-V Shader Deployment Law: shader sources are GLSL, MSL or WGSL; SPIR-V is
-// the common target. Each backend picks its native source when present and
-// cross-compiles otherwise. MSL-only modules are Metal-only by design.
+/**
+ * shader/shader.h -- multi-source shader registry (GLSL | MSL | WGSL -> SPIR-V)
+ * and re/io/file byte-stream loader for .metal, .metallib, and .spv blobs.
+ */
 
 #include "core/core.h"
+
+#define ID_SHADER_BYTES 0x0105u
 
 ;;CLASSNAME("ShaderLanguage")
 
@@ -32,7 +33,7 @@ typedef enum ShaderStage {
 ;;CLASSNAME("ShaderSource")
 
 typedef struct ShaderSource {
-    const char *moduleName;
+    const utf8 *moduleName;
     ShaderStage stage;
     u32 availableLanguageMask;
     const u8 *spirvBytes;
@@ -42,9 +43,9 @@ typedef struct ShaderSource {
 _Static_assert(sizeof(ShaderSource) == 32, "ShaderSource obeys 32-byte floor");
 
 ;;GETTER
-const char *ShaderSource_moduleName(const ShaderSource *self);
+const utf8 *ShaderSource_moduleName(const ShaderSource *self);
 ;;SETTER
-fn ShaderSource_setModuleName(ShaderSource *self, const char *name);
+fn ShaderSource_setModuleName(ShaderSource *self, const utf8 *name);
 
 ;;GETTER
 ShaderStage ShaderSource_stage(const ShaderSource *self);
@@ -56,7 +57,26 @@ u32 ShaderSource_availableLanguageMask(const ShaderSource *self);
 ;;SETTER
 fn ShaderSource_setAvailableLanguageMask(ShaderSource *self, u32 mask);
 
-bool ShaderSource_supportsBackend(const ShaderSource *self, BackendKind backend);
-ShaderLanguage ShaderSource_preferredLanguage(const ShaderSource *self, BackendKind backend);
+bool ShaderSource_supportsLanguage(const ShaderSource *self, ShaderLanguage nativeLang);
+ShaderLanguage ShaderSource_preferredLanguage(const ShaderSource *self, ShaderLanguage nativeLang);
+
+;;CLASSNAME("ShaderBytes")
+
+typedef struct ShaderBytes {
+    u8 *data;
+    bytes length;
+    u64 _pad[2];
+} ShaderBytes;
+
+_Static_assert(sizeof(ShaderBytes) == 32, "ShaderBytes obeys 32-byte floor");
+
+;;GETTER
+u8 *ShaderBytes_data(const ShaderBytes *self);
+;;GETTER
+bytes ShaderBytes_length(const ShaderBytes *self);
+
+bool ShaderBytes_isValid(const ShaderBytes *self);
+ShaderBytes Shader_loadFile(const utf8 *path);
+fn ShaderBytes_destroy(ShaderBytes *self);
 
 #endif
