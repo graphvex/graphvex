@@ -1,8 +1,10 @@
 #ifndef GRAPHVEX_METAL_H
 #define GRAPHVEX_METAL_H
 
-// metal/metal.h — internal Metal driver door (Apple targets only).
-// Driver Axis Seam Law: fails with #error on non-Apple targets.
+/**
+ * metal/metal.h -- internal Metal driver door (Apple targets only).
+ * Driver Axis Seam Law: fails with #error on non-Apple targets.
+ */
 
 #include "core/core.h"
 
@@ -11,5 +13,7 @@
 #endif
 
 #include "metal/mtl_guard.h"
+
+Graphics *Graphics_createMetal(VideoPool *pool);
 
 #endif
