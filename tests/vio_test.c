@@ -10,7 +10,7 @@ static fn testPool(VideoPool *pool, const utf8 *label) {
            VideoMemory_isUma(pool) ? "true" : "false",
            VideoPool_slabBytes(pool));
 
-    VideoArena *shared = VideoArena_create(pool, VIDEO_MEMORY_SHARED, 0u);
+    VideoArena *shared = VideoArena(pool, VIDEO_MEMORY_SHARED, 0u);
     assert(shared != nullptr);
 
     vpointer a = VideoArena_alloc(shared, 1024u, 256u);
@@ -53,14 +53,14 @@ static fn testPool(VideoPool *pool, const utf8 *label) {
     vpointer d = VideoArena_alloc(shared, 256u, 256u);
     assert(d == a);
 
-    VideoArena *capped = VideoArena_create(pool, VIDEO_MEMORY_SHARED, 512u);
+    VideoArena *capped = VideoArena(pool, VIDEO_MEMORY_SHARED, 512u);
     assert(capped != nullptr);
     assert(VideoArena_alloc(capped, 512u, 32u) != 0u);
     assert(VideoArena_alloc(capped, 32u, 32u) == 0u);
     assert(VideoArena_exhaustionCount(capped) == 1u);
     VideoArena_destroy(capped);
 
-    VideoArena *priv = VideoArena_create(pool, VIDEO_MEMORY_PRIVATE, 0u);
+    VideoArena *priv = VideoArena(pool, VIDEO_MEMORY_PRIVATE, 0u);
     assert(priv != nullptr);
     vpointer pv = VideoArena_alloc(priv, 1024u, 256u);
     assert(pv != 0u);

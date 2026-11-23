@@ -11,8 +11,48 @@
 #include <string.h>
 #endif
 
-;;OVERVIEW
 ;;DEFINITION
+/**
+ * ============================================================================
+ * DEFINITION: Shader
+ * ============================================================================
+ * Multi-source shader metadata and file byte loader for graphvex/api. Resolves
+ * preferred shading languages (MSL, GLSL, WGSL, SPIR-V) per native target and
+ * loads shader source or bytecode blobs into Graphvex_arena() via re/io/file.
+ * ============================================================================
+ */
+
+;;OVERVIEW
+/**
+ * ============================================================================
+ * CLASS: ShaderSource, ShaderBytes (shader/shader.c)
+ * ============================================================================
+ * ShaderSource describes available language variants for a shader module;
+ * ShaderBytes owns a NUL-terminated buffer loaded from disk or app bundle.
+ *
+ * --FIELDS-------------------------------
+ * public   const utf8   *moduleName             borrows module name, 1:1
+ * public   ShaderStage   stage                  shader pipeline stage
+ * public   u32           availableLanguageMask  bitmask of ShaderLanguage
+ * public   u8           *data                   owns loaded bytes, 1:N
+ * public   bytes         length                 byte length excluding NUL
+ *
+ * --FUNCTIONS----------------------------
+ * public   ShaderSource_supportsLanguage(...)   checks backend compatibility
+ * public   ShaderSource_preferredLanguage(...)  selects best language variant
+ * public   ShaderBytes_isValid(...)             checks non-null non-empty blob
+ * public   Shader_loadFile(...)                 loads shader file into arena
+ * public   ShaderBytes_destroy(...)             frees loaded byte buffer
+ *
+ * --GETTERS------------------------------
+ * public   ShaderSource_moduleName/stage(...)   shader metadata accessors
+ * public   ShaderBytes_data/length(...)         loaded buffer accessors
+ *
+ * --SETTERS------------------------------
+ * public   ShaderSource_setModuleName/Stage     shader metadata mutators
+ * private  ShaderBytes_setData/setLength(...)   internal buffer mutators
+ * ============================================================================
+ */
 
 ;;GETTER
 const utf8 *ShaderSource_moduleName(const ShaderSource *self) {

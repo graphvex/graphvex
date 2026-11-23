@@ -26,10 +26,10 @@ i32 main() {
 
     VideoPool *pool = VideoPool_createSoftware(4u * 1024u * 1024u);
     check(pool != nullptr, "VideoPool_createSoftware succeeds");
-    VideoArena *arena = VideoArena_create(pool, VIDEO_MEMORY_SHARED, 0u);
-    check(arena != nullptr, "VideoArena_create succeeds");
-    Graphics *g = Graphics_create(pool);
-    check(g != nullptr, "Graphics_create succeeds");
+    VideoArena *arena = VideoArena(pool, VIDEO_MEMORY_SHARED, 0u);
+    check(arena != nullptr, "VideoArena succeeds");
+    Graphics *g = Graphics(pool);
+    check(g != nullptr, "Graphics succeeds");
 
     GraphicsImage canvas = Graphics_createImage(g, arena, 16u, 16u, PIXEL_FORMAT_RGBA8_UNORM);
     check(GraphicsImage_isValid(&canvas), "Graphics_createImage produces valid vpointer image");
