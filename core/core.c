@@ -22,8 +22,68 @@ struct [[maybe_unused]] Graphics {
     u32 commandCap;
 };
 
-;;OVERVIEW
 ;;DEFINITION
+/**
+ * ============================================================================
+ * DEFINITION: Graphics
+ * ============================================================================
+ * Unified Graphics API context over graphvex/api/vio/ VideoPool slabs. Owns
+ * the command queue buffer and active backend driver seam (Metal or software
+ * UMA reference driver), records buffer-backed image ops, shaders, clear/copy/
+ * dispatch/draw commands, and submits or presents without a swapchain.
+ * ============================================================================
+ */
+
+;;OVERVIEW
+/**
+ * ============================================================================
+ * CLASS: Graphics (core/core.c)
+ * ============================================================================
+ * Command-recording graphics context paired with a borrowed VideoPool and
+ * GraphicsDriver vtable.
+ *
+ * --CONSTANTS----------------------------
+ * private  const u32   GRAPHICS_DEFAULT_CMD_CAP   initial command buffer slots
+ * private  const u32   GRAPHICS_MAX_SHADERS       max software shader slots
+ * private  const bytes GRAPHICS_COPY_CHUNK        staging copy chunk bytes
+ *
+ * --FIELDS-------------------------------
+ * private  VideoPool       *pool                  borrows VideoPool, 1:1
+ * private  GraphicsDriver   driver                owns backend driver context
+ * private  GraphicsImage   *target                borrows current target, 1:1
+ * private  GraphicsRect     scissor               active scissor rect
+ * private  bool             scissorActive         true when scissor is set
+ * private  u64              frameIndex            monotonic submitted frame
+ * private  u32              bindlessNextSlot      next bindless image slot
+ * private  u32              shaderCount           registered shader count
+ * private  GraphicsCommand *commands              owns command queue, 1:N
+ * private  u32              commandCount          queued command count
+ * private  u32              commandCap            allocated queue capacity
+ *
+ * --CONSTRUCTORS-------------------------
+ * public   Graphics_1(...)                        default/Metal constructor
+ * public   Graphics_createWithDriver(...)         explicit driver constructor
+ *
+ * --FUNCTIONS----------------------------
+ * public   Graphics_destroy(...)                  releases context and queue
+ * public   Graphics_createImage(...)              allocates buffer-backed image
+ * public   Graphics_crop(...)                     zero-copy sub-image view
+ * public   Graphics_copy_3/7(...)                 explicit image copy
+ * public   Graphics_copyTo(...)                   copies image into target
+ * public   Graphics_registerShader/Compute/Render shader registration
+ * public   Graphics_command/clear/dispatch/draw   command queue recording
+ * public   Graphics_submit/present(...)           execution and presentation
+ *
+ * --GETTERS------------------------------
+ * public   Graphics_pool/driverName/frameIndex    context metadata accessors
+ * public   Graphics_pendingCount/bindlessCount    queue and bindless counters
+ * public   Graphics_target/scissor(...)           current render state
+ *
+ * --SETTERS------------------------------
+ * public   Graphics_setTarget/setScissor(...)     render target and scissor
+ * public   Graphics_resetScissor(...)             clears active scissor
+ * ============================================================================
+ */
 
 /** ---------------------------------------------------------------- PixelFormat */
 
@@ -482,7 +542,9 @@ static bool isMetalPoolName(const utf8 *name) {
 }
 #endif
 
-Graphics *Graphics_create(VideoPool *pool) {
+;;CONSTRUCTOR
+Graphics *Graphics_1(VideoPool *pool)
+{
 #if defined(VEX_PLATFORM_APPLE)
     if (pool && isMetalPoolName(VideoPool_driverName(pool))) {
         return Graphics_createMetal(pool);

@@ -9,7 +9,8 @@
 
 typedef struct Graphics Graphics;
 
-Graphics *Graphics_create(VideoPool *pool);
+Graphics *Graphics_1(VideoPool *pool);
+#define Graphics(...) CONSTRUCTOR_DISPATCH(Graphics, __VA_ARGS__)
 Graphics *Graphics_createWithDriver(VideoPool *pool, const GraphicsDriver *driver);
 fn Graphics_destroy(Graphics *g);
 
