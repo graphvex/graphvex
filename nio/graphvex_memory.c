@@ -29,28 +29,28 @@ static MemoryArena *s_shaderArena = nullptr;
 /** Lazily create and return Graphvex API's default page-pooled MemoryArena. */
 MemoryArena *Graphvex_arena() {
     if (s_graphvexArena == nullptr)
-        s_graphvexArena = MemoryArena_createPages(0);
+        s_graphvexArena = MemoryArena();
     return s_graphvexArena;
 }
 
 /** Lazily create and return Graphvex API's geometry MemoryArena. */
 MemoryArena *Graphvex_geomArena() {
     if (s_geomArena == nullptr)
-        s_geomArena = MemoryArena_createPages(0);
+        s_geomArena = MemoryArena();
     return s_geomArena;
 }
 
 /** Lazily create and return Graphvex API's buffer MemoryArena. */
 MemoryArena *Graphvex_bufferArena() {
     if (s_bufferArena == nullptr)
-        s_bufferArena = MemoryArena_createPages(0);
+        s_bufferArena = MemoryArena();
     return s_bufferArena;
 }
 
 /** Lazily create and return Graphvex API's shader MemoryArena. */
 MemoryArena *Graphvex_shaderArena() {
     if (s_shaderArena == nullptr)
-        s_shaderArena = MemoryArena_createPages(0);
+        s_shaderArena = MemoryArena();
     return s_shaderArena;
 }
 
