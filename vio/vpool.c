@@ -15,7 +15,7 @@
  * FUNCTION REGISTRY: create, createSoftware, destroy, acquireSlab,
  * releaseArenaSlabs, resetArenaSlabs, findByGpu, findByCpu, getters.
  * CONTRACT: GPU addresses (vpointer) are nonzero 64-bit addresses; UMA/shared
- * slabs carry a non-zero cpuBase for O(1) vpointer <-> pointer mapping. */
+ * slabs carry a non-zero cpuBase for O(1) vpointer < to  pointer mapping. */
 
 static bool softwareAllocSlab(any context, VideoMemoryDomain domain, bytes length, VideoSlabInfo *outSlab) {
     (discard) context;
@@ -92,16 +92,30 @@ VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes)
     return pool;
 }
 
-VideoPool *VideoPool_createDefault(bytes slabBytes) {
+;;CONSTRUCTOR
+/**
+ * Creates the default VideoPool (Metal on Apple when available, else software UMA).
+ * @param slabBytes slab size in bytes (0 selects VIDEO_MEMORY_DEFAULT_SLAB_BYTES)
+ * @return newly allocated VideoPool, or nullptr on failure
+ */
+VideoPool *VideoPool_1(bytes slabBytes)
+{
 #if defined(VEX_PLATFORM_APPLE)
-    VideoPool *metal = VideoPool_createMetal(slabBytes);
+    VideoPool *metal = VideoPool_metal(slabBytes);
     if (metal != nullptr)
         return metal;
 #endif
-    return VideoPool_createSoftware(slabBytes);
+    return VideoPool_software(slabBytes);
 }
 
-VideoPool *VideoPool_createSoftware(bytes slabBytes) {
+;;CONSTRUCTOR
+/**
+ * Creates a software UMA VideoPool backed by host memory.
+ * @param slabBytes slab size in bytes (0 selects VIDEO_MEMORY_DEFAULT_SLAB_BYTES)
+ * @return newly allocated VideoPool, or nullptr on failure
+ */
+VideoPool *VideoPool_software(bytes slabBytes)
+{
     VideoPoolDriver driver = {
         .name = "software-uma",
         .context = nullptr,
@@ -266,7 +280,7 @@ bool VideoPool_isUma(const VideoPool *pool) {
     return pool != nullptr && VideoPool_driver(pool).uma;
 }
 
-const utf8 *VideoPool_driverName(const VideoPool *pool) {
+string VideoPool_driverName(const VideoPool *pool) {
     return pool == nullptr ? nullptr : VideoPool_driver(pool).name;
 }
 

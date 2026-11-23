@@ -42,7 +42,7 @@ typedef struct VideoSlabInfo {
  * Public consumers never touch driver handles; drivers register a VideoPoolDriver.
  */
 typedef struct VideoPoolDriver {
-    const utf8 *name;
+    string name;
     any context;
     bool uma;
     bool (*allocSlab)(any context, VideoMemoryDomain domain, bytes length, VideoSlabInfo *outSlab);
@@ -56,14 +56,14 @@ typedef struct VideoPool VideoPool;
 typedef struct VideoArena VideoArena;
 
 /** Pool lifecycle (owns growable GPU slabs; slabs grow indefinitely until OOM). */
+VideoPool *VideoPool_1(bytes slabBytes);
 VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes);
 #define VideoPool(...) CONSTRUCTOR_DISPATCH(VideoPool, __VA_ARGS__)
-VideoPool *VideoPool_createDefault(bytes slabBytes);
-VideoPool *VideoPool_createSoftware(bytes slabBytes);
+VideoPool *VideoPool_software(bytes slabBytes);
 fn VideoPool_destroy(VideoPool *pool);
 
 bool VideoPool_isUma(const VideoPool *pool);
-const utf8 *VideoPool_driverName(const VideoPool *pool);
+string VideoPool_driverName(const VideoPool *pool);
 bytes VideoPool_slabBytes(const VideoPool *pool);
 bytes VideoPool_slabCount(const VideoPool *pool);
 bytes VideoPool_totalBytes(const VideoPool *pool);
@@ -90,7 +90,7 @@ bytes VideoArena_maxBytes(const VideoArena *arena);
 u64 VideoArena_exhaustionCount(const VideoArena *arena);
 
 /**
- * CPU <-> GPU bridge (vpointer <-> pointer).
+ * CPU < to  GPU bridge (vpointer < to  pointer).
  * On UMA / VIDEO_MEMORY_SHARED, VideoMemory_toPointer returns the direct CPU
  * pointer in O(1) (0 if private/non-host-visible or unknown).
  */
@@ -105,7 +105,7 @@ bool VideoMemory_contains(const VideoPool *pool, vpointer addr, bytes length);
 bool VideoMemory_isUma(const VideoPool *pool);
 
 #if defined(VEX_PLATFORM_APPLE)
-VideoPool *VideoPool_createMetal(bytes slabBytes);
+VideoPool *VideoPool_metal(bytes slabBytes);
 #endif
 
 #endif

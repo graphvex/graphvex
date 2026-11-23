@@ -2,7 +2,7 @@
 #include "vio/vio_internal.h"
 
 ;;DEFINITION
-/** VideoMemory provides the CPU <-> GPU transfer and mapping bridge between
+/** VideoMemory provides the CPU < to  GPU transfer and mapping bridge between
  * vpointer (64-bit GPU virtual address) and pointer / any (CPU address). On
  * UMA / VIDEO_MEMORY_SHARED slabs, mapping is O(1) zero-copy; on private VRAM,
  * read/write dispatch through the driver's bounded staging transfer path. */
