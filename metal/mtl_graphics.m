@@ -36,7 +36,7 @@
  * builtinLibrary, clearPipeline, copyPipeline, presentPipeline,
  * customPipelines, renderPipelines, renderTex, renderTexW, renderTexH,
  * customCount).
- * FUNCTION REGISTRY: Graphics_createMetal.
+ * FUNCTION REGISTRY: Graphics_metal.
  * CONTRACT: vendor Metal and QuartzCore types stay strictly inside this .m
  * file; native BGRA drawable conversion happens only inside presentImage. */
 
@@ -157,12 +157,11 @@ static const u8 MTL_BUILTIN_EMBED[] = {
 static id<MTLLibrary> mtlLoadBuiltinLibrary(id<MTLDevice> dev) {
     NSError *err = nil;
     ShaderBytes loaded = Shader_loadFile("shader/msl/builtin.metal");
-    if (!ShaderBytes_isValid(&loaded)) {
+    if (!ShaderBytes_isValid(&loaded))
         loaded = Shader_loadFile("vex/graphvex/api/shader/msl/builtin.metal");
-    }
-    const utf8 *srcText = ShaderBytes_isValid(&loaded)
-        ? (const utf8*) ShaderBytes_data(&loaded)
-        : (const utf8*) MTL_BUILTIN_EMBED;
+    string srcText = ShaderBytes_isValid(&loaded)
+        ? (string) ShaderBytes_data(&loaded)
+        : (string) MTL_BUILTIN_EMBED;
     NSString *src = [NSString stringWithUTF8String:srcText];
     id<MTLLibrary> lib = [dev newLibraryWithSource:src options:nil error:&err];
     ShaderBytes_destroy(&loaded);
@@ -233,9 +232,8 @@ static id<MTLTexture> mtlEnsureRenderTexture(MtlGraphicsContext *ctx, u32 width,
     if (width == 0u || height == 0u)
         return nil;
     id<MTLTexture> tex = MtlGfx_renderTex(ctx);
-    if (tex != nil && MtlGfx_renderTexW(ctx) == width && MtlGfx_renderTexH(ctx) == height) {
+    if (tex != nil && MtlGfx_renderTexW(ctx) == width && MtlGfx_renderTexH(ctx) == height)
         return tex;
-    }
     if (tex != nil)
         [tex release];
     MTLTextureDescriptor *desc = [MTLTextureDescriptor
@@ -519,9 +517,8 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
             [enc setVertexBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
             [enc setFragmentBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
         }
-        if (srcBuf != nil) {
+        if (srcBuf != nil)
             [enc setFragmentBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:2];
-        }
         [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip
                 vertexStart:0u
                 vertexCount:4u
@@ -762,7 +759,7 @@ static fn mtlDestroyGraphicsContext(any context) {
 
 static id<MTLComputePipelineState> mtlBuildPipeline(id<MTLDevice> dev,
                                                     id<MTLLibrary> lib,
-                                                    const utf8 *fnName) {
+                                                    string fnName) {
     NSString *name = [NSString stringWithUTF8String:fnName];
     id<MTLFunction> func = [lib newFunctionWithName:name];
     if (func == nil)
@@ -775,9 +772,9 @@ static id<MTLComputePipelineState> mtlBuildPipeline(id<MTLDevice> dev,
 
 static id<MTLRenderPipelineState> mtlBuildRenderPipeline(id<MTLDevice> dev,
                                                          id<MTLLibrary> lib,
-                                                         const utf8 *entryPair) {
-    const utf8 *colon = nullptr;
-    for (const utf8 *p = entryPair; *p != '\0'; p++) {
+                                                         string entryPair) {
+    string colon = nullptr;
+    for (string p = entryPair; *p != '\0'; p++) {
         if (*p == ':') {
             colon = p;
             break;
@@ -821,7 +818,7 @@ static id<MTLRenderPipelineState> mtlBuildRenderPipeline(id<MTLDevice> dev,
     return pipe;
 }
 
-static u32 mtlRegisterShader(any context, const utf8 *path, const utf8 *entryName,
+static u32 mtlRegisterShader(any context, string path, string entryName,
                              u32 stage) {
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr || path == nullptr || entryName == nullptr)
@@ -833,7 +830,7 @@ static u32 mtlRegisterShader(any context, const utf8 *path, const utf8 *entryNam
     if (!ShaderBytes_isValid(&loaded))
         return 0u;
     NSError *err = nil;
-    NSString *src = [NSString stringWithUTF8String:(const utf8*) ShaderBytes_data(&loaded)];
+    NSString *src = [NSString stringWithUTF8String:(string) ShaderBytes_data(&loaded)];
     id<MTLLibrary> lib = [MtlGfx_device(ctx) newLibraryWithSource:src options:nil error:&err];
     ShaderBytes_destroy(&loaded);
     if (lib == nil)
@@ -858,7 +855,7 @@ static u32 mtlRegisterShader(any context, const utf8 *path, const utf8 *entryNam
     return count + 1u;
 }
 
-static bool mtlIsMetalName(const utf8 *s) {
+static bool mtlIsMetalName(string s) {
     if (s == nullptr)
         return false;
     return s[0] == 'm' && s[1] == 'e' && s[2] == 't' && s[3] == 'a' && s[4] == 'l' && s[5] == '\0';
@@ -938,7 +935,14 @@ static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
     return ctx;
 }
 
-Graphics *Graphics_createMetal(VideoPool *pool) {
+;;CONSTRUCTOR
+/**
+ * Creates a Metal-backed Graphics context bound to the given VideoPool.
+ * @param pool backing Metal VideoPool
+ * @return newly allocated Graphics context, or nullptr on failure
+ */
+Graphics *Graphics_metal(VideoPool *pool)
+{
     if (pool == nullptr)
         return nullptr;
     MtlGraphicsContext *ctx = MtlGraphicsContext_init(pool);
@@ -952,7 +956,7 @@ Graphics *Graphics_createMetal(VideoPool *pool) {
         .presentImage = mtlPresentImage,
         .destroyContext = mtlDestroyGraphicsContext,
     };
-    Graphics *g = Graphics_createWithDriver(pool, &driver);
+    Graphics *g = Graphics(pool, &driver);
     if (g == nullptr)
         mtlDestroyGraphicsContext(ctx);
     return g;

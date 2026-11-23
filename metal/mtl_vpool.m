@@ -23,7 +23,7 @@
 /** CLASS: MetalVideoPool (metal/mtl_vpool.m)
  * STRUCT FIELDS: MtlPoolContext (device, commandQueue, uma), MtlSlabHandle
  * (buffer, mmapBase, mmapLen) in metal/mtl_internal.h.
- * FUNCTION REGISTRY: VideoPool_createMetal.
+ * FUNCTION REGISTRY: VideoPool_metal.
  * CONTRACT: vendor Metal types stay strictly inside this .m file; every GPU
  * blit wait obeys VIDEO_MEMORY_WAIT_TIMEOUT_NS (100 ms max). */
 
@@ -175,7 +175,14 @@ static fn mtlDestroyContext(any context) {
     MemoryArena_free(Graphvex_arena(), ctx);
 }
 
-VideoPool *VideoPool_createMetal(bytes slabBytes) {
+;;CONSTRUCTOR
+/**
+ * Creates a Metal-backed VideoPool on Apple targets.
+ * @param slabBytes slab size in bytes (0 selects VIDEO_MEMORY_DEFAULT_SLAB_BYTES)
+ * @return newly allocated VideoPool, or nullptr when Metal is unavailable
+ */
+VideoPool *VideoPool_metal(bytes slabBytes)
+{
     id<MTLDevice> dev = MTLCreateSystemDefaultDevice();
     if (dev == nil) {
         THROW("MetalVideoPool: no Metal device available");
