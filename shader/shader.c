@@ -31,7 +31,7 @@
  * ShaderBytes owns a NUL-terminated buffer loaded from disk or app bundle.
  *
  * --FIELDS-------------------------------
- * public   const utf8   *moduleName             borrows module name, 1:1
+ * public   string moduleName             borrows module name, 1:1
  * public   ShaderStage   stage                  shader pipeline stage
  * public   u32           availableLanguageMask  bitmask of ShaderLanguage
  * public   u8           *data                   owns loaded bytes, 1:N
@@ -55,12 +55,12 @@
  */
 
 ;;GETTER
-const utf8 *ShaderSource_moduleName(const ShaderSource *self) {
+string ShaderSource_moduleName(const ShaderSource *self) {
     return self ? (*self).moduleName : nullptr;
 }
 
 ;;SETTER
-fn ShaderSource_setModuleName(ShaderSource *self, const utf8 *name) {
+fn ShaderSource_setModuleName(ShaderSource *self, string name) {
     if (self)
         (*self).moduleName = name;
 }
@@ -87,7 +87,7 @@ fn ShaderSource_setAvailableLanguageMask(ShaderSource *self, u32 mask) {
         (*self).availableLanguageMask = mask;
 }
 
-/** MSL-only modules can only execute on an MSL-native target (no MSL -> SPIR-V). */
+/** MSL-only modules can only execute on an MSL-native target (no MSL  to  SPIR-V). */
 bool ShaderSource_supportsLanguage(const ShaderSource *self, ShaderLanguage nativeLang) {
     if (!self)
         return false;
@@ -97,9 +97,8 @@ bool ShaderSource_supportsLanguage(const ShaderSource *self, ShaderLanguage nati
     bool hasWgsl  = (mask & (1u << SHADER_LANG_WGSL))  != 0u;
     bool hasSpirv = (mask & (1u << SHADER_LANG_SPIRV)) != 0u;
 
-    if (nativeLang == SHADER_LANG_MSL) {
+    if (nativeLang == SHADER_LANG_MSL)
         return hasMsl || hasGlsl || hasWgsl || hasSpirv;
-    }
     return hasGlsl || hasWgsl || hasSpirv;
 }
 
@@ -107,15 +106,12 @@ ShaderLanguage ShaderSource_preferredLanguage(const ShaderSource *self, ShaderLa
     if (!self)
         return SHADER_LANG_SPIRV;
     u32 mask = ShaderSource_availableLanguageMask(self);
-    if (nativeLang < SHADER_LANG_COUNT && (mask & (1u << nativeLang))) {
+    if (nativeLang < SHADER_LANG_COUNT && (mask & (1u << nativeLang)))
         return nativeLang;
-    }
-    if (mask & (1u << SHADER_LANG_GLSL)) {
+    if (mask & (1u << SHADER_LANG_GLSL))
         return SHADER_LANG_GLSL;
-    }
-    if (mask & (1u << SHADER_LANG_WGSL)) {
+    if (mask & (1u << SHADER_LANG_WGSL))
         return SHADER_LANG_WGSL;
-    }
     return SHADER_LANG_SPIRV;
 }
 
@@ -150,7 +146,7 @@ static u8 *ShaderBytes_initBuffer(bytes len) {
 }
 
 #if defined(VEX_PLATFORM_APPLE)
-static bool shaderResolveBundlePath(const utf8 *relPath, utf8 *outBuf, bytes outCap) {
+static bool shaderResolveBundlePath(string relPath, utf8 *outBuf, bytes outCap) {
     utf8 exePath[1024];
     u32 exeLen = (u32) sizeof(exePath);
     if (_NSGetExecutablePath(exePath, &exeLen) != 0)
@@ -169,12 +165,12 @@ static bool shaderResolveBundlePath(const utf8 *relPath, utf8 *outBuf, bytes out
  * with a trailing NUL byte so both text sources (.metal/.glsl) and binary blobs
  * (.metallib/.spv) work cleanly. Falls back to macOS .app Contents/Resources/.
  */
-ShaderBytes Shader_loadFile(const utf8 *path) {
+ShaderBytes Shader_loadFile(string path) {
     ShaderBytes out = { 0 };
     if (!path || path[0] == '\0')
         return out;
 
-    const utf8 *resolved = path;
+    string resolved = path;
 #if defined(VEX_PLATFORM_APPLE)
     utf8 bundleBuf[1536];
     if (!File_exists(resolved)) {
@@ -220,9 +216,8 @@ fn ShaderBytes_destroy(ShaderBytes *self) {
     if (!self)
         return;
     u8 *buf = ShaderBytes_data(self);
-    if (buf) {
+    if (buf)
         Memory_free(buf);
-    }
     ShaderBytes_setData(self, nullptr);
     ShaderBytes_setLength(self, 0u);
 }

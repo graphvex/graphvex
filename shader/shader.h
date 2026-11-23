@@ -2,7 +2,7 @@
 #define GRAPHVEX_SHADER_H
 
 /**
- * shader/shader.h -- multi-source shader registry (GLSL | MSL | WGSL -> SPIR-V)
+ * shader/shader.h -- multi-source shader registry (GLSL | MSL | WGSL  to  SPIR-V)
  * and re/io/file byte-stream loader for .metal, .metallib, and .spv blobs.
  */
 
@@ -33,7 +33,7 @@ typedef enum ShaderStage {
 ;;CLASSNAME("ShaderSource")
 
 typedef struct ShaderSource {
-    const utf8 *moduleName;
+    string moduleName;
     ShaderStage stage;
     u32 availableLanguageMask;
     const u8 *spirvBytes;
@@ -43,9 +43,9 @@ typedef struct ShaderSource {
 _Static_assert(sizeof(ShaderSource) == 32, "ShaderSource obeys 32-byte floor");
 
 ;;GETTER
-const utf8 *ShaderSource_moduleName(const ShaderSource *self);
+string ShaderSource_moduleName(const ShaderSource *self);
 ;;SETTER
-fn ShaderSource_setModuleName(ShaderSource *self, const utf8 *name);
+fn ShaderSource_setModuleName(ShaderSource *self, string name);
 
 ;;GETTER
 ShaderStage ShaderSource_stage(const ShaderSource *self);
@@ -76,7 +76,7 @@ u8 *ShaderBytes_data(const ShaderBytes *self);
 bytes ShaderBytes_length(const ShaderBytes *self);
 
 bool ShaderBytes_isValid(const ShaderBytes *self);
-ShaderBytes Shader_loadFile(const utf8 *path);
+ShaderBytes Shader_loadFile(string path);
 fn ShaderBytes_destroy(ShaderBytes *self);
 
 #endif
