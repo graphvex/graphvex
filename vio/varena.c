@@ -64,7 +64,9 @@ static fn clearBookkeeping(VideoArena *arena) {
     VideoArena_setLiveHead(arena, nullptr);
 }
 
-VideoArena *VideoArena_create(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes) {
+;;CONSTRUCTOR
+VideoArena *VideoArena_3(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes)
+{
     if (pool == nullptr) {
         THROW("VideoArena: rejected null VideoPool");
         return nullptr;

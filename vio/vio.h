@@ -56,7 +56,8 @@ typedef struct VideoPool VideoPool;
 typedef struct VideoArena VideoArena;
 
 /** Pool lifecycle (owns growable GPU slabs; slabs grow indefinitely until OOM). */
-VideoPool *VideoPool_create(const VideoPoolDriver *driver, bytes slabBytes);
+VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes);
+#define VideoPool(...) CONSTRUCTOR_DISPATCH(VideoPool, __VA_ARGS__)
 VideoPool *VideoPool_createDefault(bytes slabBytes);
 VideoPool *VideoPool_createSoftware(bytes slabBytes);
 fn VideoPool_destroy(VideoPool *pool);
@@ -73,7 +74,8 @@ u64 VideoPool_exhaustionCount(const VideoPool *pool);
  * Virtual GPU Arena lifecycle (per-subsystem arena over a VideoPool).
  * maxBytes == 0 means unbounded growth; maxBytes > 0 enforces a hard budget.
  */
-VideoArena *VideoArena_create(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes);
+VideoArena *VideoArena_3(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes);
+#define VideoArena(...) CONSTRUCTOR_DISPATCH(VideoArena, __VA_ARGS__)
 fn VideoArena_destroy(VideoArena *arena);
 
 vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment);

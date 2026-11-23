@@ -74,7 +74,9 @@ static fn recordPoolExhaustion(VideoPool *pool, bytes requested) {
     }
 }
 
-VideoPool *VideoPool_create(const VideoPoolDriver *driver, bytes slabBytes) {
+;;CONSTRUCTOR
+VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes)
+{
     if (driver == nullptr || !VideoPoolDriver_hasAlloc(driver)) {
         THROW("VideoPool: rejected invalid driver");
         return nullptr;
@@ -110,7 +112,7 @@ VideoPool *VideoPool_createSoftware(bytes slabBytes) {
         .copyDeviceToHost = softwareCopyDeviceToHost,
         .destroyContext = nullptr,
     };
-    return VideoPool_create(&driver, slabBytes);
+    return VideoPool(&driver, slabBytes);
 }
 
 fn VideoPool_destroy(VideoPool *pool) {
