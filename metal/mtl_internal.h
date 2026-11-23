@@ -17,6 +17,12 @@
 #import <Metal/MTLBuffer.h>
 #import <Metal/MTLCommandBuffer.h>
 #import <Metal/MTLCommandQueue.h>
+#import <Metal/MTLTexture.h>
+#import <Metal/MTLLibrary.h>
+#import <Metal/MTLComputePipeline.h>
+#import <Metal/MTLRenderPipeline.h>
+
+#define MTL_MAX_CUSTOM_SHADERS 64u
 
 typedef struct MtlPoolContext {
     id<MTLDevice> device;
@@ -29,6 +35,104 @@ typedef struct MtlSlabHandle {
     any mmapBase;
     bytes mmapLen;
 } MtlSlabHandle;
+
+/**
+ * Uniform payload for Metal RGBA8 clear compute kernel.
+ *
+ * u32 strideBytes - destination image row stride in bytes
+ * i32 x0          - clipped region left coordinate
+ * i32 y0          - clipped region top coordinate
+ * i32 x1          - clipped region right coordinate
+ * i32 y1          - clipped region bottom coordinate
+ * u32 rgba        - packed RGBA8 clear color
+ */
+typedef struct MtlClearUniform {
+    u32 strideBytes;
+    i32 x0;
+    i32 y0;
+    i32 x1;
+    i32 y1;
+    u32 rgba;
+} MtlClearUniform;
+
+/**
+ * Uniform payload for Metal strided byte copy compute kernel.
+ *
+ * u32 dstStrideBytes - destination row stride in bytes
+ * u32 srcStrideBytes - source row stride in bytes
+ * u32 bpp            - bytes per pixel
+ * i32 dstX0          - destination clip left coordinate
+ * i32 dstY0          - destination clip top coordinate
+ * i32 srcX0          - source clip left coordinate
+ * i32 srcY0          - source clip top coordinate
+ * u32 copyW          - copy width in pixels
+ * u32 copyH          - copy height in pixels
+ */
+typedef struct MtlCopyUniform {
+    u32 dstStrideBytes;
+    u32 srcStrideBytes;
+    u32 bpp;
+    i32 dstX0;
+    i32 dstY0;
+    i32 srcX0;
+    i32 srcY0;
+    u32 copyW;
+    u32 copyH;
+} MtlCopyUniform;
+
+/**
+ * Uniform payload for Metal RGBA8 to BGRA8 drawable present kernel.
+ *
+ * u32 srcWidth       - source image width in pixels
+ * u32 srcHeight      - source image height in pixels
+ * u32 srcStrideBytes - source row stride in bytes
+ * u32 dstWidth       - drawable texture width in pixels
+ * u32 dstHeight      - drawable texture height in pixels
+ */
+typedef struct MtlPresentUniform {
+    u32 srcWidth;
+    u32 srcHeight;
+    u32 srcStrideBytes;
+    u32 dstWidth;
+    u32 dstHeight;
+} MtlPresentUniform;
+
+/**
+ * Internal state for the Metal GraphicsDriver context.
+ *
+ * id<MTLDevice> device                         - Metal GPU device
+ * id<MTLCommandQueue> queue                    - Metal command queue
+ * id<MTLLibrary> builtinLibrary                - compiled builtin MSL library
+ * id<MTLComputePipelineState> clearPipeline    - builtin clear kernel
+ * id<MTLComputePipelineState> copyPipeline     - builtin copy kernel
+ * id<MTLComputePipelineState> presentPipeline  - builtin present kernel
+ * id<MTLComputePipelineState> customPipelines  - registered compute pipelines
+ * id<MTLRenderPipelineState> renderPipelines   - registered render pipelines
+ * id<MTLTexture> renderTex                     - offscreen render target
+ * u32 renderTexW                               - offscreen texture width
+ * u32 renderTexH                               - offscreen texture height
+ * id<MTLCommandBuffer> pendingPresent          - last async present buffer
+ * u32 customCount                              - registered shader count
+ * bool ownsDevice                              - true if device/queue owned
+ * bool deviceLost                              - latched device-lost flag
+ */
+typedef struct MtlGraphicsContext {
+    id<MTLDevice> device;
+    id<MTLCommandQueue> queue;
+    id<MTLLibrary> builtinLibrary;
+    id<MTLComputePipelineState> clearPipeline;
+    id<MTLComputePipelineState> copyPipeline;
+    id<MTLComputePipelineState> presentPipeline;
+    id<MTLComputePipelineState> customPipelines[MTL_MAX_CUSTOM_SHADERS];
+    id<MTLRenderPipelineState> renderPipelines[MTL_MAX_CUSTOM_SHADERS];
+    id<MTLTexture> renderTex;
+    u32 renderTexW;
+    u32 renderTexH;
+    id<MTLCommandBuffer> pendingPresent;
+    u32 customCount;
+    bool ownsDevice;
+    bool deviceLost;
+} MtlGraphicsContext;
 
 ;;GETTER
 static inline id<MTLDevice> MtlPoolContext_device(const MtlPoolContext *c) { return (*c).device; }

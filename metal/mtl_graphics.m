@@ -21,7 +21,6 @@
 #import <dispatch/dispatch.h>
 
 #define MTL_ERR_DEVICE_REMOVED 11
-#define MTL_MAX_CUSTOM_SHADERS 64u
 
 ;;DEFINITION
 /** MetalGraphicsDriver implements the core/driver.h GraphicsDriver seam on
@@ -41,52 +40,7 @@
  * CONTRACT: vendor Metal and QuartzCore types stay strictly inside this .m
  * file; native BGRA drawable conversion happens only inside presentImage. */
 
-typedef struct MtlClearUniform {
-    u32 strideBytes;
-    i32 x0;
-    i32 y0;
-    i32 x1;
-    i32 y1;
-    u32 rgba;
-} MtlClearUniform;
 
-typedef struct MtlCopyUniform {
-    u32 dstStrideBytes;
-    u32 srcStrideBytes;
-    u32 bpp;
-    i32 dstX0;
-    i32 dstY0;
-    i32 srcX0;
-    i32 srcY0;
-    u32 copyW;
-    u32 copyH;
-} MtlCopyUniform;
-
-typedef struct MtlPresentUniform {
-    u32 srcWidth;
-    u32 srcHeight;
-    u32 srcStrideBytes;
-    u32 dstWidth;
-    u32 dstHeight;
-} MtlPresentUniform;
-
-typedef struct MtlGraphicsContext {
-    id<MTLDevice> device;
-    id<MTLCommandQueue> queue;
-    id<MTLLibrary> builtinLibrary;
-    id<MTLComputePipelineState> clearPipeline;
-    id<MTLComputePipelineState> copyPipeline;
-    id<MTLComputePipelineState> presentPipeline;
-    id<MTLComputePipelineState> customPipelines[MTL_MAX_CUSTOM_SHADERS];
-    id<MTLRenderPipelineState> renderPipelines[MTL_MAX_CUSTOM_SHADERS];
-    id<MTLTexture> renderTex;
-    u32 renderTexW;
-    u32 renderTexH;
-    id<MTLCommandBuffer> pendingPresent;
-    u32 customCount;
-    bool ownsDevice;
-    bool deviceLost;
-} MtlGraphicsContext;
 
 ;;GETTER
 static inline id<MTLDevice> MtlGfx_device(const MtlGraphicsContext *c) { return (*c).device; }

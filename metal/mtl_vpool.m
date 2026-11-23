@@ -208,7 +208,7 @@ VideoPool *VideoPool_createMetal(bytes slabBytes) {
         .copyDeviceToHost = mtlCopyDeviceToHost,
         .destroyContext = mtlDestroyContext,
     };
-    VideoPool *pool = VideoPool_create(&driver, slabBytes);
+    VideoPool *pool = VideoPool(&driver, slabBytes);
     if (pool == nullptr)
         mtlDestroyContext(ctx);
     return pool;
