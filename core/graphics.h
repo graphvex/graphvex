@@ -10,19 +10,17 @@
 typedef struct Graphics Graphics;
 
 Graphics *Graphics_1(VideoPool *pool);
+Graphics *Graphics_2(VideoPool *pool, const GraphicsDriver *driver);
 #define Graphics(...) CONSTRUCTOR_DISPATCH(Graphics, __VA_ARGS__)
-Graphics *Graphics_createWithDriver(VideoPool *pool, const GraphicsDriver *driver);
 fn Graphics_destroy(Graphics *g);
 
 VideoPool *Graphics_pool(const Graphics *g);
-const utf8 *Graphics_driverName(const Graphics *g);
+string Graphics_driverName(const Graphics *g);
 u64 Graphics_frameIndex(const Graphics *g);
 u32 Graphics_pendingCount(const Graphics *g);
 u32 Graphics_bindlessCount(const Graphics *g);
 
-/** Buffer-backed image creation, zero-copy crop, and explicit copy overloads. */
-GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
-                                   u32 width, u32 height, PixelFormat format);
+/** Zero-copy crop and explicit copy overloads (construction via GraphicsImage(...)). */
 GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i32 y1);
 GraphicsImage Graphics_copy_3(Graphics *g, VideoArena *arena, const GraphicsImage *src);
 GraphicsImage Graphics_copy_7(Graphics *g, VideoArena *arena, const GraphicsImage *src,
@@ -39,9 +37,9 @@ fn Graphics_resetScissor(Graphics *g);
 GraphicsRect Graphics_scissor(const Graphics *g);
 
 /** Shader registration (bindless, backend-agnostic handle). */
-u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage);
-u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryName);
-u32 Graphics_registerRender(Graphics *g, const utf8 *path, const utf8 *entryPair);
+u32 Graphics_registerShader(Graphics *g, string name, u32 stage);
+u32 Graphics_registerCompute(Graphics *g, string path, string entryName);
+u32 Graphics_registerRender(Graphics *g, string path, string entryPair);
 
 /** Unified command recording and ergonomic command builders. */
 bool Graphics_command(Graphics *g, const GraphicsCommand *cmd);

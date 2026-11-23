@@ -62,11 +62,11 @@ struct [[maybe_unused]] Graphics {
  *
  * --CONSTRUCTORS-------------------------
  * public   Graphics_1(...)                        default/Metal constructor
- * public   Graphics_createWithDriver(...)         explicit driver constructor
+ * public   Graphics_2(...)                        explicit driver constructor
+ * public   GraphicsImage_0/5(...)                 zeroed and buffer-backed image constructors
  *
  * --FUNCTIONS----------------------------
  * public   Graphics_destroy(...)                  releases context and queue
- * public   Graphics_createImage(...)              allocates buffer-backed image
  * public   Graphics_crop(...)                     zero-copy sub-image view
  * public   Graphics_copy_3/7(...)                 explicit image copy
  * public   Graphics_copyTo(...)                   copies image into target
@@ -403,9 +403,8 @@ static bool swExecCopy(const VideoPool *pool, GraphicsCommand cmd) {
     GraphicsRect dstBounds = GraphicsRect_4(0, 0, (i32) dst.width, (i32) dst.height);
     GraphicsRect placed = GraphicsRect_4(dstX, dstY, dstX + (i32) src.width, dstY + (i32) src.height);
     GraphicsRect clip = GraphicsRect_intersect(dstBounds, placed);
-    if (!GraphicsRect_isEmpty(cmd.scissor)) {
+    if (!GraphicsRect_isEmpty(cmd.scissor))
         clip = GraphicsRect_intersect(clip, cmd.scissor);
-    }
     if (GraphicsRect_isEmpty(clip))
         return true;
 
@@ -477,10 +476,13 @@ static bool swPresentImage([[maybe_unused]] any context, const VideoPool *pool,
     return pool != nullptr && GraphicsImage_isValid(image);
 }
 
-static GraphicsDriver swDefaultDriver() {
+static GraphicsDriver swDefaultDriver()
+{
     GraphicsDriver d;
+    memset(&d, 0, sizeof(d));
     d.name = "software-uma";
     d.context = nullptr;
+    d.registerShader = nullptr;
     d.submitCommands = swSubmitCommands;
     d.presentImage = swPresentImage;
     d.destroyContext = nullptr;
@@ -496,9 +498,8 @@ static GraphicsCommand *Graphics_initCommandBuffer(u32 cap) {
 
 ;;DECONSTRUCT
 static fn Graphics_commands_destroy(GraphicsCommand *cmds) {
-    if (cmds) {
+    if (cmds)
         Memory_free(cmds);
-    }
 }
 
 static Graphics *Graphics_init(VideoPool *pool, const GraphicsDriver *driver) {
@@ -529,14 +530,22 @@ static Graphics *Graphics_init(VideoPool *pool, const GraphicsDriver *driver) {
     return g;
 }
 
-Graphics *Graphics_createWithDriver(VideoPool *pool, const GraphicsDriver *driver) {
+;;CONSTRUCTOR
+/**
+ * Creates a Graphics context backed by an explicit driver.
+ * @param pool   backing VideoPool
+ * @param driver explicit GraphicsDriver vtable (nullptr selects software)
+ * @return newly allocated Graphics context, or nullptr on failure
+ */
+Graphics *Graphics_2(VideoPool *pool, const GraphicsDriver *driver)
+{
     return Graphics_init(pool, driver);
 }
 
 #if defined(VEX_PLATFORM_APPLE)
-Graphics *Graphics_createMetal(VideoPool *pool);
+Graphics *Graphics_metal(VideoPool *pool);
 
-static bool isMetalPoolName(const utf8 *name) {
+static bool isMetalPoolName(string name) {
     return name && name[0] == 'm' && name[1] == 'e' &&
            name[2] == 't' && name[3] == 'a' && name[4] == 'l' && name[5] == '\0';
 }
@@ -546,9 +555,8 @@ static bool isMetalPoolName(const utf8 *name) {
 Graphics *Graphics_1(VideoPool *pool)
 {
 #if defined(VEX_PLATFORM_APPLE)
-    if (pool && isMetalPoolName(VideoPool_driverName(pool))) {
-        return Graphics_createMetal(pool);
-    }
+    if (pool && isMetalPoolName(VideoPool_driverName(pool)))
+        return Graphics_metal(pool);
 #endif
     return Graphics_init(pool, nullptr);
 }
@@ -558,9 +566,8 @@ fn Graphics_destroy(Graphics *g) {
     if (!g)
         return;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.destroyContext) {
+    if (d.destroyContext)
         d.destroyContext(d.context);
-    }
     Graphics_commands_destroy(Graphics_getCommands(g));
     Memory_free(g);
 }
@@ -569,7 +576,7 @@ VideoPool *Graphics_pool(const Graphics *g) {
     return Graphics_getPool(g);
 }
 
-const utf8 *Graphics_driverName(const Graphics *g) {
+string Graphics_driverName(const Graphics *g) {
     GraphicsDriver d = Graphics_getDriver(g);
     return d.name ? d.name : "unknown";
 }
@@ -595,9 +602,31 @@ static u32 gfxAllocBindlessSlot(Graphics *g) {
     return slot;
 }
 
-GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
-                                   u32 width, u32 height, PixelFormat format) {
+;;CONSTRUCTOR
+/**
+ * Constructs a zeroed invalid GraphicsImage value.
+ * @return zeroed GraphicsImage
+ */
+GraphicsImage GraphicsImage_0()
+{
     GraphicsImage empty = { 0 };
+    return empty;
+}
+
+;;CONSTRUCTOR
+/**
+ * Allocates a buffer-backed GraphicsImage and assigns a bindless slot.
+ * @param g      active Graphics context
+ * @param arena  target VideoArena for pixel storage
+ * @param width  image width in pixels
+ * @param height image height in pixels
+ * @param format pixel format
+ * @return allocated GraphicsImage, or zeroed invalid image on failure
+ */
+GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
+                              u32 width, u32 height, PixelFormat format)
+{
+    GraphicsImage empty = GraphicsImage_0();
     if (!g || !arena || width == 0u || height == 0u)
         return empty;
     u32 bpp = PixelFormat_bytesPerPixel(format);
@@ -626,7 +655,7 @@ GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
 
 /** Zero-copy sub-image view: advances vpointer and preserves parent strideBytes. */
 GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i32 y1) {
-    GraphicsImage empty = { 0 };
+    GraphicsImage empty = GraphicsImage_0();
     if (!GraphicsImage_isValid(src))
         return empty;
     u32 w = GraphicsImage_width(src);
@@ -654,10 +683,10 @@ GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i3
 }
 
 GraphicsImage Graphics_copy_3(Graphics *g, VideoArena *arena, const GraphicsImage *src) {
-    GraphicsImage empty = { 0 };
+    GraphicsImage empty = GraphicsImage_0();
     if (!g || !arena || !GraphicsImage_isValid(src))
         return empty;
-    GraphicsImage dst = Graphics_createImage(
+    GraphicsImage dst = GraphicsImage(
         g, arena,
         GraphicsImage_width(src),
         GraphicsImage_height(src),
@@ -725,13 +754,12 @@ GraphicsRect Graphics_scissor(const Graphics *g) {
 
 /** ---------------------------------------------------------------- Shader registration */
 
-u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage) {
+u32 Graphics_registerShader(Graphics *g, string name, u32 stage) {
     if (!g || !name || name[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, name, name, stage);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -740,13 +768,12 @@ u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage) {
     return id;
 }
 
-u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryName) {
+u32 Graphics_registerCompute(Graphics *g, string path, string entryName) {
     if (!g || !path || path[0] == '\0' || !entryName || entryName[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, path, entryName, 2u);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -755,13 +782,12 @@ u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryNam
     return id;
 }
 
-u32 Graphics_registerRender(Graphics *g, const utf8 *path, const utf8 *entryPair) {
+u32 Graphics_registerRender(Graphics *g, string path, string entryPair) {
     if (!g || !path || path[0] == '\0' || !entryPair || entryPair[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, path, entryPair, 0u);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -777,16 +803,16 @@ static bool gfxEnsureCommandCapacity(Graphics *g, u32 needed) {
     if (needed <= cap)
         return true;
     u32 newCap = cap > 0u ? cap * 2u : GRAPHICS_DEFAULT_CMD_CAP;
-    while (newCap < needed) newCap *= 2u;
+    while (newCap < needed)
+       newCap *= 2u;
 
     GraphicsCommand *next = Graphics_initCommandBuffer(newCap);
     if (!next)
         return false;
     GraphicsCommand *old = Graphics_getCommands(g);
     u32 count = Graphics_getCommandCount(g);
-    if (old && count > 0u) {
+    if (old && count > 0u)
         memcpy(next, old, (bytes) count * sizeof(GraphicsCommand));
-    }
     Graphics_commands_destroy(old);
     Graphics_setCommands(g, next);
     Graphics_setCommandCap(g, newCap);
@@ -882,13 +908,11 @@ bool Graphics_submit(Graphics *g) {
     u32 count = Graphics_getCommandCount(g);
     GraphicsDriver d = Graphics_getDriver(g);
     bool ok = true;
-    if (count > 0u && d.submitCommands) {
+    if (count > 0u && d.submitCommands)
         ok = d.submitCommands(d.context, Graphics_getPool(g), Graphics_getCommands(g), count);
-    }
     Graphics_setCommandCount(g, 0u);
-    if (ok) {
+    if (ok)
         Graphics_setFrameIndex(g, Graphics_getFrameIndex(g) + 1u);
-    }
     return ok;
 }
 
