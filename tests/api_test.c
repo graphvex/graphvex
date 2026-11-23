@@ -1,3 +1,4 @@
+#include "re/primitive/vex-string.h"
 /**
  * Consolidated automated owner test suite for vex/graphvex/api.
  * Usage: api_test [core|vio]
@@ -13,10 +14,10 @@
 static i32 g_failures = 0;
 
 /** Records a failed check with a human-readable diagnostic. */
-static fn api_check(i32 ok, const utf8 *what) {
+static fn api_check(i32 ok, string what) {
     if (ok)
         return;
-    fprintf(stderr, "api_test: FAIL %s\n", what);
+    fprint(stderr, "api_test: FAIL ", what);
     g_failures++;
 }
 
@@ -29,19 +30,19 @@ static fn suite_core() {
               "ColorRGBA unpacks monotonic R,G,B,A");
     api_check(COLOR_BLACK_RGBA == 0x000000FFu, "Opaque black is 0x000000FF");
 
-    VideoPool *pool = VideoPool_createSoftware(4u * 1024u * 1024u);
-    api_check(pool != nullptr, "VideoPool_createSoftware succeeds");
+    VideoPool *pool = VideoPool_software(4u * 1024u * 1024u);
+    api_check(pool != nullptr, "VideoPool_software succeeds");
     VideoArena *arena = VideoArena(pool, VIDEO_MEMORY_SHARED, 0u);
     api_check(arena != nullptr, "VideoArena succeeds");
     Graphics *g = Graphics(pool);
     api_check(g != nullptr, "Graphics succeeds");
 
-    GraphicsImage canvas = Graphics_createImage(g, arena, 16u, 16u, PIXEL_FORMAT_RGBA8_UNORM);
-    api_check(GraphicsImage_isValid(&canvas), "Graphics_createImage produces valid vpointer image");
+    GraphicsImage canvas = GraphicsImage(g, arena, 16u, 16u, PIXEL_FORMAT_RGBA8_UNORM);
+    api_check(GraphicsImage_isValid(&canvas), "GraphicsImage produces valid vpointer image");
     api_check(GraphicsImage_bindlessSlot(&canvas) == 1u, "First image auto-registered at bindless slot 1");
     api_check(!GraphicsImage_isSubview(&canvas), "Fresh image is not a subview");
 
-    GraphicsImage wide = Graphics_createImage(g, arena, 256u, 128u, PIXEL_FORMAT_RGBA8_UNORM);
+    GraphicsImage wide = GraphicsImage(g, arena, 256u, 128u, PIXEL_FORMAT_RGBA8_UNORM);
     api_check(GraphicsImage_bindlessSlot(&wide) == 2u, "Second image gets bindless slot 2");
     f32 fx = 0.0f;
     f32 fy = 0.0f;
@@ -90,7 +91,7 @@ static fn suite_core() {
               cropPx[2] == 0xAAu && cropPx[3] == 0xFFu,
               "Cropped copy pixel (0,0) matches canvas (4,4)");
 
-    GraphicsImage dst = Graphics_createImage(g, arena, 16u, 16u, PIXEL_FORMAT_RGBA8_UNORM);
+    GraphicsImage dst = GraphicsImage(g, arena, 16u, 16u, PIXEL_FORMAT_RGBA8_UNORM);
     Graphics_setTarget(g, &dst);
     api_check(Graphics_clear(g, COLOR_BLACK_RGBA), "Clear dst to black");
     Graphics_setScissor(g, 0, 0, 4, 4);
@@ -138,12 +139,9 @@ static fn suite_core() {
 }
 
 /** Exercises VideoPool and VideoArena allocation, read/write, cap, and private memory. */
-static fn vio_testPool(VideoPool *pool, const utf8 *label) {
+static fn vio_testPool(VideoPool *pool, string label) {
     assert(pool != nullptr);
-    printf("[vio_test] backend=%s uma=%s slabBytes=%zu\n",
-           VideoPool_driverName(pool),
-           VideoMemory_isUma(pool) ? "true" : "false",
-           VideoPool_slabBytes(pool));
+    print("[vio_test] backend=", VideoPool_driverName(pool), " uma=", VideoMemory_isUma(pool) ? "true" : "false", " slabBytes=", VideoPool_slabBytes(pool));
 
     VideoArena *shared = VideoArena(pool, VIDEO_MEMORY_SHARED, 0u);
     assert(shared != nullptr);
@@ -212,17 +210,17 @@ static fn vio_testPool(VideoPool *pool, const utf8 *label) {
     VideoArena_destroy(priv);
 
     VideoArena_destroy(shared);
-    printf("[vio_test] %s: PASS\n", label);
+    print("[vio_test] ", label, ": PASS");
 }
 
 /** Proves software UMA and Metal VideoPool/VideoArena behavior. */
 static fn suite_vio() {
-    VideoPool *sw = VideoPool_createSoftware(64u * 1024u);
+    VideoPool *sw = VideoPool_software(64u * 1024u);
     vio_testPool(sw, "software-uma");
     VideoPool_destroy(sw);
 
 #if defined(VEX_PLATFORM_APPLE)
-    VideoPool *mtl = VideoPool_createMetal(64u * 1024u);
+    VideoPool *mtl = VideoPool_metal(64u * 1024u);
     if (mtl != nullptr) {
         vio_testPool(mtl, "metal");
         VideoPool_destroy(mtl);
@@ -240,22 +238,22 @@ i32 main(i32 argc, utf8 **argv) {
         { "core", suite_core },
         { "vio", suite_vio },
     };
-    const utf8 *filter = argc > 1 ? argv[1] : nullptr;
+    string filter = argc > 1 ? argv[1] : nullptr;
     bytes ran = 0;
 
     for (bytes i = 0; i < sizeof(suites) / sizeof(suites[0]); i++) {
-        if (filter && strcmp(filter, suites[i].name) != 0)
+        if (filter && !string_equals(filter, suites[i].name))
             continue;
         suites[i].run();
         ran++;
     }
 
     if (filter && ran == 0) {
-        fprintf(stderr, "api_test: unknown suite '%s'\n", filter);
+        fprint(stderr, "api_test: unknown suite '", filter, "'");
         return 2;
     }
     if (g_failures != 0) {
-        fprintf(stderr, "api_test: %d FAILURES\n", g_failures);
+        fprint(stderr, "api_test: ", g_failures, " FAILURES");
         return 1;
     }
     puts("api_test: PASS");

@@ -9,7 +9,7 @@
  * run: suite entrypoint executed when selected.
  */
 typedef struct SuiteEntry {
-    const utf8 *name;
+    string name;
     fn (*run)();
 } SuiteEntry;
 
