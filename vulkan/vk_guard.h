@@ -14,7 +14,7 @@
 #define VkGuard_check(seam, device, queue, deviceLost) ((discard) 0)
 #define VkGuard_checkResource(seam, device, deviceLost) ((discard) 0)
 #else
-static inline bool VkGuard_checkImpl(const utf8 *seam, const_any device, const_any queue, bool *deviceLost) {
+static inline bool VkGuard_checkImpl(string seam, const_any device, const_any queue, bool *deviceLost) {
     if (deviceLost && *deviceLost)
         return false;
     if (!seam || !device || !queue) {
@@ -23,7 +23,7 @@ static inline bool VkGuard_checkImpl(const utf8 *seam, const_any device, const_a
     }
     return true;
 }
-static inline bool VkGuard_checkResourceImpl(const utf8 *seam, const_any device, bool *deviceLost) {
+static inline bool VkGuard_checkResourceImpl(string seam, const_any device, bool *deviceLost) {
     if (deviceLost && *deviceLost)
         return false;
     if (!seam || !device) {
