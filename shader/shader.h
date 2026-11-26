@@ -7,6 +7,7 @@
  */
 
 #include "core/core.h"
+#include "sandcastles/nio/nio.h"
 
 #define ID_SHADER_BYTES 0x0105u
 
@@ -65,7 +66,8 @@ ShaderLanguage ShaderSource_preferredLanguage(const ShaderSource *self, ShaderLa
 typedef struct ShaderBytes {
     u8 *data;
     bytes length;
-    u64 _pad[2];
+    SecureHandle handle;
+    u64 _pad;
 } ShaderBytes;
 
 _Static_assert(sizeof(ShaderBytes) == 32, "ShaderBytes obeys 32-byte floor");

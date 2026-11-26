@@ -137,12 +137,29 @@ static fn ShaderBytes_setLength(ShaderBytes *self, bytes length) {
         (*self).length = length;
 }
 
+;;GETTER
+static SecureHandle ShaderBytes_handle(const ShaderBytes *self) {
+    return self ? (*self).handle : SecureHandle_zero();
+}
+
+;;SETTER
+static fn ShaderBytes_setHandle(ShaderBytes *self, SecureHandle handle) {
+    if (self)
+        (*self).handle = handle;
+}
+
 bool ShaderBytes_isValid(const ShaderBytes *self) {
     return ShaderBytes_data(self) != nullptr && ShaderBytes_length(self) > 0u;
 }
 
-static u8 *ShaderBytes_initBuffer(bytes len) {
-    return (u8*) Memory_alloc(ID_SHADER_BYTES, Graphvex_arena(), len + 1u);
+static u8 *ShaderBytes_initBuffer(bytes len, SecureHandle *outHandle) {
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle h = SecureMemoryArena_alloc(sa, ID_SHADER_BYTES, len + 1u);
+    if (!SecureHandle_isValid(h))
+        return nullptr;
+    if (outHandle)
+        *outHandle = h;
+    return (u8*) SecureMemoryArena_resolve(sa, h);
 }
 
 #if defined(VEX_PLATFORM_APPLE)
@@ -161,7 +178,7 @@ static bool shaderResolveBundlePath(string relPath, utf8 *outBuf, bytes outCap) 
 #endif
 
 /**
- * Loads a shader source or bytecode file via re/io/file into Graphvex_arena()
+ * Loads a shader source or bytecode file via re/io/file into Graphvex_secureArena()
  * with a trailing NUL byte so both text sources (.metal/.glsl) and binary blobs
  * (.metallib/.spv) work cleanly. Falls back to macOS .app Contents/Resources/.
  */
@@ -193,7 +210,8 @@ ShaderBytes Shader_loadFile(string path) {
     }
 
     bytes len = (bytes) sz;
-    u8 *buf = ShaderBytes_initBuffer(len);
+    SecureHandle h = SecureHandle_zero();
+    u8 *buf = ShaderBytes_initBuffer(len, &h);
     if (!buf) {
         File_close(f);
         return out;
@@ -202,12 +220,14 @@ ShaderBytes Shader_loadFile(string path) {
     File_close(f);
     if (got != sz) {
         ShaderBytes_setData(&out, buf);
+        ShaderBytes_setHandle(&out, h);
         ShaderBytes_destroy(&out);
         return out;
     }
     buf[len] = 0u;
     ShaderBytes_setData(&out, buf);
     ShaderBytes_setLength(&out, len);
+    ShaderBytes_setHandle(&out, h);
     return out;
 }
 
@@ -215,9 +235,10 @@ ShaderBytes Shader_loadFile(string path) {
 fn ShaderBytes_destroy(ShaderBytes *self) {
     if (!self)
         return;
-    u8 *buf = ShaderBytes_data(self);
-    if (buf)
-        Memory_free(buf);
+    SecureHandle h = ShaderBytes_handle(self);
+    if (SecureHandle_isValid(h))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), h);
     ShaderBytes_setData(self, nullptr);
     ShaderBytes_setLength(self, 0u);
+    ShaderBytes_setHandle(self, SecureHandle_zero());
 }
