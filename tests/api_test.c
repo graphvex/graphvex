@@ -127,11 +127,27 @@ static fn suite_core() {
     api_check(ShaderSource_preferredLanguage(&dual, SHADER_LANG_WGSL) == SHADER_LANG_WGSL,
               "Prefers native WGSL when available");
 
-    ShaderBytes mslFile = Shader_loadFile("vex/graphvex/api/shader/msl/builtin.metal");
+    ShaderBytes mslFile = Shader_loadFile("vex/graphvex/api/metal/builtin.metal");
     api_check(ShaderBytes_isValid(&mslFile) && ShaderBytes_length(&mslFile) > 100u,
-              "Shader_loadFile reads shader/msl/builtin.metal via re/io/file");
+              "Shader_loadFile reads metal/builtin.metal via re/io/file");
     ShaderBytes_destroy(&mslFile);
     api_check(!ShaderBytes_isValid(&mslFile), "ShaderBytes_destroy resets handle");
+
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle sh = SecureMemoryArena_alloc(sa, 0u, 64u);
+    api_check(SecureHandle_isValid(sh), "SecureHandle allocates validly from sandcastles");
+    u8 *sptr = (u8*) SecureMemoryArena_resolve(sa, sh);
+    api_check(sptr != nullptr && sptr[0] == 0u && sptr[63] == 0u, "SecureMemoryArena zero-initializes on alloc");
+    if (sptr) {
+        sptr[0] = 0xABu;
+        sptr[63] = 0xCDu;
+    }
+    SecureHandle stale = sh;
+    api_check(SecureMemoryArena_free(sa, sh), "SecureMemoryArena_free releases handle");
+    api_check(SecureMemoryArena_resolve(sa, stale) == nullptr,
+              "SecureHandle invalidates after free");
+    api_check(sptr != nullptr && sptr[0] == 0u && sptr[63] == 0u,
+              "SecureMemoryArena scrubs payload to zero on free");
 
     Graphics_destroy(g);
     VideoArena_destroy(arena);
