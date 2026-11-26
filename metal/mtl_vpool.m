@@ -60,28 +60,48 @@ static bool mtlAllocSlab(any context, VideoMemoryDomain domain, bytes length, Vi
     if (alignedLen == 0u)
         return false;
     id<MTLDevice> dev = MtlPoolContext_device(ctx);
-    MtlSlabHandle *handle = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *handle);
-    if (handle == nullptr)
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle sh = SecureMemoryArena_alloc(sa, 0u, sizeof(MtlSlabHandle));
+    if (!SecureHandle_isValid(sh))
         return false;
-    memset(handle, 0, sizeof *handle);
+    MtlSlabHandle *handle = (MtlSlabHandle*) SecureMemoryArena_resolve(sa, sh);
+    if (handle == nullptr) {
+        (discard) SecureMemoryArena_free(sa, sh);
+        return false;
+    }
+    MtlSlabHandle_setSelfHandle(handle, sh);
     if (domain == VIDEO_MEMORY_SHARED || domain == VIDEO_MEMORY_STAGING) {
-        any raw = mmap(nullptr, alignedLen, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-        if (raw == MAP_FAILED) {
-            MemoryArena_free(Graphvex_arena(), handle);
+        bytes page = (bytes) MEMORY_PAGE_SIZE;
+        if (alignedLen > SIZE_MAX - (2u * page)) {
+            (discard) SecureMemoryArena_free(sa, sh);
             return false;
         }
+        bytes totalLen = alignedLen + (2u * page);
+        any mapping = mmap(nullptr, totalLen, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+        if (mapping == MAP_FAILED) {
+            (discard) SecureMemoryArena_free(sa, sh);
+            return false;
+        }
+        u8 *mapBase = (u8*) mapping;
+        if (mprotect(mapBase, page, PROT_NONE) != 0 ||
+            mprotect(mapBase + page + alignedLen, page, PROT_NONE) != 0) {
+            munmap(mapBase, totalLen);
+            (discard) SecureMemoryArena_free(sa, sh);
+            return false;
+        }
+        any raw = (any) (mapBase + page);
         id<MTLBuffer> buf = [dev newBufferWithBytesNoCopy:raw
                                                    length:alignedLen
                                                   options:MTLResourceStorageModeShared
                                               deallocator:nil];
         if (buf == nil) {
-            munmap(raw, alignedLen);
-            MemoryArena_free(Graphvex_arena(), handle);
+            munmap(mapBase, totalLen);
+            (discard) SecureMemoryArena_free(sa, sh);
             return false;
         }
         MtlSlabHandle_setBuffer(handle, buf);
-        MtlSlabHandle_setMmapBase(handle, raw);
-        MtlSlabHandle_setMmapLen(handle, alignedLen);
+        MtlSlabHandle_setMmapBase(handle, mapBase);
+        MtlSlabHandle_setMmapLen(handle, totalLen);
         *outSlab = (VideoSlabInfo) {
             .gpuBase = (vpointer) buf.gpuAddress,
             .cpuBase = (pointer) raw,
@@ -94,7 +114,7 @@ static bool mtlAllocSlab(any context, VideoMemoryDomain domain, bytes length, Vi
     }
     id<MTLBuffer> priv = [dev newBufferWithLength:alignedLen options:MTLResourceStorageModePrivate];
     if (priv == nil) {
-        MemoryArena_free(Graphvex_arena(), handle);
+        (discard) SecureMemoryArena_free(sa, sh);
         return false;
     }
     MtlSlabHandle_setBuffer(handle, priv);
@@ -114,12 +134,14 @@ static fn mtlFreeSlab(any context, const VideoSlabInfo *slab) {
     if (slab == nullptr || MtlVideoSlab_driverHandle(slab) == nullptr)
         return;
     MtlSlabHandle *handle = (MtlSlabHandle*) MtlVideoSlab_driverHandle(slab);
+    SecureHandle sh = MtlSlabHandle_selfHandle(handle);
     id<MTLBuffer> buf = MtlSlabHandle_buffer(handle);
     if (buf != nil)
         [buf release];
     if (MtlSlabHandle_mmapBase(handle) != nullptr)
         munmap(MtlSlabHandle_mmapBase(handle), MtlSlabHandle_mmapLen(handle));
-    MemoryArena_free(Graphvex_arena(), handle);
+    if (SecureHandle_isValid(sh))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), sh);
 }
 
 static bool mtlCopyHostToDevice(any context, const VideoSlabInfo *slab, bytes offset, const_any src, bytes length) {
@@ -168,11 +190,13 @@ static fn mtlDestroyContext(any context) {
     MtlPoolContext *ctx = (MtlPoolContext*) context;
     if (ctx == nullptr)
         return;
+    SecureHandle sh = MtlPoolContext_selfHandle(ctx);
     if (MtlPoolContext_queue(ctx) != nil)
         [MtlPoolContext_queue(ctx) release];
     if (MtlPoolContext_device(ctx) != nil)
         [MtlPoolContext_device(ctx) release];
-    MemoryArena_free(Graphvex_arena(), ctx);
+    if (SecureHandle_isValid(sh))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), sh);
 }
 
 ;;CONSTRUCTOR
@@ -194,14 +218,20 @@ VideoPool *VideoPool_metal(bytes slabBytes)
         THROW("MetalVideoPool: failed to create command queue");
         return nullptr;
     }
-    MtlPoolContext *ctx = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *ctx);
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle sh = SecureMemoryArena_alloc(sa, 0u, sizeof(MtlPoolContext));
+    MtlPoolContext *ctx = SecureHandle_isValid(sh)
+        ? (MtlPoolContext*) SecureMemoryArena_resolve(sa, sh)
+        : nullptr;
     if (ctx == nullptr) {
+        if (SecureHandle_isValid(sh))
+            (discard) SecureMemoryArena_free(sa, sh);
         [queue release];
         [dev release];
         THROW("MetalVideoPool: failed to allocate context");
         return nullptr;
     }
-    memset(ctx, 0, sizeof *ctx);
+    MtlPoolContext_setSelfHandle(ctx, sh);
     MtlPoolContext_setDevice(ctx, dev);
     MtlPoolContext_setQueue(ctx, queue);
     MtlPoolContext_setUma(ctx, dev.hasUnifiedMemory ? true : false);

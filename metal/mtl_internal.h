@@ -8,6 +8,7 @@
 
 #include "vex.h"
 #include "vio/vio_internal.h"
+#include "sandcastles/nio/nio.h"
 
 #if !defined(VEX_PLATFORM_APPLE)
 #error "graphvex/metal/mtl_internal.h requires VEX_PLATFORM_APPLE"
@@ -21,12 +22,17 @@
 #import <Metal/MTLLibrary.h>
 #import <Metal/MTLComputePipeline.h>
 #import <Metal/MTLRenderPipeline.h>
+#import <IOSurface/IOSurface.h>
 
 #define MTL_MAX_CUSTOM_SHADERS 64u
+#define MTL_MAX_CACHED_LIBS    16u
+#define MTL_LIB_PATH_CAP       256u
+#define MTL_SWAP_COUNT         2u
 
 typedef struct MtlPoolContext {
     id<MTLDevice> device;
     id<MTLCommandQueue> queue;
+    SecureHandle selfHandle;
     bool uma;
 } MtlPoolContext;
 
@@ -34,6 +40,7 @@ typedef struct MtlSlabHandle {
     id<MTLBuffer> buffer;
     any mmapBase;
     bytes mmapLen;
+    SecureHandle selfHandle;
 } MtlSlabHandle;
 
 /**
@@ -112,7 +119,10 @@ typedef struct MtlPresentUniform {
  * u32 renderTexW                               - offscreen texture width
  * u32 renderTexH                               - offscreen texture height
  * id<MTLCommandBuffer> pendingPresent          - last async present buffer
- * u32 customCount                              - registered shader count
+ * id<MTLLibrary> cachedLibraries[]               - cached compiled MSL libraries
+ * utf8 cachedLibPaths[][]                        - source paths for cached libraries
+ * u32 cachedLibCount                             - number of cached MSL libraries
+ * u32 customCount                                - registered shader count
  * bool ownsDevice                              - true if device/queue owned
  * bool deviceLost                              - latched device-lost flag
  */
@@ -122,16 +132,29 @@ typedef struct MtlGraphicsContext {
     id<MTLLibrary> builtinLibrary;
     id<MTLComputePipelineState> clearPipeline;
     id<MTLComputePipelineState> copyPipeline;
+    id<MTLComputePipelineState> copyToTexPipeline;
     id<MTLComputePipelineState> presentPipeline;
     id<MTLComputePipelineState> customPipelines[MTL_MAX_CUSTOM_SHADERS];
     id<MTLRenderPipelineState> renderPipelines[MTL_MAX_CUSTOM_SHADERS];
+    id<MTLRenderPipelineState> surfaceRenderPipelines[MTL_MAX_CUSTOM_SHADERS];
     id<MTLTexture> renderTex;
     u32 renderTexW;
     u32 renderTexH;
+    IOSurfaceRef swapSurfaces[MTL_SWAP_COUNT];
+    id<MTLTexture> swapTextures[MTL_SWAP_COUNT];
+    id<MTLTexture> swapSrgbViews[MTL_SWAP_COUNT];
+    u32 swapW;
+    u32 swapH;
+    u32 swapIndex;
     id<MTLCommandBuffer> pendingPresent;
+    id<MTLLibrary> cachedLibraries[MTL_MAX_CACHED_LIBS];
+    utf8 cachedLibPaths[MTL_MAX_CACHED_LIBS][MTL_LIB_PATH_CAP];
+    u32 cachedLibCount;
     u32 customCount;
+    SecureHandle selfHandle;
     bool ownsDevice;
     bool deviceLost;
+    bool syncPresent;
 } MtlGraphicsContext;
 
 ;;GETTER
@@ -157,6 +180,16 @@ static inline bool MtlPoolContext_uma(const MtlPoolContext *c)
 static inline fn MtlPoolContext_setUma(MtlPoolContext *c, bool v)
 {
     (*c).uma = v;
+}
+;;GETTER
+static inline SecureHandle MtlPoolContext_selfHandle(const MtlPoolContext *c)
+{
+    return (*c).selfHandle;
+}
+;;SETTER
+static inline fn MtlPoolContext_setSelfHandle(MtlPoolContext *c, SecureHandle h)
+{
+    (*c).selfHandle = h;
 }
 
 ;;GETTER
@@ -185,6 +218,16 @@ static inline bytes MtlSlabHandle_mmapLen(const MtlSlabHandle *h)
 static inline fn MtlSlabHandle_setMmapLen(MtlSlabHandle *h, bytes l)
 {
     (*h).mmapLen = l;
+}
+;;GETTER
+static inline SecureHandle MtlSlabHandle_selfHandle(const MtlSlabHandle *h)
+{
+    return (*h).selfHandle;
+}
+;;SETTER
+static inline fn MtlSlabHandle_setSelfHandle(MtlSlabHandle *h, SecureHandle sh)
+{
+    (*h).selfHandle = sh;
 }
 ;;GETTER
 static inline any MtlVideoSlab_driverHandle(const VideoSlabInfo *s)
