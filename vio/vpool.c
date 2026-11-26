@@ -1,5 +1,12 @@
 #include "vex.h"
 #include "vio/vio_internal.h"
+#include "core/graphics.h"
+
+#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
+#include <sys/mman.h>
+#elif defined(VEX_PLATFORM_WINDOWS_X86_64) || defined(VEX_PLATFORM_WINDOWS_ARM64)
+#include <windows.h>
+#endif
 
 ;;DEFINITION
 /** VideoPool owns growable raw GPU memory slabs obtained from a thin backend
@@ -17,20 +24,56 @@
  * CONTRACT: GPU addresses (vpointer) are nonzero 64-bit addresses; UMA/shared
  * slabs carry a non-zero cpuBase for O(1) vpointer < to  pointer mapping. */
 
+static bytes swRoundToPage(bytes n) {
+    bytes page = (bytes) MEMORY_PAGE_SIZE;
+    bytes mask = page - 1u;
+    if (n > SIZE_MAX - mask)
+        return 0u;
+    return (n + mask) & ~mask;
+}
+
 static bool softwareAllocSlab(any context, VideoMemoryDomain domain, bytes length, VideoSlabInfo *outSlab) {
     (discard) context;
     if (length == 0u || outSlab == nullptr)
         return false;
-    any raw = MemoryArena_alloc(Graphvex_arena(), 0, length);
-    if (raw == nullptr)
+    bytes page = (bytes) MEMORY_PAGE_SIZE;
+    bytes alignedLen = swRoundToPage(length);
+    if (alignedLen == 0u || alignedLen > SIZE_MAX - (2u * page))
         return false;
-    memset(raw, 0, length);
-    pointer base = (pointer) raw;
+    bytes totalLen = alignedLen + (2u * page);
+    u8 *payload = nullptr;
+#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
+    any mapping = mmap(nullptr, totalLen, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (mapping == MAP_FAILED)
+        return false;
+    u8 *mapBase = (u8*) mapping;
+    if (mprotect(mapBase, page, PROT_NONE) != 0 ||
+        mprotect(mapBase + page + alignedLen, page, PROT_NONE) != 0) {
+        (discard) munmap(mapBase, totalLen);
+        return false;
+    }
+    payload = mapBase + page;
+#elif defined(VEX_PLATFORM_WINDOWS_X86_64) || defined(VEX_PLATFORM_WINDOWS_ARM64)
+    any mapping = VirtualAlloc(nullptr, (SIZE_T) totalLen, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (mapping == nullptr)
+        return false;
+    u8 *mapBase = (u8*) mapping;
+    DWORD oldProt = 0;
+    if (!VirtualProtect(mapBase, (SIZE_T) page, PAGE_NOACCESS, &oldProt) ||
+        !VirtualProtect(mapBase + page + alignedLen, (SIZE_T) page, PAGE_NOACCESS, &oldProt)) {
+        (discard) VirtualFree(mapBase, 0, MEM_RELEASE);
+        return false;
+    }
+    payload = mapBase + page;
+#else
+    return false;
+#endif
+    pointer base = (pointer) payload;
     *outSlab = (VideoSlabInfo) {
         .gpuBase = (vpointer) base,
         .cpuBase = domain == VIDEO_MEMORY_PRIVATE ? (pointer) 0 : base,
-        .length = length,
-        .driverHandle = raw,
+        .length = alignedLen,
+        .driverHandle = payload,
         .domain = domain,
         .umaZeroCopy = domain != VIDEO_MEMORY_PRIVATE,
     };
@@ -39,8 +82,23 @@ static bool softwareAllocSlab(any context, VideoMemoryDomain domain, bytes lengt
 
 static fn softwareFreeSlab(any context, const VideoSlabInfo *slab) {
     (discard) context;
-    if (slab != nullptr && VideoSlabInfo_driverHandle(slab) != nullptr)
-        MemoryArena_free(Graphvex_arena(), VideoSlabInfo_driverHandle(slab));
+    if (slab == nullptr || VideoSlabInfo_driverHandle(slab) == nullptr)
+        return;
+    bytes page = (bytes) MEMORY_PAGE_SIZE;
+    bytes alignedLen = VideoSlabInfo_length(slab);
+    u8 *payload = (u8*) VideoSlabInfo_driverHandle(slab);
+    memset(payload, 0, alignedLen);
+    u8 *mapBase = payload - page;
+    bytes totalLen = alignedLen + (2u * page);
+#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
+    (discard) munmap(mapBase, totalLen);
+#elif defined(VEX_PLATFORM_WINDOWS_X86_64) || defined(VEX_PLATFORM_WINDOWS_ARM64)
+    (discard) totalLen;
+    (discard) VirtualFree(mapBase, 0, MEM_RELEASE);
+#else
+    (discard) mapBase;
+    (discard) totalLen;
+#endif
 }
 
 static bool softwareCopyHostToDevice(any context, const VideoSlabInfo *slab, bytes offset, const_any src, bytes length) {
@@ -100,6 +158,14 @@ VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes)
  */
 VideoPool *VideoPool_1(bytes slabBytes)
 {
+    Graphics_latchBackend();
+    GraphicsBackend requested = GRAPHICS_BACKEND();
+    if (requested == GRAPHICS_SOFTWARE)
+        return VideoPool_software(slabBytes);
+    if (requested == GRAPHICS_VULKAN || requested == GRAPHICS_D3D12 || requested == GRAPHICS_WGPU) {
+        THROW("VideoPool: requested backend %u is not linked on this host; falling back to software-uma", (u32) requested);
+        return VideoPool_software(slabBytes);
+    }
 #if defined(VEX_PLATFORM_APPLE)
     VideoPool *metal = VideoPool_metal(slabBytes);
     if (metal != nullptr)
@@ -215,16 +281,27 @@ fn VideoPool_releaseArenaSlabs(VideoPool *pool, VideoArena *owner) {
     SpinLock_unlock(VideoPool_lockPtr(pool));
 }
 
+static bool vpoolIsSoftwareDriverName(string name) {
+    return name != nullptr && name[0] == 's' && name[1] == 'o' && name[2] == 'f' && name[3] == 't';
+}
+
 fn VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner) {
     if (pool == nullptr || owner == nullptr)
         return;
     SpinLock_lock(VideoPool_lockPtr(pool));
+    bool isSoft = vpoolIsSoftwareDriverName(VideoPool_driver(pool).name);
     VideoSlabRecord *slabs = VideoPool_slabs(pool);
     bytes count = VideoPool_slabCountField(pool);
     for (bytes i = 0u; i < count; ++i) {
         if (slabs[i].owner == owner) {
             slabs[i].cursor = 0u;
             slabs[i].liveBytes = 0u;
+#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
+            if (isSoft && slabs[i].info.cpuBase != 0u && slabs[i].info.length > 0u)
+                (discard) madvise((any) slabs[i].info.cpuBase, slabs[i].info.length, MADV_FREE);
+#else
+            (discard) isSoft;
+#endif
         }
     }
     SpinLock_unlock(VideoPool_lockPtr(pool));
