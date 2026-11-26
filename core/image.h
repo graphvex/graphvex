@@ -11,6 +11,7 @@
 typedef enum GraphicsImageFlag {
     GRAPHICS_IMAGE_NONE    = 0u,
     GRAPHICS_IMAGE_SUBVIEW = 1u << 0,
+    GRAPHICS_IMAGE_SURFACE = 1u << 1,
 } GraphicsImageFlag;
 
 typedef struct GraphicsImage {
@@ -30,6 +31,7 @@ typedef struct Graphics Graphics;
 GraphicsImage GraphicsImage_0();
 GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
                               u32 width, u32 height, PixelFormat format);
+GraphicsImage GraphicsImage_surface(u32 width, u32 height, PixelFormat format);
 #define GraphicsImage(...) CONSTRUCTOR_DISPATCH(GraphicsImage, __VA_ARGS__)
 
 ;;GETTER

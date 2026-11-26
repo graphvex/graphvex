@@ -5,6 +5,27 @@
 
 #include "core/driver.h"
 
+;;CLASSNAME("GraphicsBackend")
+
+typedef enum GraphicsBackend {
+    GRAPHICS_AUTO     = 0,
+    GRAPHICS_METAL    = 1,
+    GRAPHICS_VULKAN   = 2,
+    GRAPHICS_D3D12    = 3,
+    GRAPHICS_WGPU     = 4,
+    GRAPHICS_SOFTWARE = 5,
+} GraphicsBackend;
+
+/**
+ * Boot-time process-wide backend override (SCREAMING_CASE: call at the top of
+ * main() before creating any VideoPool, Graphics, or Frame).
+ * @param backend requested GraphicsBackend override
+ * @return true if accepted before latch, false if Graphics is already initialized
+ */
+bool GRAPHICS_OVERRIDE(GraphicsBackend backend);
+GraphicsBackend GRAPHICS_BACKEND();
+fn Graphics_latchBackend();
+
 ;;CLASSNAME("Graphics")
 
 typedef struct Graphics Graphics;
@@ -57,6 +78,12 @@ bool Graphics_drawWithSource(Graphics *g, u32 shaderId, const GraphicsImage *sou
 
 /** Execution and swapchain-free presentation. */
 bool Graphics_submit(Graphics *g);
+bool Graphics_supportsDirectSurface(const Graphics *g);
+bool Graphics_submitToSurface(Graphics *g, any nativeSurface,
+                              u32 viewportW, u32 viewportH,
+                              u32 surfaceW, u32 surfaceH, bool sync);
+fn Graphics_setSyncPresent(Graphics *g, bool sync);
 bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image);
+bool Graphics_presentSync(Graphics *g, any nativeSurface, const GraphicsImage *image);
 
 #endif
