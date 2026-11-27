@@ -98,6 +98,22 @@ static inline u32 MtlGfx_customCount(const MtlGraphicsContext *c)
 {
     return (*c).customCount;
 }
+;;GETTER
+static inline bool MtlGfx_surfacePurgeable(const MtlGraphicsContext *c)
+{
+    if (!c)
+        return false;
+
+    return (*c).surfacePurgeable;
+}
+;;SETTER
+static inline fn MtlGfx_setSurfacePurgeable(MtlGraphicsContext *c, bool v)
+{
+    if (!c)
+        return;
+
+    (*c).surfacePurgeable = v;
+}
 ;;SETTER
 static inline fn MtlGfx_setCustomCount(MtlGraphicsContext *c, u32 n)
 {
@@ -824,16 +840,9 @@ static CAMetalLayer *mtlResolveSurfaceLayer(id<MTLDevice> dev, any nativeSurface
         }
         NSWindow *win = [view window];
         liveResize = [view inLiveResize] || (win != nil && [win inLiveResize]);
-        NSRect bounds = [view bounds];
-        CGFloat backingScale = (win != nil && [win backingScaleFactor] > 0.0)
+        CGFloat effectiveScale = (win != nil && [win backingScaleFactor] > 0.0)
             ? [win backingScaleFactor]
             : 1.0;
-        CGFloat effectiveScale = backingScale;
-        if (bounds.size.width > 0.0 && viewportW > 0u) {
-            CGFloat ratio = (CGFloat) viewportW / bounds.size.width;
-            if (ratio > 0.0)
-                effectiveScale = ratio;
-        }
         CGRect targetFrame = CGRectMake(
             0.0, 0.0,
             (CGFloat) drawW / effectiveScale,
@@ -1048,9 +1057,15 @@ static fn mtlReleaseSwapchain(MtlGraphicsContext *ctx) {
 static bool mtlEnsureSwapchain(MtlGraphicsContext *ctx, u32 width, u32 height) {
     if (ctx == nullptr || width == 0u || height == 0u)
         return false;
-    if (MtlGfx_swapW(ctx) == width && MtlGfx_swapH(ctx) == height &&
-        MtlGfx_swapSurfaceAt(ctx, 0u) != nullptr && MtlGfx_swapSurfaceAt(ctx, 1u) != nullptr) {
-        return true;
+
+    if (MtlGfx_swapW(ctx) == width && MtlGfx_swapH(ctx) == height) {
+        bool allReady = true;
+        for (u32 i = 0u; i < MTL_SWAP_COUNT; i++) {
+            if (MtlGfx_swapSurfaceAt(ctx, i) == nullptr)
+                allReady = false;
+        }
+        if (allReady)
+            return true;
     }
     mtlReleaseSwapchain(ctx);
 
@@ -1100,24 +1115,44 @@ static bool mtlEnsureSwapchain(MtlGraphicsContext *ctx, u32 width, u32 height) {
     return true;
 }
 
+static u32 mtlPickSwapSlot(const MtlGraphicsContext *ctx)
+{
+    u32 base = MtlGfx_swapIndex(ctx) % MTL_SWAP_COUNT;
+    for (u32 i = 0u; i < MTL_SWAP_COUNT; i++) {
+        u32 idx = (base + i) % MTL_SWAP_COUNT;
+        IOSurfaceRef s = MtlGfx_swapSurfaceAt(ctx, idx);
+        if (s != nullptr && !IOSurfaceIsInUse(s))
+            return idx;
+    }
+    return base;
+}
+
 static CALayer *mtlResolvePresentLayer(any nativeSurface,
-                                       u32 viewportW, u32 viewportH,
                                        u32 drawW, u32 drawH,
-                                       bool forceSync, bool *outUseSync) {
+                                       bool forceSync, bool *outUseSync,
+                                       CGRect *outFrame, CGFloat *outScale,
+                                       bool *outUpdateGeom)
+{
     if (outUseSync != nullptr)
         *outUseSync = false;
+
+    if (outUpdateGeom != nullptr)
+        *outUpdateGeom = false;
+
     id obj = (id) nativeSurface;
     if (obj == nil)
         return nil;
+
     CALayer *layer = nil;
     bool liveResize = false;
-    CGFloat effectiveScale = 1.0;
+    CGFloat backingScale = 1.0;
     if ([obj isKindOfClass:[NSView class]]) {
         NSView *view = (NSView*) obj;
         [view setWantsLayer:YES];
         CALayer *host = [view layer];
         if (host == nil)
             return nil;
+
         [host setMasksToBounds:YES];
         for (CALayer *sub in [host sublayers]) {
             if ([[sub name] isEqualToString:@"graphvex.iosurface.surface"]) {
@@ -1130,47 +1165,70 @@ static CALayer *mtlResolvePresentLayer(any nativeSurface,
             layer = [CALayer layer];
             [layer setName:@"graphvex.iosurface.surface"];
             [layer setOpaque:YES];
+            [layer setAutoresizingMask:0];
             [layer setContentsGravity:kCAGravityTopLeft];
             [host addSublayer:layer];
         }
         NSWindow *win = [view window];
         liveResize = [view inLiveResize] || (win != nil && [win inLiveResize]);
-        NSRect bounds = [view bounds];
-        CGFloat backingScale = (win != nil && [win backingScaleFactor] > 0.0)
-            ? [win backingScaleFactor]
-            : 1.0;
-        effectiveScale = backingScale;
-        if (bounds.size.width > 0.0 && viewportW > 0u) {
-            CGFloat ratio = (CGFloat) viewportW / bounds.size.width;
-            if (ratio > 0.0)
-                effectiveScale = ratio;
-        }
+        if (win != nil && [win backingScaleFactor] > 0.0)
+            backingScale = [win backingScaleFactor];
+
         CGRect targetFrame = CGRectMake(
             0.0, 0.0,
-            (CGFloat) drawW / effectiveScale,
-            (CGFloat) drawH / effectiveScale);
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        [layer setHidden:NO];
-        [layer setFrame:targetFrame];
-        [layer setContentsScale:effectiveScale];
-        [layer setContentsGravity:kCAGravityTopLeft];
-        [CATransaction commit];
+            (CGFloat) drawW / backingScale,
+            (CGFloat) drawH / backingScale);
+        if (outFrame != nullptr)
+            *outFrame = targetFrame;
+
+        if (outScale != nullptr)
+            *outScale = backingScale;
+
+        if (outUpdateGeom != nullptr)
+            *outUpdateGeom = true;
     } else if ([obj isKindOfClass:[CALayer class]]) {
         layer = (CALayer*) obj;
     } else {
         return nil;
     }
-    (discard) viewportH;
     if (outUseSync != nullptr)
         *outUseSync = liveResize || forceSync;
+
     return layer;
+}
+
+static fn mtlCommitPresentLayer(CALayer *layer, IOSurfaceRef surf,
+                                bool updateGeom, CGRect targetFrame,
+                                CGFloat targetScale, bool useSync)
+{
+    if (layer == nil || surf == nullptr)
+        return;
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (updateGeom) {
+        if ([layer isHidden])
+            [layer setHidden:NO];
+
+        if (!CGRectEqualToRect([layer frame], targetFrame))
+            [layer setFrame:targetFrame];
+
+        if ([layer contentsScale] != targetScale)
+            [layer setContentsScale:targetScale];
+
+        [layer setContentsGravity:kCAGravityTopLeft];
+    }
+    [layer setContents:(id) surf];
+    [CATransaction commit];
+    if (useSync)
+        [CATransaction flush];
 }
 
 /**
  * Renders all recorded commands directly on the Metal GPU into a custom
- * 2-IOSurface screen-sized double-buffer swapchain and swaps CALayer.contents
- * inside a CATransaction (flushing synchronously during live resize).
+ * 3-IOSurface screen-sized swapchain and swaps CALayer.contents atomically
+ * with layer geometry inside a CATransaction (flushing synchronously during
+ * live resize and committing asynchronously at rest).
  * @param context       MtlGraphicsContext handle
  * @param pool          backing VideoPool for primitive and atlas buffers
  * @param nativeSurface NSView or CALayer target
@@ -1182,6 +1240,8 @@ static CALayer *mtlResolvePresentLayer(any nativeSurface,
  * @param count         number of commands to execute
  * @return true on success, false on IOSurface, shader, or GPU failure
  */
+static fn mtlSetSurfacePurgeable(any context, bool purgeable);
+
 static bool mtlSubmitToSurface(any context, const VideoPool *pool,
                                any nativeSurface,
                                u32 viewportW, u32 viewportH,
@@ -1190,6 +1250,7 @@ static bool mtlSubmitToSurface(any context, const VideoPool *pool,
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr || pool == nullptr || nativeSurface == nullptr)
         return false;
+
     if (!MtlGuard_check("mtlSubmitToSurface", MtlGfx_device(ctx), MtlGfx_queue(ctx), MtlGfx_deviceLostPtr(ctx)))
         return false;
 
@@ -1201,14 +1262,22 @@ static bool mtlSubmitToSurface(any context, const VideoPool *pool,
     @autoreleasepool {
         if (!mtlEnsureSwapchain(ctx, drawW, drawH))
             return false;
+
+        if (MtlGfx_surfacePurgeable(ctx))
+            mtlSetSurfacePurgeable(ctx, false);
+
         bool useSync = false;
+        CGRect targetFrame = CGRectZero;
+        CGFloat targetScale = 1.0;
+        bool updateGeom = false;
         CALayer *layer = mtlResolvePresentLayer(
-            nativeSurface, viewportW, viewportH, drawW, drawH,
-            MtlGfx_syncPresent(ctx), &useSync);
+            nativeSurface, drawW, drawH,
+            MtlGfx_syncPresent(ctx), &useSync,
+            &targetFrame, &targetScale, &updateGeom);
         if (layer == nil)
             return false;
 
-        u32 slot = MtlGfx_swapIndex(ctx) % MTL_SWAP_COUNT;
+        u32 slot = mtlPickSwapSlot(ctx);
         IOSurfaceRef surf = MtlGfx_swapSurfaceAt(ctx, slot);
         id<MTLTexture> rawTex = MtlGfx_swapTexAt(ctx, slot);
         id<MTLTexture> srgbView = MtlGfx_swapSrgbAt(ctx, slot);
@@ -1263,18 +1332,14 @@ static bool mtlSubmitToSurface(any context, const VideoPool *pool,
         }
         if (ok && hasClear)
             ok = mtlFlushSurfaceClear(cmdBuf, srgbView, clearRGBA);
+
         if (!ok)
             return false;
+
         if (!mtlWaitBounded(ctx, cmdBuf))
             return false;
 
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        [layer setContents:(id) surf];
-        [CATransaction commit];
-        if (useSync)
-            [CATransaction flush];
-
+        mtlCommitPresentLayer(layer, surf, updateGeom, targetFrame, targetScale, useSync);
         MtlGfx_setSwapIndex(ctx, (slot + 1u) % MTL_SWAP_COUNT);
         return true;
     }
@@ -1339,14 +1404,21 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
             if (!mtlEnsureSwapchain(ctx, drawW, drawH))
                 return false;
 
+            if (MtlGfx_surfacePurgeable(ctx))
+                mtlSetSurfacePurgeable(ctx, false);
+
             bool useSync = false;
+            CGRect targetFrame = CGRectZero;
+            CGFloat targetScale = 1.0;
+            bool updateGeom = false;
             CALayer *layer = mtlResolvePresentLayer(
-                nativeSurface, imgW, imgH, drawW, drawH,
-                MtlGfx_syncPresent(ctx), &useSync);
+                nativeSurface, drawW, drawH,
+                MtlGfx_syncPresent(ctx), &useSync,
+                &targetFrame, &targetScale, &updateGeom);
             if (layer == nil)
                 return false;
 
-            u32 slot = MtlGfx_swapIndex(ctx) % MTL_SWAP_COUNT;
+            u32 slot = mtlPickSwapSlot(ctx);
             IOSurfaceRef surf = MtlGfx_swapSurfaceAt(ctx, slot);
             id<MTLTexture> rawTex = MtlGfx_swapTexAt(ctx, slot);
             if (surf == nullptr || rawTex == nil)
@@ -1357,8 +1429,8 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
             u.srcWidth = imgW;
             u.srcHeight = imgH;
             u.srcStrideBytes = GraphicsImage_strideBytes(image);
-            u.dstWidth = imgW;
-            u.dstHeight = imgH;
+            u.dstWidth = drawW;
+            u.dstHeight = drawH;
 
             id<MTLCommandBuffer> cmdBuf = [MtlGfx_queue(ctx) commandBuffer];
             if (cmdBuf == nil)
@@ -1379,13 +1451,7 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
             if (!mtlWaitBounded(ctx, cmdBuf))
                 return false;
 
-            [CATransaction begin];
-            [CATransaction setDisableActions:YES];
-            [layer setContents:(id) surf];
-            [CATransaction commit];
-            if (useSync)
-                [CATransaction flush];
-
+            mtlCommitPresentLayer(layer, surf, updateGeom, targetFrame, targetScale, useSync);
             MtlGfx_setSwapIndex(ctx, (slot + 1u) % MTL_SWAP_COUNT);
             return true;
         }
@@ -1448,6 +1514,22 @@ static fn mtlSetSyncPresent(any context, bool sync) {
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx != nullptr)
         MtlGfx_setSyncPresent(ctx, sync);
+}
+
+static fn mtlSetSurfacePurgeable(any context, bool purgeable)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx)
+        return;
+
+    mtlDrainPendingPresent(ctx);
+    u32 state = purgeable ? kIOSurfacePurgeableVolatile : kIOSurfacePurgeableNonVolatile;
+    for (u32 i = 0u; i < MTL_SWAP_COUNT; i++) {
+        IOSurfaceRef surf = MtlGfx_swapSurfaceAt(ctx, i);
+        if (surf != nullptr)
+            (discard) IOSurfaceSetPurgeable(surf, state, nullptr);
+    }
+    MtlGfx_setSurfacePurgeable(ctx, purgeable);
 }
 
 ;;DECONSTRUCT
@@ -1792,6 +1874,7 @@ Graphics *Graphics_metal(VideoPool *pool)
         .submitToSurface = mtlSubmitToSurface,
         .presentImage = mtlPresentImage,
         .setSyncPresent = mtlSetSyncPresent,
+        .setSurfacePurgeable = mtlSetSurfacePurgeable,
         .destroyContext = mtlDestroyGraphicsContext,
     };
     Graphics *g = Graphics(pool, &driver);

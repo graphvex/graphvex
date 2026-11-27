@@ -27,7 +27,7 @@
 #define MTL_MAX_CUSTOM_SHADERS 64u
 #define MTL_MAX_CACHED_LIBS    16u
 #define MTL_LIB_PATH_CAP       256u
-#define MTL_SWAP_COUNT         2u
+#define MTL_SWAP_COUNT         3u
 
 typedef struct MtlPoolContext {
     id<MTLDevice> device;
@@ -125,6 +125,8 @@ typedef struct MtlPresentUniform {
  * u32 customCount                                - registered shader count
  * bool ownsDevice                              - true if device/queue owned
  * bool deviceLost                              - latched device-lost flag
+ * bool syncPresent                             - true for synchronous present
+ * bool surfacePurgeable                        - true while swapchain is volatile
  */
 typedef struct MtlGraphicsContext {
     id<MTLDevice> device;
@@ -155,6 +157,7 @@ typedef struct MtlGraphicsContext {
     bool ownsDevice;
     bool deviceLost;
     bool syncPresent;
+    bool surfacePurgeable;
 } MtlGraphicsContext;
 
 ;;GETTER
