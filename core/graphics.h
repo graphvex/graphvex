@@ -83,6 +83,7 @@ bool Graphics_submitToSurface(Graphics *g, any nativeSurface,
                               u32 viewportW, u32 viewportH,
                               u32 surfaceW, u32 surfaceH, bool sync);
 fn Graphics_setSyncPresent(Graphics *g, bool sync);
+fn Graphics_setSurfacePurgeable(Graphics *g, bool purgeable);
 bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image);
 bool Graphics_presentSync(Graphics *g, any nativeSurface, const GraphicsImage *image);
 

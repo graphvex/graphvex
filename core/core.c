@@ -132,7 +132,8 @@ u32 PixelFormat_bytesPerPixel(PixelFormat format) {
         case PIXEL_FORMAT_RGBA16_FLOAT: return 8u;
         case PIXEL_FORMAT_RGBA32_FLOAT: return 16u;
         case PIXEL_FORMAT_R16_UNORM:    return 2u;
-        case PIXEL_FORMAT_R8_UNORM:     return 1u;
+        case PIXEL_FORMAT_R8_UNORM:
+        case PIXEL_FORMAT_NV12:         return 1u;
         case PIXEL_FORMAT_D32_FLOAT:    return 4u;
         case PIXEL_FORMAT_D32_FLOAT_S8: return 8u;
         default:                        return 0u;
@@ -226,7 +227,13 @@ bool GraphicsImage_isSubview(const GraphicsImage *self) {
 bytes GraphicsImage_byteSize(const GraphicsImage *self) {
     if (!GraphicsImage_isValid(self))
         return 0u;
-    return (bytes) GraphicsImage_strideBytes(self) * (bytes) GraphicsImage_height(self);
+    bytes yBytes = (bytes) GraphicsImage_strideBytes(self) * (bytes) GraphicsImage_height(self);
+    if (GraphicsImage_format(self) == PIXEL_FORMAT_NV12) {
+        u32 uvW = (GraphicsImage_width(self) + 1u) / 2u;
+        u32 uvH = (GraphicsImage_height(self) + 1u) / 2u;
+        return yBytes + (bytes) uvW * (bytes) uvH * 2u;
+    }
+    return yBytes;
 }
 
 fn GraphicsImage_fitRect(const GraphicsImage *self, f32 dstX, f32 dstY, f32 dstW, f32 dstH,
@@ -708,6 +715,11 @@ GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
 
     u64 stride64 = (u64) width * (u64) bpp;
     u64 total64 = stride64 * (u64) height;
+    if (format == PIXEL_FORMAT_NV12) {
+        u64 uvW = (u64) ((width + 1u) / 2u);
+        u64 uvH = (u64) ((height + 1u) / 2u);
+        total64 += uvW * uvH * 2ULL;
+    }
     if (stride64 > 0xFFFFFFFFULL || total64 == 0u)
         return empty;
 
@@ -723,34 +735,6 @@ GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
     img.bindlessSlot = gfxAllocBindlessSlot(g);
     img.format = format;
     img.flags = GRAPHICS_IMAGE_NONE;
-    return img;
-}
-
-/**
- * Constructs a virtual direct-surface GraphicsImage descriptor allocating zero
- * bytes in VideoPool so commands can target a native surface drawable directly.
- * @param width  active viewport width in pixels
- * @param height active viewport height in pixels
- * @param format pixel format
- * @return virtual surface GraphicsImage, or zeroed invalid image on bad args
- */
-GraphicsImage GraphicsImage_surface(u32 width, u32 height, PixelFormat format)
-{
-    GraphicsImage empty = GraphicsImage_0();
-    u32 bpp = PixelFormat_bytesPerPixel(format);
-    if (width == 0u || height == 0u || bpp == 0u)
-        return empty;
-    u64 stride64 = (u64) width * (u64) bpp;
-    if (stride64 > 0xFFFFFFFFULL)
-        return empty;
-    GraphicsImage img;
-    img.data = 1u;
-    img.width = width;
-    img.height = height;
-    img.strideBytes = (u32) stride64;
-    img.bindlessSlot = GRAPHICS_BINDLESS_DUMMY_SLOT;
-    img.format = format;
-    img.flags = GRAPHICS_IMAGE_SURFACE;
     return img;
 }
 
@@ -1076,6 +1060,16 @@ fn Graphics_setSyncPresent(Graphics *g, bool sync) {
     GraphicsDriver d = Graphics_getDriver(g);
     if (d.setSyncPresent)
         d.setSyncPresent(d.context, sync);
+}
+
+fn Graphics_setSurfacePurgeable(Graphics *g, bool purgeable)
+{
+    if (!g)
+        return;
+
+    GraphicsDriver d = Graphics_getDriver(g);
+    if (d.setSurfacePurgeable)
+        d.setSurfacePurgeable(d.context, purgeable);
 }
 
 bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image) {

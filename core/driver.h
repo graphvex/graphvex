@@ -24,6 +24,7 @@ typedef struct GraphicsDriver {
     bool (*presentImage)(any context, const VideoPool *pool,
                          any nativeSurface, const GraphicsImage *image);
     fn (*setSyncPresent)(any context, bool sync);
+    fn (*setSurfacePurgeable)(any context, bool purgeable);
     fn (*destroyContext)(any context);
 } GraphicsDriver;
 

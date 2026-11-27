@@ -14,5 +14,6 @@
 #include "core/command.h"
 #include "core/driver.h"
 #include "core/graphics.h"
+#include "core/surface.h"
 
 #endif

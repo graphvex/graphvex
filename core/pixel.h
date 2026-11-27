@@ -38,7 +38,8 @@ typedef enum PixelFormat {
     PIXEL_FORMAT_D32_FLOAT       = 8,
     PIXEL_FORMAT_D32_FLOAT_S8    = 9,
     PIXEL_FORMAT_R8_UNORM        = 10,
-    PIXEL_FORMAT_COUNT           = 11
+    PIXEL_FORMAT_NV12            = 11,
+    PIXEL_FORMAT_COUNT           = 12
 } PixelFormat;
 
 u32 PixelFormat_bytesPerPixel(PixelFormat format);
