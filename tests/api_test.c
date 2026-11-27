@@ -225,6 +225,22 @@ static fn vio_testPool(VideoPool *pool, string label) {
         assert(privOut[i] == (0x12340000u | i));
     VideoArena_destroy(priv);
 
+    assert(VIDEO_MEMORY_DEFAULT_SLAB_BYTES == 1024u * 1024u);
+    vpointer big = VideoArena_alloc(shared, 256u * 1024u, 256u);
+    assert(big != 0u);
+    bytes slabsBefore = VideoPool_slabCount(pool);
+    VideoArena_trim(shared);
+    bytes slabsAfter = VideoPool_slabCount(pool);
+    assert(slabsAfter <= slabsBefore);
+    vpointer smallAfter = VideoArena_alloc(shared, 4096u, 256u);
+    assert(smallAfter != 0u);
+
+    Graphics *gPurge = Graphics(pool);
+    assert(gPurge != nullptr);
+    Graphics_setSurfacePurgeable(gPurge, true);
+    Graphics_setSurfacePurgeable(gPurge, false);
+    Graphics_destroy(gPurge);
+
     VideoArena_destroy(shared);
     print("[vio_test] ", label, ": PASS");
 }
