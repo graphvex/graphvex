@@ -214,6 +214,45 @@ fn VideoPool_destroy(VideoPool *pool) {
     MemoryArena_free(Graphvex_arena(), pool);
 }
 
+static fn vpoolAdviseReusable(pointer cpuBase, bytes length)
+{
+    if (cpuBase == 0u || length == 0u)
+        return;
+
+#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
+#if defined(MADV_FREE_REUSABLE)
+    (discard) madvise((any) cpuBase, length, MADV_FREE_REUSABLE);
+#elif defined(MADV_FREE)
+    (discard) madvise((any) cpuBase, length, MADV_FREE);
+#elif defined(MADV_DONTNEED)
+    (discard) madvise((any) cpuBase, length, MADV_DONTNEED);
+#endif
+#endif
+}
+
+static fn vpoolAdviseReuse(pointer cpuBase, bytes length)
+{
+    if (cpuBase == 0u || length == 0u)
+        return;
+
+#if defined(MADV_FREE_REUSE)
+    (discard) madvise((any) cpuBase, length, MADV_FREE_REUSE);
+#endif
+}
+
+fn VideoPool_prepareSlabForUse(VideoSlabRecord *slab)
+{
+    if (!slab)
+        return;
+
+    if (VideoSlabRecord_reusable(slab)) {
+        VideoSlabInfo info = VideoSlabRecord_info(slab);
+        vpoolAdviseReuse(info.cpuBase, info.length);
+        VideoSlabRecord_setReusable(slab, false);
+    }
+    VideoSlabRecord_setIdleResets(slab, 0u);
+}
+
 VideoSlabRecord *VideoPool_acquireSlab(VideoPool *pool, VideoArena *owner, VideoMemoryDomain domain, bytes minBytes) {
     if (pool == nullptr || owner == nullptr)
         return nullptr;
@@ -225,6 +264,7 @@ VideoSlabRecord *VideoPool_acquireSlab(VideoPool *pool, VideoArena *owner, Video
     bytes count = VideoPool_slabCountField(pool);
     for (bytes i = 0u; i < count; ++i) {
         if (!slabs[i].inUse && slabs[i].info.domain == domain && slabs[i].info.length >= minBytes) {
+            VideoPool_prepareSlabForUse(&slabs[i]);
             slabs[i].owner = owner;
             slabs[i].cursor = 0u;
             slabs[i].liveBytes = 0u;
@@ -268,43 +308,85 @@ fn VideoPool_releaseArenaSlabs(VideoPool *pool, VideoArena *owner) {
     if (pool == nullptr || owner == nullptr)
         return;
     SpinLock_lock(VideoPool_lockPtr(pool));
+    VideoPoolDriver driver = VideoPool_driver(pool);
+    bytes defaultSlab = VideoPool_slabBytesField(pool);
     VideoSlabRecord *slabs = VideoPool_slabs(pool);
     bytes count = VideoPool_slabCountField(pool);
+    bytes writeIdx = 0u;
     for (bytes i = 0u; i < count; ++i) {
         if (slabs[i].owner == owner) {
+            if (slabs[i].info.length > defaultSlab) {
+                driver.freeSlab(driver.context, &slabs[i].info);
+                continue;
+            }
             slabs[i].owner = nullptr;
             slabs[i].cursor = 0u;
             slabs[i].liveBytes = 0u;
             slabs[i].inUse = false;
+            VideoSlabRecord_setIdleResets(&slabs[i], 0u);
+            VideoSlabRecord_setReusable(&slabs[i], true);
+            vpoolAdviseReusable(slabs[i].info.cpuBase, slabs[i].info.length);
         }
+        if (writeIdx != i)
+            slabs[writeIdx] = slabs[i];
+        writeIdx++;
     }
+    VideoPool_setSlabCountField(pool, writeIdx);
     SpinLock_unlock(VideoPool_lockPtr(pool));
 }
 
-static bool vpoolIsSoftwareDriverName(string name) {
-    return name != nullptr && name[0] == 's' && name[1] == 'o' && name[2] == 'f' && name[3] == 't';
-}
-
-fn VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner) {
+bytes VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner, bool aggressive) {
     if (pool == nullptr || owner == nullptr)
-        return;
+        return 0u;
     SpinLock_lock(VideoPool_lockPtr(pool));
-    bool isSoft = vpoolIsSoftwareDriverName(VideoPool_driver(pool).name);
+    VideoPoolDriver driver = VideoPool_driver(pool);
+    bytes defaultSlab = VideoPool_slabBytesField(pool);
     VideoSlabRecord *slabs = VideoPool_slabs(pool);
     bytes count = VideoPool_slabCountField(pool);
+    bytes writeIdx = 0u;
+    bytes remainingCap = 0u;
+    bool keptBase = false;
+    bool keptOversized = false;
     for (bytes i = 0u; i < count; ++i) {
-        if (slabs[i].owner == owner) {
-            slabs[i].cursor = 0u;
-            slabs[i].liveBytes = 0u;
-#if defined(VEX_PLATFORM_APPLE) || defined(VEX_PLATFORM_APPLE_SILICON) || defined(VEX_PLATFORM_APPLE_X86_64) || defined(VEX_PLATFORM_LINUX_X86_64) || defined(VEX_PLATFORM_LINUX_ARM64)
-            if (isSoft && slabs[i].info.cpuBase != 0u && slabs[i].info.length > 0u)
-                (discard) madvise((any) slabs[i].info.cpuBase, slabs[i].info.length, MADV_FREE);
-#else
-            (discard) isSoft;
-#endif
+        if (slabs[i].owner != owner) {
+            if (writeIdx != i)
+                slabs[writeIdx] = slabs[i];
+            writeIdx++;
+            continue;
         }
+        bool wasUsed = slabs[i].cursor > 0u;
+        bool isOversized = slabs[i].info.length > defaultSlab;
+        bool keep = false;
+        if (aggressive) {
+            keep = !isOversized && !keptBase;
+        } else if (!isOversized) {
+            if (!keptBase || wasUsed || VideoSlabRecord_idleResets(&slabs[i]) == 0u)
+                keep = true;
+        } else {
+            keep = wasUsed && !keptOversized;
+        }
+        if (!keep) {
+            driver.freeSlab(driver.context, &slabs[i].info);
+            continue;
+        }
+        if (isOversized)
+            keptOversized = true;
+        else
+            keptBase = true;
+        slabs[i].cursor = 0u;
+        slabs[i].liveBytes = 0u;
+        u32 nextIdle = wasUsed ? 0u : VideoSlabRecord_idleResets(&slabs[i]) + 1u;
+        VideoSlabRecord_setIdleResets(&slabs[i], nextIdle);
+        VideoSlabRecord_setReusable(&slabs[i], true);
+        vpoolAdviseReusable(slabs[i].info.cpuBase, slabs[i].info.length);
+        remainingCap += slabs[i].info.length;
+        if (writeIdx != i)
+            slabs[writeIdx] = slabs[i];
+        writeIdx++;
     }
+    VideoPool_setSlabCountField(pool, writeIdx);
     SpinLock_unlock(VideoPool_lockPtr(pool));
+    return remainingCap;
 }
 
 bool VideoPool_findByGpu(const VideoPool *pool, vpointer addr, bytes length, VideoSlabInfo *outInfo, bytes *outOffset) {

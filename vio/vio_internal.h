@@ -10,7 +10,9 @@ typedef struct VideoSlabRecord {
     VideoArena *owner;
     bytes cursor;
     bytes liveBytes;
+    u32 idleResets;
     bool inUse;
+    bool reusable;
 } VideoSlabRecord;
 
 typedef struct VideoFreeBlock {
@@ -316,14 +318,48 @@ static inline bytes VideoSlabInfo_length(const VideoSlabInfo *s)
 }
 
 ;;GETTER
+static inline u32 VideoSlabRecord_idleResets(const VideoSlabRecord *s)
+{
+    if (!s)
+        return 0u;
+
+    return (*s).idleResets;
+}
+;;SETTER
+static inline fn VideoSlabRecord_setIdleResets(VideoSlabRecord *s, u32 n)
+{
+    if (!s)
+        return;
+
+    (*s).idleResets = n;
+}
+;;GETTER
+static inline bool VideoSlabRecord_reusable(const VideoSlabRecord *s)
+{
+    if (!s)
+        return false;
+
+    return (*s).reusable;
+}
+;;SETTER
+static inline fn VideoSlabRecord_setReusable(VideoSlabRecord *s, bool v)
+{
+    if (!s)
+        return;
+
+    (*s).reusable = v;
+}
+
+;;GETTER
 static inline bool VideoPoolDriver_hasAlloc(const VideoPoolDriver *d)
 {
     return (*d).allocSlab != nullptr && (*d).freeSlab != nullptr;
 }
 
 VideoSlabRecord *VideoPool_acquireSlab(VideoPool *pool, VideoArena *owner, VideoMemoryDomain domain, bytes minBytes);
+fn VideoPool_prepareSlabForUse(VideoSlabRecord *slab);
 fn VideoPool_releaseArenaSlabs(VideoPool *pool, VideoArena *owner);
-fn VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner);
+bytes VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner, bool aggressive);
 bool VideoPool_findByGpu(const VideoPool *pool, vpointer addr, bytes length, VideoSlabInfo *outInfo, bytes *outOffset);
 bool VideoPool_findByCpu(const VideoPool *pool, pointer cpuAddr, VideoSlabInfo *outInfo, bytes *outOffset);
 

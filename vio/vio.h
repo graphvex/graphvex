@@ -19,7 +19,7 @@
 
 #define VIDEO_MEMORY_ALIGN_FLOOR 32u
 #define VIDEO_MEMORY_DEFAULT_ALIGN 256u
-#define VIDEO_MEMORY_DEFAULT_SLAB_BYTES (64u * 1024u * 1024u)
+#define VIDEO_MEMORY_DEFAULT_SLAB_BYTES (1024u * 1024u)
 #define VIDEO_MEMORY_WAIT_TIMEOUT_NS (100u * 1000u * 1000u)
 
 typedef enum VideoMemoryDomain {
@@ -81,6 +81,7 @@ fn VideoArena_destroy(VideoArena *arena);
 vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment);
 fn VideoArena_free(VideoArena *arena, vpointer addr);
 fn VideoArena_reset(VideoArena *arena);
+fn VideoArena_trim(VideoArena *arena);
 
 VideoPool *VideoArena_pool(const VideoArena *arena);
 VideoMemoryDomain VideoArena_domain(const VideoArena *arena);
