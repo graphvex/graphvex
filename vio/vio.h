@@ -2,111 +2,123 @@
 #define GRAPHVEX_VIO_H
 
 /**
- * vio/vio.h -- GPU memory substrate for graphvex (parallel to re/nio/).
+ * vio/vio.h -- GPU image memory substrate for graphvex (parallel to re/nio/).
  *
- * Three-tier GPU memory ownership:
- * VideoPool  (growable raw GPU slabs from Metal/Vulkan/D3D12/wgpu)
- * VideoArena (per-subsystem virtual GPU arena carved from a VideoPool)
+ * Three-tier GPU image memory ownership:
+ * ImagePool  (growable raw GPU slabs from Metal/Vulkan/D3D12/wgpu)
+ * ImageArena (per-subsystem virtual GPU arena carved from an ImagePool)
  * vpointer   (64-bit GPU virtual address, 0 = null)
  *
- * On Unified Memory (Apple Silicon / UMA), VIDEO_MEMORY_SHARED slabs are backed
+ * On Unified Memory (Apple Silicon / UMA), IMAGE_MEMORY_SHARED slabs are backed
  * by 16 KiB page-aligned host memory wrapped zero-copy into the GPU address
- * space, so VideoMemory_toPointer(pool, vptr) returns the direct CPU pointer in
+ * space, so ImageMemory_toPointer(pool, vptr) returns the direct CPU pointer in
  * O(1) without staging or copying.
  */
 
 #include "vex.h"
 
-#define VIDEO_MEMORY_ALIGN_FLOOR 32u
-#define VIDEO_MEMORY_DEFAULT_ALIGN 256u
-#define VIDEO_MEMORY_DEFAULT_SLAB_BYTES (1024u * 1024u)
-#define VIDEO_MEMORY_WAIT_TIMEOUT_NS (100u * 1000u * 1000u)
+#define IMAGE_MEMORY_ALIGN_FLOOR        32u
+#define IMAGE_MEMORY_DEFAULT_ALIGN      256u
+#define IMAGE_MEMORY_DEFAULT_SLAB_BYTES (1024u * 1024u)
+#define IMAGE_MEMORY_WAIT_TIMEOUT_NS    (100u * 1000u * 1000u)
 
-typedef enum VideoMemoryDomain {
-    VIDEO_MEMORY_SHARED = 0,
-    VIDEO_MEMORY_PRIVATE = 1,
-    VIDEO_MEMORY_STAGING = 2,
-} VideoMemoryDomain;
+;;CLASSNAME("ImageMemoryDomain")
 
-typedef struct VideoSlabInfo {
+typedef enum ImageMemoryDomain {
+    IMAGE_MEMORY_SHARED  = 0,
+    IMAGE_MEMORY_PRIVATE = 1,
+    IMAGE_MEMORY_STAGING = 2,
+} ImageMemoryDomain;
+
+;;CLASSNAME("ImageSlabInfo")
+/**
+ * Backing slab descriptor returned by ImagePoolDriver.allocSlab.
+ *
+ * vpointer gpuBase         - 64-bit GPU virtual base address
+ * pointer cpuBase          - direct CPU base pointer (0 when device-private)
+ * bytes length             - slab byte length
+ * any driverHandle         - opaque backend slab handle
+ * ImageMemoryDomain domain - memory residency domain
+ * bool umaZeroCopy         - true when host and GPU share physical pages
+ */
+typedef struct ImageSlabInfo {
     vpointer gpuBase;
     pointer cpuBase;
     bytes length;
     any driverHandle;
-    VideoMemoryDomain domain;
+    ImageMemoryDomain domain;
     bool umaZeroCopy;
-} VideoSlabInfo;
+} ImageSlabInfo;
 
+;;CLASSNAME("ImagePoolDriver")
 /**
  * Thin driver seam implemented per graphics API (metal/, vulkan/, direct/, wgpu/).
- * Public consumers never touch driver handles; drivers register a VideoPoolDriver.
+ * Public consumers never touch driver handles; drivers register an ImagePoolDriver.
+ *
+ * string name           - driver identifier ("metal", "software-uma", etc.)
+ * any context           - opaque driver-owned state
+ * bool uma              - true on unified-memory devices
+ * fn allocSlab          - allocates one page-aligned GPU slab
+ * fn freeSlab           - releases one GPU slab
+ * fn copyHostToDevice   - stages bytes into private VRAM
+ * fn copyDeviceToHost   - reads bytes back from private VRAM
+ * fn destroyContext     - tears down driver context
  */
-typedef struct VideoPoolDriver {
+typedef struct ImagePoolDriver {
     string name;
     any context;
     bool uma;
-    bool (*allocSlab)(any context, VideoMemoryDomain domain, bytes length, VideoSlabInfo *outSlab);
-    fn (*freeSlab)(any context, const VideoSlabInfo *slab);
-    bool (*copyHostToDevice)(any context, const VideoSlabInfo *slab, bytes offset, const_any src, bytes length);
-    bool (*copyDeviceToHost)(any context, any dst, const VideoSlabInfo *slab, bytes offset, bytes length);
+    bool (*allocSlab)(any context, ImageMemoryDomain domain, bytes length, ImageSlabInfo *outSlab);
+    fn (*freeSlab)(any context, const ImageSlabInfo *slab);
+    bool (*copyHostToDevice)(any context, const ImageSlabInfo *slab, bytes offset, const_any src, bytes length);
+    bool (*copyDeviceToHost)(any context, any dst, const ImageSlabInfo *slab, bytes offset, bytes length);
     fn (*destroyContext)(any context);
-} VideoPoolDriver;
+} ImagePoolDriver;
 
-typedef struct VideoPool VideoPool;
-typedef struct VideoArena VideoArena;
+typedef struct ImagePool ImagePool;
+typedef struct ImageArena ImageArena;
 
-/** Pool lifecycle (owns growable GPU slabs; slabs grow indefinitely until OOM). */
-VideoPool *VideoPool_1(bytes slabBytes);
-VideoPool *VideoPool_2(const VideoPoolDriver *driver, bytes slabBytes);
-#define VideoPool(...) CONSTRUCTOR_DISPATCH(VideoPool, __VA_ARGS__)
-VideoPool *VideoPool_software(bytes slabBytes);
-fn VideoPool_destroy(VideoPool *pool);
+ImagePool *ImagePool_1(bytes slabBytes);
+ImagePool *ImagePool_2(const ImagePoolDriver *driver, bytes slabBytes);
+#define ImagePool(...) CONSTRUCTOR_DISPATCH(ImagePool, __VA_ARGS__)
+ImagePool *ImagePool_software(bytes slabBytes);
+fn ImagePool_destroy(ImagePool *pool);
 
-bool VideoPool_isUma(const VideoPool *pool);
-string VideoPool_driverName(const VideoPool *pool);
-bytes VideoPool_slabBytes(const VideoPool *pool);
-bytes VideoPool_slabCount(const VideoPool *pool);
-bytes VideoPool_totalBytes(const VideoPool *pool);
-bytes VideoPool_usedBytes(const VideoPool *pool);
-u64 VideoPool_exhaustionCount(const VideoPool *pool);
+bool ImagePool_isUma(const ImagePool *pool);
+string ImagePool_driverName(const ImagePool *pool);
+bytes ImagePool_slabBytes(const ImagePool *pool);
+bytes ImagePool_slabCount(const ImagePool *pool);
+bytes ImagePool_totalBytes(const ImagePool *pool);
+bytes ImagePool_usedBytes(const ImagePool *pool);
+u64 ImagePool_exhaustionCount(const ImagePool *pool);
 
-/**
- * Virtual GPU Arena lifecycle (per-subsystem arena over a VideoPool).
- * maxBytes == 0 means unbounded growth; maxBytes > 0 enforces a hard budget.
- */
-VideoArena *VideoArena_3(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes);
-#define VideoArena(...) CONSTRUCTOR_DISPATCH(VideoArena, __VA_ARGS__)
-fn VideoArena_destroy(VideoArena *arena);
+ImageArena *ImageArena_3(ImagePool *pool, ImageMemoryDomain domain, bytes maxBytes);
+#define ImageArena(...) CONSTRUCTOR_DISPATCH(ImageArena, __VA_ARGS__)
+fn ImageArena_destroy(ImageArena *arena);
 
-vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment);
-fn VideoArena_free(VideoArena *arena, vpointer addr);
-fn VideoArena_reset(VideoArena *arena);
-fn VideoArena_trim(VideoArena *arena);
+vpointer ImageArena_alloc(ImageArena *arena, bytes numBytes, bytes alignment);
+fn ImageArena_free(ImageArena *arena, vpointer addr);
+fn ImageArena_reset(ImageArena *arena);
+fn ImageArena_trim(ImageArena *arena);
 
-VideoPool *VideoArena_pool(const VideoArena *arena);
-VideoMemoryDomain VideoArena_domain(const VideoArena *arena);
-bytes VideoArena_usedBytes(const VideoArena *arena);
-bytes VideoArena_capacity(const VideoArena *arena);
-bytes VideoArena_maxBytes(const VideoArena *arena);
-u64 VideoArena_exhaustionCount(const VideoArena *arena);
+ImagePool *ImageArena_pool(const ImageArena *arena);
+ImageMemoryDomain ImageArena_domain(const ImageArena *arena);
+bytes ImageArena_usedBytes(const ImageArena *arena);
+bytes ImageArena_capacity(const ImageArena *arena);
+bytes ImageArena_maxBytes(const ImageArena *arena);
+u64 ImageArena_exhaustionCount(const ImageArena *arena);
 
-/**
- * CPU < to  GPU bridge (vpointer < to  pointer).
- * On UMA / VIDEO_MEMORY_SHARED, VideoMemory_toPointer returns the direct CPU
- * pointer in O(1) (0 if private/non-host-visible or unknown).
- */
-pointer VideoMemory_toPointer(const VideoPool *pool, vpointer addr);
-any VideoMemory_map(const VideoPool *pool, vpointer addr);
-vpointer VideoMemory_fromPointer(const VideoPool *pool, pointer cpuAddr);
+pointer ImageMemory_toPointer(const ImagePool *pool, vpointer addr);
+any ImageMemory_map(const ImagePool *pool, vpointer addr);
+vpointer ImageMemory_fromPointer(const ImagePool *pool, pointer cpuAddr);
 
-/** Domain-aware transfers: direct memcpy on UMA/shared, driver staging blit on private. */
-bool VideoMemory_write(const VideoPool *pool, vpointer dst, const_any src, bytes length);
-bool VideoMemory_read(const VideoPool *pool, any dst, vpointer src, bytes length);
-bool VideoMemory_contains(const VideoPool *pool, vpointer addr, bytes length);
-bool VideoMemory_isUma(const VideoPool *pool);
+bool ImageMemory_write(const ImagePool *pool, vpointer dst, const_any src, bytes length);
+bool ImageMemory_read(const ImagePool *pool, any dst, vpointer src, bytes length);
+bool ImageMemory_contains(const ImagePool *pool, vpointer addr, bytes length);
+bool ImageMemory_isUma(const ImagePool *pool);
 
 #if defined(VEX_PLATFORM_APPLE)
-VideoPool *VideoPool_metal(bytes slabBytes);
+ImagePool *ImagePool_metal(bytes slabBytes);
 #endif
 
 #endif
