@@ -572,6 +572,15 @@ static inline PixelFormat MtlBacking_format(const MtlBackingEntry *e)
     return (*e).format;
 }
 
+;;GETTER
+static inline bool MtlBacking_ownsSurface(const MtlBackingEntry *e)
+{
+    if (!e)
+        return false;
+
+    return (*e).ownsSurface;
+}
+
 ;;SETTER
 static inline fn MtlBacking_set(MtlBackingEntry *e, IOSurfaceRef surf,
                                 id<MTLTexture> p0, id<MTLTexture> p1,
@@ -784,8 +793,10 @@ static bool mtlImportBacking(any context, any nativeBacking,
         return false;
     }
 
-    if (!ownsSurface)
+    if (!ownsSurface) {
         CFRetain(surf);
+        IOSurfaceIncrementUseCount(surf);
+    }
 
     MtlBackingEntry *entry = MtlGfx_backingMut(ctx, freeIdx);
     MtlBacking_set(entry, surf, p0, p1, width, height, strideBytes, format, planeCount, ownsSurface);
@@ -888,6 +899,7 @@ static fn mtlReleaseBacking(any context, u32 backingSlot)
     id<MTLTexture> p1 = MtlBacking_plane1(entry);
     id<MTLTexture> p0 = MtlBacking_plane0(entry);
     IOSurfaceRef surf = MtlBacking_surface(entry);
+    bool ownsSurf = MtlBacking_ownsSurface(entry);
     MtlBacking_clear(entry);
     pthread_mutex_unlock(lock);
 
@@ -897,8 +909,12 @@ static fn mtlReleaseBacking(any context, u32 backingSlot)
     if (p0 != nil)
         [p0 release];
 
-    if (surf != nullptr)
+    if (surf != nullptr) {
+        if (!ownsSurf)
+            IOSurfaceDecrementUseCount(surf);
+
         CFRelease(surf);
+    }
 }
 
 static bool mtlSetBackingPurgeable(any context, u32 backingSlot, bool purgeable)
@@ -942,7 +958,9 @@ static bool mtlIsBackingInUse(any context, u32 backingSlot)
     }
 
     IOSurfaceRef surf = MtlBacking_surface(entry);
-    bool inUse = (surf != nullptr && IOSurfaceIsInUse(surf)) ? true : false;
+    bool ownsSurf = MtlBacking_ownsSurface(entry);
+    i32 threshold = ownsSurf ? 0 : 1;
+    bool inUse = (surf != nullptr && IOSurfaceGetUseCount(surf) > threshold) ? true : false;
     pthread_mutex_unlock(lock);
     return inUse;
 }
