@@ -13,5 +13,6 @@
 #include "vio/vio.h"
 #include "core/core.h"
 #include "shader/shader.h"
+#include "image/image.h"
 
 #endif

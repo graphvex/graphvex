@@ -25,6 +25,6 @@ graphvex (api) to collage (rect-first, forward compositor) | meld (retained rend
 
 ## Layout
 
-`core/` backend-free classes (`Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `Graphics`) | `vio/` ImagePool/ImageArena/ImageMemory | `nio/` SecureMemoryPool/SecureMemoryArena | `metal/ vulkan/ direct/ wgpu/` drivers | `shader/` shader processing | `tests/`
+`core/` backend-free classes (`Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `Graphics`) | `vio/` ImagePool/ImageArena/ImageMemory | `nio/` SecureMemoryPool/SecureMemoryArena | `metal/ vulkan/ direct/ wgpu/` drivers | `shader/` shader processing | `image/` OS-native ImageIO & format conversion | `tests/`
 
 Laws: [graphvex-preferences.md](graphvex-preferences.md).
