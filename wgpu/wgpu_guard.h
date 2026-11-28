@@ -8,7 +8,7 @@
 #ifdef NDEBUG
 #define WgpuGuard_check(seam, device, queue, deviceLost) ((discard) 0)
 #else
-static inline bool WgpuGuard_checkImpl(const utf8 *seam, const_any device, const_any queue, bool *deviceLost) {
+static inline bool WgpuGuard_checkImpl(string seam, const_any device, const_any queue, bool *deviceLost) {
     if (deviceLost && *deviceLost)
         return false;
     if (!seam || !device || !queue) {

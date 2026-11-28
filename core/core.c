@@ -8,6 +8,39 @@
 #define GRAPHICS_MAX_SHADERS     256u
 #define GRAPHICS_COPY_CHUNK      4096u
 
+static GraphicsBackend s_graphicsBackendOverride = GRAPHICS_AUTO;
+static bool s_graphicsBackendLatched = false;
+
+/**
+ * Sets the process-wide Graphics backend override before any VideoPool,
+ * Graphics, or Frame is constructed.
+ * @param backend requested GraphicsBackend (e.g. GRAPHICS_VULKAN, GRAPHICS_METAL)
+ * @return true if set before latch, false if already latched
+ */
+bool GRAPHICS_OVERRIDE(GraphicsBackend backend) {
+    if (s_graphicsBackendLatched) {
+        THROW("GRAPHICS_OVERRIDE: must be called before VideoPool/Graphics initialization");
+        return false;
+    }
+    s_graphicsBackendOverride = backend;
+    return true;
+}
+
+/**
+ * Returns the currently configured process-wide GraphicsBackend override.
+ * @return active GraphicsBackend enum value
+ */
+GraphicsBackend GRAPHICS_BACKEND() {
+    return s_graphicsBackendOverride;
+}
+
+/**
+ * Latches the active GraphicsBackend override once GPU initialization begins.
+ */
+fn Graphics_latchBackend() {
+    s_graphicsBackendLatched = true;
+}
+
 struct [[maybe_unused]] Graphics {
     VideoPool *pool;
     GraphicsDriver driver;
@@ -18,12 +51,74 @@ struct [[maybe_unused]] Graphics {
     u32 bindlessNextSlot;
     u32 shaderCount;
     GraphicsCommand *commands;
+    SecureHandle selfHandle;
+    SecureHandle cmdHandle;
     u32 commandCount;
     u32 commandCap;
 };
 
-;;OVERVIEW
 ;;DEFINITION
+/**
+ * ============================================================================
+ * DEFINITION: Graphics
+ * ============================================================================
+ * Unified Graphics API context over graphvex/api/vio/ VideoPool slabs. Owns
+ * the command queue buffer and active backend driver seam (Metal or software
+ * UMA reference driver), records buffer-backed image ops, shaders, clear/copy/
+ * dispatch/draw commands, and submits or presents without a swapchain.
+ * ============================================================================
+ */
+
+;;OVERVIEW
+/**
+ * ============================================================================
+ * CLASS: Graphics (core/core.c)
+ * ============================================================================
+ * Command-recording graphics context paired with a borrowed VideoPool and
+ * GraphicsDriver vtable.
+ *
+ * --CONSTANTS----------------------------
+ * private  const u32   GRAPHICS_DEFAULT_CMD_CAP   initial command buffer slots
+ * private  const u32   GRAPHICS_MAX_SHADERS       max software shader slots
+ * private  const bytes GRAPHICS_COPY_CHUNK        staging copy chunk bytes
+ *
+ * --FIELDS-------------------------------
+ * private  VideoPool       *pool                  borrows VideoPool, 1:1
+ * private  GraphicsDriver   driver                owns backend driver context
+ * private  GraphicsImage   *target                borrows current target, 1:1
+ * private  GraphicsRect     scissor               active scissor rect
+ * private  bool             scissorActive         true when scissor is set
+ * private  u64              frameIndex            monotonic submitted frame
+ * private  u32              bindlessNextSlot      next bindless image slot
+ * private  u32              shaderCount           registered shader count
+ * private  GraphicsCommand *commands              owns command queue, 1:N
+ * private  u32              commandCount          queued command count
+ * private  u32              commandCap            allocated queue capacity
+ *
+ * --CONSTRUCTORS-------------------------
+ * public   Graphics_1(...)                        default/Metal constructor
+ * public   Graphics_2(...)                        explicit driver constructor
+ * public   GraphicsImage_0/5(...)                 zeroed and buffer-backed image constructors
+ *
+ * --FUNCTIONS----------------------------
+ * public   Graphics_destroy(...)                  releases context and queue
+ * public   Graphics_crop(...)                     zero-copy sub-image view
+ * public   Graphics_copy_3/7(...)                 explicit image copy
+ * public   Graphics_copyTo(...)                   copies image into target
+ * public   Graphics_registerShader/Compute/Render shader registration
+ * public   Graphics_command/clear/dispatch/draw   command queue recording
+ * public   Graphics_submit/present(...)           execution and presentation
+ *
+ * --GETTERS------------------------------
+ * public   Graphics_pool/driverName/frameIndex    context metadata accessors
+ * public   Graphics_pendingCount/bindlessCount    queue and bindless counters
+ * public   Graphics_target/scissor(...)           current render state
+ *
+ * --SETTERS------------------------------
+ * public   Graphics_setTarget/setScissor(...)     render target and scissor
+ * public   Graphics_resetScissor(...)             clears active scissor
+ * ============================================================================
+ */
 
 /** ---------------------------------------------------------------- PixelFormat */
 
@@ -37,7 +132,8 @@ u32 PixelFormat_bytesPerPixel(PixelFormat format) {
         case PIXEL_FORMAT_RGBA16_FLOAT: return 8u;
         case PIXEL_FORMAT_RGBA32_FLOAT: return 16u;
         case PIXEL_FORMAT_R16_UNORM:    return 2u;
-        case PIXEL_FORMAT_R8_UNORM:     return 1u;
+        case PIXEL_FORMAT_R8_UNORM:
+        case PIXEL_FORMAT_NV12:         return 1u;
         case PIXEL_FORMAT_D32_FLOAT:    return 4u;
         case PIXEL_FORMAT_D32_FLOAT_S8: return 8u;
         default:                        return 0u;
@@ -131,7 +227,13 @@ bool GraphicsImage_isSubview(const GraphicsImage *self) {
 bytes GraphicsImage_byteSize(const GraphicsImage *self) {
     if (!GraphicsImage_isValid(self))
         return 0u;
-    return (bytes) GraphicsImage_strideBytes(self) * (bytes) GraphicsImage_height(self);
+    bytes yBytes = (bytes) GraphicsImage_strideBytes(self) * (bytes) GraphicsImage_height(self);
+    if (GraphicsImage_format(self) == PIXEL_FORMAT_NV12) {
+        u32 uvW = (GraphicsImage_width(self) + 1u) / 2u;
+        u32 uvH = (GraphicsImage_height(self) + 1u) / 2u;
+        return yBytes + (bytes) uvW * (bytes) uvH * 2u;
+    }
+    return yBytes;
 }
 
 fn GraphicsImage_fitRect(const GraphicsImage *self, f32 dstX, f32 dstY, f32 dstW, f32 dstH,
@@ -292,6 +394,28 @@ static fn Graphics_setCommandCap(Graphics *g, u32 cap) {
         (*g).commandCap = cap;
 }
 
+;;GETTER
+static SecureHandle Graphics_getSelfHandle(const Graphics *g) {
+    return g ? (*g).selfHandle : SecureHandle_zero();
+}
+
+;;SETTER
+static fn Graphics_setSelfHandle(Graphics *g, SecureHandle h) {
+    if (g)
+        (*g).selfHandle = h;
+}
+
+;;GETTER
+static SecureHandle Graphics_getCmdHandle(const Graphics *g) {
+    return g ? (*g).cmdHandle : SecureHandle_zero();
+}
+
+;;SETTER
+static fn Graphics_setCmdHandle(Graphics *g, SecureHandle h) {
+    if (g)
+        (*g).cmdHandle = h;
+}
+
 /** ---------------------------------------------------------------- Built-in UMA/Software reference driver */
 
 static bool swExecClear(const VideoPool *pool, GraphicsCommand cmd) {
@@ -343,9 +467,8 @@ static bool swExecCopy(const VideoPool *pool, GraphicsCommand cmd) {
     GraphicsRect dstBounds = GraphicsRect_4(0, 0, (i32) dst.width, (i32) dst.height);
     GraphicsRect placed = GraphicsRect_4(dstX, dstY, dstX + (i32) src.width, dstY + (i32) src.height);
     GraphicsRect clip = GraphicsRect_intersect(dstBounds, placed);
-    if (!GraphicsRect_isEmpty(cmd.scissor)) {
+    if (!GraphicsRect_isEmpty(cmd.scissor))
         clip = GraphicsRect_intersect(clip, cmd.scissor);
-    }
     if (GraphicsRect_isEmpty(clip))
         return true;
 
@@ -417,10 +540,13 @@ static bool swPresentImage([[maybe_unused]] any context, const VideoPool *pool,
     return pool != nullptr && GraphicsImage_isValid(image);
 }
 
-static GraphicsDriver swDefaultDriver() {
+static GraphicsDriver swDefaultDriver()
+{
     GraphicsDriver d;
+    memset(&d, 0, sizeof(d));
     d.name = "software-uma";
     d.context = nullptr;
+    d.registerShader = nullptr;
     d.submitCommands = swSubmitCommands;
     d.presentImage = swPresentImage;
     d.destroyContext = nullptr;
@@ -429,27 +555,38 @@ static GraphicsDriver swDefaultDriver() {
 
 /** ---------------------------------------------------------------- Graphics lifecycle */
 
-static GraphicsCommand *Graphics_initCommandBuffer(u32 cap) {
-    return (GraphicsCommand*) Memory_alloc(
-        ID_GRAPHICS_COMMAND, Graphvex_arena(), (bytes) cap * sizeof(GraphicsCommand));
+static GraphicsCommand *Graphics_initCommandBuffer(u32 cap, SecureHandle *outHandle) {
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle h = SecureMemoryArena_alloc(sa, 0u, (bytes) cap * sizeof(GraphicsCommand));
+    if (!SecureHandle_isValid(h))
+        return nullptr;
+    if (outHandle)
+        *outHandle = h;
+    return (GraphicsCommand*) SecureMemoryArena_resolve(sa, h);
 }
 
 ;;DECONSTRUCT
-static fn Graphics_commands_destroy(GraphicsCommand *cmds) {
-    if (cmds) {
-        Memory_free(cmds);
-    }
+static fn Graphics_commands_destroy(SecureHandle cmdHandle) {
+    if (SecureHandle_isValid(cmdHandle))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), cmdHandle);
 }
 
 static Graphics *Graphics_init(VideoPool *pool, const GraphicsDriver *driver) {
     if (!pool)
         return nullptr;
-    Graphics *g = (Graphics*) Memory_alloc(ID_GRAPHICS, Graphvex_arena(), sizeof(Graphics));
-    if (!g)
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle selfHandle = SecureMemoryArena_alloc(sa, 0u, sizeof(Graphics));
+    if (!SecureHandle_isValid(selfHandle))
         return nullptr;
-    memset(g, 0, sizeof(Graphics));
+    Graphics *g = (Graphics*) SecureMemoryArena_resolve(sa, selfHandle);
+    if (!g) {
+        (discard) SecureMemoryArena_free(sa, selfHandle);
+        return nullptr;
+    }
+    Graphics_setSelfHandle(g, selfHandle);
 
-    GraphicsCommand *cmds = Graphics_initCommandBuffer(GRAPHICS_DEFAULT_CMD_CAP);
+    SecureHandle cmdHandle = SecureHandle_zero();
+    GraphicsCommand *cmds = Graphics_initCommandBuffer(GRAPHICS_DEFAULT_CMD_CAP, &cmdHandle);
     if (!cmds) {
         Graphics_destroy(g);
         return nullptr;
@@ -464,29 +601,40 @@ static Graphics *Graphics_init(VideoPool *pool, const GraphicsDriver *driver) {
     Graphics_setBindlessNextSlot(g, 1u);
     Graphics_setShaderCount(g, 0u);
     Graphics_setCommands(g, cmds);
+    Graphics_setCmdHandle(g, cmdHandle);
     Graphics_setCommandCount(g, 0u);
     Graphics_setCommandCap(g, GRAPHICS_DEFAULT_CMD_CAP);
     return g;
 }
 
-Graphics *Graphics_createWithDriver(VideoPool *pool, const GraphicsDriver *driver) {
+;;CONSTRUCTOR
+/**
+ * Creates a Graphics context backed by an explicit driver.
+ * @param pool   backing VideoPool
+ * @param driver explicit GraphicsDriver vtable (nullptr selects software)
+ * @return newly allocated Graphics context, or nullptr on failure
+ */
+Graphics *Graphics_2(VideoPool *pool, const GraphicsDriver *driver)
+{
     return Graphics_init(pool, driver);
 }
 
 #if defined(VEX_PLATFORM_APPLE)
-Graphics *Graphics_createMetal(VideoPool *pool);
+Graphics *Graphics_metal(VideoPool *pool);
 
-static bool isMetalPoolName(const utf8 *name) {
+static bool isMetalPoolName(string name) {
     return name && name[0] == 'm' && name[1] == 'e' &&
            name[2] == 't' && name[3] == 'a' && name[4] == 'l' && name[5] == '\0';
 }
 #endif
 
-Graphics *Graphics_create(VideoPool *pool) {
+;;CONSTRUCTOR
+Graphics *Graphics_1(VideoPool *pool)
+{
+    Graphics_latchBackend();
 #if defined(VEX_PLATFORM_APPLE)
-    if (pool && isMetalPoolName(VideoPool_driverName(pool))) {
-        return Graphics_createMetal(pool);
-    }
+    if (pool && isMetalPoolName(VideoPool_driverName(pool)))
+        return Graphics_metal(pool);
 #endif
     return Graphics_init(pool, nullptr);
 }
@@ -495,19 +643,20 @@ Graphics *Graphics_create(VideoPool *pool) {
 fn Graphics_destroy(Graphics *g) {
     if (!g)
         return;
+    SecureHandle selfHandle = Graphics_getSelfHandle(g);
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.destroyContext) {
+    if (d.destroyContext)
         d.destroyContext(d.context);
-    }
-    Graphics_commands_destroy(Graphics_getCommands(g));
-    Memory_free(g);
+    Graphics_commands_destroy(Graphics_getCmdHandle(g));
+    if (SecureHandle_isValid(selfHandle))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), selfHandle);
 }
 
 VideoPool *Graphics_pool(const Graphics *g) {
     return Graphics_getPool(g);
 }
 
-const utf8 *Graphics_driverName(const Graphics *g) {
+string Graphics_driverName(const Graphics *g) {
     GraphicsDriver d = Graphics_getDriver(g);
     return d.name ? d.name : "unknown";
 }
@@ -533,9 +682,31 @@ static u32 gfxAllocBindlessSlot(Graphics *g) {
     return slot;
 }
 
-GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
-                                   u32 width, u32 height, PixelFormat format) {
+;;CONSTRUCTOR
+/**
+ * Constructs a zeroed invalid GraphicsImage value.
+ * @return zeroed GraphicsImage
+ */
+GraphicsImage GraphicsImage_0()
+{
     GraphicsImage empty = { 0 };
+    return empty;
+}
+
+;;CONSTRUCTOR
+/**
+ * Allocates a buffer-backed GraphicsImage and assigns a bindless slot.
+ * @param g      active Graphics context
+ * @param arena  target VideoArena for pixel storage
+ * @param width  image width in pixels
+ * @param height image height in pixels
+ * @param format pixel format
+ * @return allocated GraphicsImage, or zeroed invalid image on failure
+ */
+GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
+                              u32 width, u32 height, PixelFormat format)
+{
+    GraphicsImage empty = GraphicsImage_0();
     if (!g || !arena || width == 0u || height == 0u)
         return empty;
     u32 bpp = PixelFormat_bytesPerPixel(format);
@@ -544,6 +715,11 @@ GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
 
     u64 stride64 = (u64) width * (u64) bpp;
     u64 total64 = stride64 * (u64) height;
+    if (format == PIXEL_FORMAT_NV12) {
+        u64 uvW = (u64) ((width + 1u) / 2u);
+        u64 uvH = (u64) ((height + 1u) / 2u);
+        total64 += uvW * uvH * 2ULL;
+    }
     if (stride64 > 0xFFFFFFFFULL || total64 == 0u)
         return empty;
 
@@ -564,7 +740,7 @@ GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
 
 /** Zero-copy sub-image view: advances vpointer and preserves parent strideBytes. */
 GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i32 y1) {
-    GraphicsImage empty = { 0 };
+    GraphicsImage empty = GraphicsImage_0();
     if (!GraphicsImage_isValid(src))
         return empty;
     u32 w = GraphicsImage_width(src);
@@ -592,10 +768,10 @@ GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i3
 }
 
 GraphicsImage Graphics_copy_3(Graphics *g, VideoArena *arena, const GraphicsImage *src) {
-    GraphicsImage empty = { 0 };
+    GraphicsImage empty = GraphicsImage_0();
     if (!g || !arena || !GraphicsImage_isValid(src))
         return empty;
-    GraphicsImage dst = Graphics_createImage(
+    GraphicsImage dst = GraphicsImage(
         g, arena,
         GraphicsImage_width(src),
         GraphicsImage_height(src),
@@ -663,13 +839,12 @@ GraphicsRect Graphics_scissor(const Graphics *g) {
 
 /** ---------------------------------------------------------------- Shader registration */
 
-u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage) {
+u32 Graphics_registerShader(Graphics *g, string name, u32 stage) {
     if (!g || !name || name[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, name, name, stage);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -678,13 +853,12 @@ u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage) {
     return id;
 }
 
-u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryName) {
+u32 Graphics_registerCompute(Graphics *g, string path, string entryName) {
     if (!g || !path || path[0] == '\0' || !entryName || entryName[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, path, entryName, 2u);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -693,13 +867,12 @@ u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryNam
     return id;
 }
 
-u32 Graphics_registerRender(Graphics *g, const utf8 *path, const utf8 *entryPair) {
+u32 Graphics_registerRender(Graphics *g, string path, string entryPair) {
     if (!g || !path || path[0] == '\0' || !entryPair || entryPair[0] == '\0')
         return 0u;
     GraphicsDriver d = Graphics_getDriver(g);
-    if (d.registerShader) {
+    if (d.registerShader)
         return d.registerShader(d.context, path, entryPair, 0u);
-    }
     u32 count = Graphics_getShaderCount(g);
     if (count >= GRAPHICS_MAX_SHADERS)
         return 0u;
@@ -715,18 +888,21 @@ static bool gfxEnsureCommandCapacity(Graphics *g, u32 needed) {
     if (needed <= cap)
         return true;
     u32 newCap = cap > 0u ? cap * 2u : GRAPHICS_DEFAULT_CMD_CAP;
-    while (newCap < needed) newCap *= 2u;
+    while (newCap < needed)
+       newCap *= 2u;
 
-    GraphicsCommand *next = Graphics_initCommandBuffer(newCap);
+    SecureHandle nextHandle = SecureHandle_zero();
+    GraphicsCommand *next = Graphics_initCommandBuffer(newCap, &nextHandle);
     if (!next)
         return false;
     GraphicsCommand *old = Graphics_getCommands(g);
+    SecureHandle oldHandle = Graphics_getCmdHandle(g);
     u32 count = Graphics_getCommandCount(g);
-    if (old && count > 0u) {
+    if (old && count > 0u)
         memcpy(next, old, (bytes) count * sizeof(GraphicsCommand));
-    }
-    Graphics_commands_destroy(old);
+    Graphics_commands_destroy(oldHandle);
     Graphics_setCommands(g, next);
+    Graphics_setCmdHandle(g, nextHandle);
     Graphics_setCommandCap(g, newCap);
     return true;
 }
@@ -820,14 +996,80 @@ bool Graphics_submit(Graphics *g) {
     u32 count = Graphics_getCommandCount(g);
     GraphicsDriver d = Graphics_getDriver(g);
     bool ok = true;
-    if (count > 0u && d.submitCommands) {
+    if (count > 0u && d.submitCommands)
         ok = d.submitCommands(d.context, Graphics_getPool(g), Graphics_getCommands(g), count);
-    }
     Graphics_setCommandCount(g, 0u);
-    if (ok) {
+    if (ok)
         Graphics_setFrameIndex(g, Graphics_getFrameIndex(g) + 1u);
-    }
     return ok;
+}
+
+/**
+ * Reports whether the active backend driver supports direct-to-surface
+ * rendering without an intermediate VideoPool framebuffer.
+ * @param g active Graphics context
+ * @return true if Graphics_submitToSurface is supported
+ */
+bool Graphics_supportsDirectSurface(const Graphics *g) {
+    if (!g)
+        return false;
+    return Graphics_getDriver(g).submitToSurface != nullptr;
+}
+
+/**
+ * Submits all recorded commands directly to the native platform surface
+ * drawable at the requested viewport and fixed backing surface dimensions.
+ * @param g             active Graphics context
+ * @param nativeSurface opaque platform surface handle
+ * @param viewportW     active window viewport width in pixels
+ * @param viewportH     active window viewport height in pixels
+ * @param surfaceW      fixed backing drawable width in pixels
+ * @param surfaceH      fixed backing drawable height in pixels
+ * @param sync          true for synchronous transactional present
+ * @return true on success, false on failure
+ */
+bool Graphics_submitToSurface(Graphics *g, any nativeSurface,
+                              u32 viewportW, u32 viewportH,
+                              u32 surfaceW, u32 surfaceH, bool sync) {
+    if (!g || nativeSurface == nullptr || viewportW == 0u || viewportH == 0u)
+        return false;
+    GraphicsDriver d = Graphics_getDriver(g);
+    if (!d.submitToSurface)
+        return false;
+    u32 count = Graphics_getCommandCount(g);
+    Graphics_setSyncPresent(g, sync);
+    bool ok = d.submitToSurface(d.context, Graphics_getPool(g), nativeSurface,
+                                viewportW, viewportH, surfaceW, surfaceH,
+                                Graphics_getCommands(g), count);
+    Graphics_setSyncPresent(g, false);
+    Graphics_setCommandCount(g, 0u);
+    if (ok)
+        Graphics_setFrameIndex(g, Graphics_getFrameIndex(g) + 1u);
+    return ok;
+}
+
+/**
+ * Hints whether subsequent Graphics_present calls should commit synchronously
+ * inside the platform compositor transaction (for live or programmatic resizes).
+ * @param g    active Graphics context
+ * @param sync true for synchronous transactional present, false for async
+ */
+fn Graphics_setSyncPresent(Graphics *g, bool sync) {
+    if (!g)
+        return;
+    GraphicsDriver d = Graphics_getDriver(g);
+    if (d.setSyncPresent)
+        d.setSyncPresent(d.context, sync);
+}
+
+fn Graphics_setSurfacePurgeable(Graphics *g, bool purgeable)
+{
+    if (!g)
+        return;
+
+    GraphicsDriver d = Graphics_getDriver(g);
+    if (d.setSurfacePurgeable)
+        d.setSurfacePurgeable(d.context, purgeable);
 }
 
 bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image) {
@@ -841,4 +1083,21 @@ bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image
     if (!d.presentImage)
         return false;
     return d.presentImage(d.context, Graphics_getPool(g), nativeSurface, image);
+}
+
+/**
+ * Presents image synchronously inside the platform compositor transaction and
+ * restores asynchronous present mode afterward.
+ * @param g             active Graphics context
+ * @param nativeSurface opaque platform surface handle
+ * @param image         rendered RGBA8 GraphicsImage
+ * @return true on success, false on failure
+ */
+bool Graphics_presentSync(Graphics *g, any nativeSurface, const GraphicsImage *image) {
+    if (!g)
+        return false;
+    Graphics_setSyncPresent(g, true);
+    bool ok = Graphics_present(g, nativeSurface, image);
+    Graphics_setSyncPresent(g, false);
+    return ok;
 }

@@ -25,6 +25,13 @@ typedef struct GraphicsImage {
 
 _Static_assert(sizeof(GraphicsImage) == 32, "GraphicsImage obeys 32-byte floor");
 
+typedef struct Graphics Graphics;
+
+GraphicsImage GraphicsImage_0();
+GraphicsImage GraphicsImage_5(Graphics *g, VideoArena *arena,
+                              u32 width, u32 height, PixelFormat format);
+#define GraphicsImage(...) CONSTRUCTOR_DISPATCH(GraphicsImage, __VA_ARGS__)
+
 ;;GETTER
 vpointer GraphicsImage_data(const GraphicsImage *self);
 ;;GETTER

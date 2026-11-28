@@ -64,7 +64,9 @@ static fn clearBookkeeping(VideoArena *arena) {
     VideoArena_setLiveHead(arena, nullptr);
 }
 
-VideoArena *VideoArena_create(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes) {
+;;CONSTRUCTOR
+VideoArena *VideoArena_3(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes)
+{
     if (pool == nullptr) {
         THROW("VideoArena: rejected null VideoPool");
         return nullptr;
@@ -148,6 +150,7 @@ vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment) {
             if (aligned >= base) {
                 bytes nextOff = (bytes) (aligned - base);
                 if (nextOff <= slabs[i].info.length && size <= slabs[i].info.length - nextOff) {
+                    VideoPool_prepareSlabForUse(&slabs[i]);
                     slabs[i].cursor = nextOff + size;
                     slabs[i].liveBytes += size;
                     SpinLock_unlock(VideoPool_lockPtr(pool));
@@ -237,7 +240,24 @@ fn VideoArena_reset(VideoArena *arena) {
     VideoArena_setUsedBytesField(arena, 0u);
     VideoPool *pool = VideoArena_poolField(arena);
     SpinLock_unlock(VideoArena_lockPtr(arena));
-    VideoPool_resetArenaSlabs(pool, arena);
+    bytes remCap = VideoPool_resetArenaSlabs(pool, arena, false);
+    SpinLock_lock(VideoArena_lockPtr(arena));
+    VideoArena_setCapacityBytesField(arena, remCap);
+    SpinLock_unlock(VideoArena_lockPtr(arena));
+}
+
+fn VideoArena_trim(VideoArena *arena) {
+    if (arena == nullptr)
+        return;
+    SpinLock_lock(VideoArena_lockPtr(arena));
+    clearBookkeeping(arena);
+    VideoArena_setUsedBytesField(arena, 0u);
+    VideoPool *pool = VideoArena_poolField(arena);
+    SpinLock_unlock(VideoArena_lockPtr(arena));
+    bytes remCap = VideoPool_resetArenaSlabs(pool, arena, true);
+    SpinLock_lock(VideoArena_lockPtr(arena));
+    VideoArena_setCapacityBytesField(arena, remCap);
+    SpinLock_unlock(VideoArena_lockPtr(arena));
 }
 
 VideoPool *VideoArena_pool(const VideoArena *arena) {

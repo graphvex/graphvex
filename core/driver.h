@@ -11,13 +11,20 @@
 ;;CLASSNAME("GraphicsDriver")
 
 typedef struct GraphicsDriver {
-    const utf8 *name;
+    string name;
     any context;
-    u32 (*registerShader)(any context, const utf8 *path, const utf8 *entryName, u32 stage);
+    u32 (*registerShader)(any context, string path, string entryName, u32 stage);
     bool (*submitCommands)(any context, const VideoPool *pool,
                            const GraphicsCommand *cmds, u32 count);
+    bool (*submitToSurface)(any context, const VideoPool *pool,
+                            any nativeSurface,
+                            u32 viewportW, u32 viewportH,
+                            u32 surfaceW, u32 surfaceH,
+                            const GraphicsCommand *cmds, u32 count);
     bool (*presentImage)(any context, const VideoPool *pool,
                          any nativeSurface, const GraphicsImage *image);
+    fn (*setSyncPresent)(any context, bool sync);
+    fn (*setSurfacePurgeable)(any context, bool purgeable);
     fn (*destroyContext)(any context);
 } GraphicsDriver;
 

@@ -8,7 +8,7 @@
 #ifdef NDEBUG
 #define D3dGuard_check(seam, device, queue, deviceLost) ((discard) 0)
 #else
-static inline bool D3dGuard_checkImpl(const utf8 *seam, const_any device, const_any queue, bool *deviceLost) {
+static inline bool D3dGuard_checkImpl(string seam, const_any device, const_any queue, bool *deviceLost) {
     if (deviceLost && *deviceLost)
         return false;
     if (!seam || !device || !queue) {

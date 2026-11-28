@@ -5,23 +5,43 @@
 
 #include "core/driver.h"
 
+;;CLASSNAME("GraphicsBackend")
+
+typedef enum GraphicsBackend {
+    GRAPHICS_AUTO     = 0,
+    GRAPHICS_METAL    = 1,
+    GRAPHICS_VULKAN   = 2,
+    GRAPHICS_D3D12    = 3,
+    GRAPHICS_WGPU     = 4,
+    GRAPHICS_SOFTWARE = 5,
+} GraphicsBackend;
+
+/**
+ * Boot-time process-wide backend override (SCREAMING_CASE: call at the top of
+ * main() before creating any VideoPool, Graphics, or Frame).
+ * @param backend requested GraphicsBackend override
+ * @return true if accepted before latch, false if Graphics is already initialized
+ */
+bool GRAPHICS_OVERRIDE(GraphicsBackend backend);
+GraphicsBackend GRAPHICS_BACKEND();
+fn Graphics_latchBackend();
+
 ;;CLASSNAME("Graphics")
 
 typedef struct Graphics Graphics;
 
-Graphics *Graphics_create(VideoPool *pool);
-Graphics *Graphics_createWithDriver(VideoPool *pool, const GraphicsDriver *driver);
+Graphics *Graphics_1(VideoPool *pool);
+Graphics *Graphics_2(VideoPool *pool, const GraphicsDriver *driver);
+#define Graphics(...) CONSTRUCTOR_DISPATCH(Graphics, __VA_ARGS__)
 fn Graphics_destroy(Graphics *g);
 
 VideoPool *Graphics_pool(const Graphics *g);
-const utf8 *Graphics_driverName(const Graphics *g);
+string Graphics_driverName(const Graphics *g);
 u64 Graphics_frameIndex(const Graphics *g);
 u32 Graphics_pendingCount(const Graphics *g);
 u32 Graphics_bindlessCount(const Graphics *g);
 
-/** Buffer-backed image creation, zero-copy crop, and explicit copy overloads. */
-GraphicsImage Graphics_createImage(Graphics *g, VideoArena *arena,
-                                   u32 width, u32 height, PixelFormat format);
+/** Zero-copy crop and explicit copy overloads (construction via GraphicsImage(...)). */
 GraphicsImage Graphics_crop(const GraphicsImage *src, i32 x0, i32 y0, i32 x1, i32 y1);
 GraphicsImage Graphics_copy_3(Graphics *g, VideoArena *arena, const GraphicsImage *src);
 GraphicsImage Graphics_copy_7(Graphics *g, VideoArena *arena, const GraphicsImage *src,
@@ -38,9 +58,9 @@ fn Graphics_resetScissor(Graphics *g);
 GraphicsRect Graphics_scissor(const Graphics *g);
 
 /** Shader registration (bindless, backend-agnostic handle). */
-u32 Graphics_registerShader(Graphics *g, const utf8 *name, u32 stage);
-u32 Graphics_registerCompute(Graphics *g, const utf8 *path, const utf8 *entryName);
-u32 Graphics_registerRender(Graphics *g, const utf8 *path, const utf8 *entryPair);
+u32 Graphics_registerShader(Graphics *g, string name, u32 stage);
+u32 Graphics_registerCompute(Graphics *g, string path, string entryName);
+u32 Graphics_registerRender(Graphics *g, string path, string entryPair);
 
 /** Unified command recording and ergonomic command builders. */
 bool Graphics_command(Graphics *g, const GraphicsCommand *cmd);
@@ -58,6 +78,13 @@ bool Graphics_drawWithSource(Graphics *g, u32 shaderId, const GraphicsImage *sou
 
 /** Execution and swapchain-free presentation. */
 bool Graphics_submit(Graphics *g);
+bool Graphics_supportsDirectSurface(const Graphics *g);
+bool Graphics_submitToSurface(Graphics *g, any nativeSurface,
+                              u32 viewportW, u32 viewportH,
+                              u32 surfaceW, u32 surfaceH, bool sync);
+fn Graphics_setSyncPresent(Graphics *g, bool sync);
+fn Graphics_setSurfacePurgeable(Graphics *g, bool purgeable);
 bool Graphics_present(Graphics *g, any nativeSurface, const GraphicsImage *image);
+bool Graphics_presentSync(Graphics *g, any nativeSurface, const GraphicsImage *image);
 
 #endif

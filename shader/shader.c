@@ -11,16 +11,56 @@
 #include <string.h>
 #endif
 
-;;OVERVIEW
 ;;DEFINITION
+/**
+ * ============================================================================
+ * DEFINITION: Shader
+ * ============================================================================
+ * Multi-source shader metadata and file byte loader for graphvex/api. Resolves
+ * preferred shading languages (MSL, GLSL, WGSL, SPIR-V) per native target and
+ * loads shader source or bytecode blobs into Graphvex_arena() via re/io/file.
+ * ============================================================================
+ */
+
+;;OVERVIEW
+/**
+ * ============================================================================
+ * CLASS: ShaderSource, ShaderBytes (shader/shader.c)
+ * ============================================================================
+ * ShaderSource describes available language variants for a shader module;
+ * ShaderBytes owns a NUL-terminated buffer loaded from disk or app bundle.
+ *
+ * --FIELDS-------------------------------
+ * public   string moduleName             borrows module name, 1:1
+ * public   ShaderStage   stage                  shader pipeline stage
+ * public   u32           availableLanguageMask  bitmask of ShaderLanguage
+ * public   u8           *data                   owns loaded bytes, 1:N
+ * public   bytes         length                 byte length excluding NUL
+ *
+ * --FUNCTIONS----------------------------
+ * public   ShaderSource_supportsLanguage(...)   checks backend compatibility
+ * public   ShaderSource_preferredLanguage(...)  selects best language variant
+ * public   ShaderBytes_isValid(...)             checks non-null non-empty blob
+ * public   Shader_loadFile(...)                 loads shader file into arena
+ * public   ShaderBytes_destroy(...)             frees loaded byte buffer
+ *
+ * --GETTERS------------------------------
+ * public   ShaderSource_moduleName/stage(...)   shader metadata accessors
+ * public   ShaderBytes_data/length(...)         loaded buffer accessors
+ *
+ * --SETTERS------------------------------
+ * public   ShaderSource_setModuleName/Stage     shader metadata mutators
+ * private  ShaderBytes_setData/setLength(...)   internal buffer mutators
+ * ============================================================================
+ */
 
 ;;GETTER
-const utf8 *ShaderSource_moduleName(const ShaderSource *self) {
+string ShaderSource_moduleName(const ShaderSource *self) {
     return self ? (*self).moduleName : nullptr;
 }
 
 ;;SETTER
-fn ShaderSource_setModuleName(ShaderSource *self, const utf8 *name) {
+fn ShaderSource_setModuleName(ShaderSource *self, string name) {
     if (self)
         (*self).moduleName = name;
 }
@@ -47,7 +87,7 @@ fn ShaderSource_setAvailableLanguageMask(ShaderSource *self, u32 mask) {
         (*self).availableLanguageMask = mask;
 }
 
-/** MSL-only modules can only execute on an MSL-native target (no MSL -> SPIR-V). */
+/** MSL-only modules can only execute on an MSL-native target (no MSL  to  SPIR-V). */
 bool ShaderSource_supportsLanguage(const ShaderSource *self, ShaderLanguage nativeLang) {
     if (!self)
         return false;
@@ -57,9 +97,8 @@ bool ShaderSource_supportsLanguage(const ShaderSource *self, ShaderLanguage nati
     bool hasWgsl  = (mask & (1u << SHADER_LANG_WGSL))  != 0u;
     bool hasSpirv = (mask & (1u << SHADER_LANG_SPIRV)) != 0u;
 
-    if (nativeLang == SHADER_LANG_MSL) {
+    if (nativeLang == SHADER_LANG_MSL)
         return hasMsl || hasGlsl || hasWgsl || hasSpirv;
-    }
     return hasGlsl || hasWgsl || hasSpirv;
 }
 
@@ -67,15 +106,12 @@ ShaderLanguage ShaderSource_preferredLanguage(const ShaderSource *self, ShaderLa
     if (!self)
         return SHADER_LANG_SPIRV;
     u32 mask = ShaderSource_availableLanguageMask(self);
-    if (nativeLang < SHADER_LANG_COUNT && (mask & (1u << nativeLang))) {
+    if (nativeLang < SHADER_LANG_COUNT && (mask & (1u << nativeLang)))
         return nativeLang;
-    }
-    if (mask & (1u << SHADER_LANG_GLSL)) {
+    if (mask & (1u << SHADER_LANG_GLSL))
         return SHADER_LANG_GLSL;
-    }
-    if (mask & (1u << SHADER_LANG_WGSL)) {
+    if (mask & (1u << SHADER_LANG_WGSL))
         return SHADER_LANG_WGSL;
-    }
     return SHADER_LANG_SPIRV;
 }
 
@@ -101,16 +137,33 @@ static fn ShaderBytes_setLength(ShaderBytes *self, bytes length) {
         (*self).length = length;
 }
 
+;;GETTER
+static SecureHandle ShaderBytes_handle(const ShaderBytes *self) {
+    return self ? (*self).handle : SecureHandle_zero();
+}
+
+;;SETTER
+static fn ShaderBytes_setHandle(ShaderBytes *self, SecureHandle handle) {
+    if (self)
+        (*self).handle = handle;
+}
+
 bool ShaderBytes_isValid(const ShaderBytes *self) {
     return ShaderBytes_data(self) != nullptr && ShaderBytes_length(self) > 0u;
 }
 
-static u8 *ShaderBytes_initBuffer(bytes len) {
-    return (u8*) Memory_alloc(ID_SHADER_BYTES, Graphvex_arena(), len + 1u);
+static u8 *ShaderBytes_initBuffer(bytes len, SecureHandle *outHandle) {
+    SecureMemoryArena *sa = Graphvex_secureArena();
+    SecureHandle h = SecureMemoryArena_alloc(sa, ID_SHADER_BYTES, len + 1u);
+    if (!SecureHandle_isValid(h))
+        return nullptr;
+    if (outHandle)
+        *outHandle = h;
+    return (u8*) SecureMemoryArena_resolve(sa, h);
 }
 
 #if defined(VEX_PLATFORM_APPLE)
-static bool shaderResolveBundlePath(const utf8 *relPath, utf8 *outBuf, bytes outCap) {
+static bool shaderResolveBundlePath(string relPath, utf8 *outBuf, bytes outCap) {
     utf8 exePath[1024];
     u32 exeLen = (u32) sizeof(exePath);
     if (_NSGetExecutablePath(exePath, &exeLen) != 0)
@@ -125,16 +178,16 @@ static bool shaderResolveBundlePath(const utf8 *relPath, utf8 *outBuf, bytes out
 #endif
 
 /**
- * Loads a shader source or bytecode file via re/io/file into Graphvex_arena()
+ * Loads a shader source or bytecode file via re/io/file into Graphvex_secureArena()
  * with a trailing NUL byte so both text sources (.metal/.glsl) and binary blobs
  * (.metallib/.spv) work cleanly. Falls back to macOS .app Contents/Resources/.
  */
-ShaderBytes Shader_loadFile(const utf8 *path) {
+ShaderBytes Shader_loadFile(string path) {
     ShaderBytes out = { 0 };
     if (!path || path[0] == '\0')
         return out;
 
-    const utf8 *resolved = path;
+    string resolved = path;
 #if defined(VEX_PLATFORM_APPLE)
     utf8 bundleBuf[1536];
     if (!File_exists(resolved)) {
@@ -157,7 +210,8 @@ ShaderBytes Shader_loadFile(const utf8 *path) {
     }
 
     bytes len = (bytes) sz;
-    u8 *buf = ShaderBytes_initBuffer(len);
+    SecureHandle h = SecureHandle_zero();
+    u8 *buf = ShaderBytes_initBuffer(len, &h);
     if (!buf) {
         File_close(f);
         return out;
@@ -166,12 +220,14 @@ ShaderBytes Shader_loadFile(const utf8 *path) {
     File_close(f);
     if (got != sz) {
         ShaderBytes_setData(&out, buf);
+        ShaderBytes_setHandle(&out, h);
         ShaderBytes_destroy(&out);
         return out;
     }
     buf[len] = 0u;
     ShaderBytes_setData(&out, buf);
     ShaderBytes_setLength(&out, len);
+    ShaderBytes_setHandle(&out, h);
     return out;
 }
 
@@ -179,10 +235,10 @@ ShaderBytes Shader_loadFile(const utf8 *path) {
 fn ShaderBytes_destroy(ShaderBytes *self) {
     if (!self)
         return;
-    u8 *buf = ShaderBytes_data(self);
-    if (buf) {
-        Memory_free(buf);
-    }
+    SecureHandle h = ShaderBytes_handle(self);
+    if (SecureHandle_isValid(h))
+        (discard) SecureMemoryArena_free(Graphvex_secureArena(), h);
     ShaderBytes_setData(self, nullptr);
     ShaderBytes_setLength(self, 0u);
+    ShaderBytes_setHandle(self, SecureHandle_zero());
 }

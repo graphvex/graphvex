@@ -73,3 +73,17 @@ kernel void graphvex_present_rgba8(device const uchar *src [[buffer(0)]],
                       float(src[off + 3])) / 255.0;
     outTex.write(c, gid);
 }
+
+kernel void graphvex_copy_to_tex_rgba8(device const uchar *src [[buffer(0)]],
+                                       texture2d<float, access::write> outTex [[texture(0)]],
+                                       constant CopyUniform &u [[buffer(1)]],
+                                       uint2 gid [[thread_position_in_grid]]) {
+    if (gid.x >= u.copyW || gid.y >= u.copyH) return;
+    ulong sOff = ulong(u.srcY0 + int(gid.y)) * ulong(u.srcStrideBytes) +
+                 ulong(u.srcX0 + int(gid.x)) * 4ul;
+    float4 c = float4(float(src[sOff + 0]),
+                      float(src[sOff + 1]),
+                      float(src[sOff + 2]),
+                      float(src[sOff + 3])) / 255.0;
+    outTex.write(c, uint2(uint(u.dstX0) + gid.x, uint(u.dstY0) + gid.y));
+}
