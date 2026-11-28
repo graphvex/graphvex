@@ -21,83 +21,204 @@
 #import <AppKit/NSWindow.h>
 #import <dispatch/dispatch.h>
 #include <math.h>
+#include <string.h>
 
 #define MTL_ERR_DEVICE_REMOVED 11
 
 ;;DEFINITION
-/** MetalGraphicsDriver implements the core/driver.h GraphicsDriver seam on
- * Apple Silicon and macOS Metal over vio/ VideoPool slabs. Clear, cropped/
- * strided copy, custom compute dispatch, hardware-instanced quad draw, and
- * swapchain-free CAMetalLayer presentation execute directly against
- * MTLBuffer-backed vpointer slices with 100 ms bounded waits and latched
- * device-lost handling. */
+/**
+ * ============================================================================
+ * DEFINITION: MetalGraphicsDriver
+ * ============================================================================
+ * Implements the core/driver.h GraphicsDriver seam on Apple Silicon and macOS
+ * Metal over vio/ ImagePool slabs and IOSurface-backed GraphicsBackingImage
+ * surfaces. Clear, copy, custom compute dispatch, hardware-instanced quad draw,
+ * zero-copy IOSurface sampling, and double-buffered (2-slot) Surface present
+ * execute on Metal with 100 ms bounded waits and latched device-lost handling.
+ * ============================================================================
+ */
 
 ;;OVERVIEW
-/** CLASS: MetalGraphicsDriver (metal/mtl_graphics.m)
- * STRUCT FIELDS: MtlGraphicsContext (device, queue, ownsDevice, deviceLost,
- * builtinLibrary, clearPipeline, copyPipeline, presentPipeline,
- * customPipelines, renderPipelines, renderTex, renderTexW, renderTexH,
- * customCount).
- * FUNCTION REGISTRY: Graphics_metal.
- * CONTRACT: vendor Metal and QuartzCore types stay strictly inside this .m
- * file; native BGRA drawable conversion happens only inside presentImage. */
-
-
+/**
+ * ============================================================================
+ * CLASS: MetalGraphicsDriver (metal/mtl_graphics.m)
+ * ============================================================================
+ * Metal GraphicsDriver over ImagePool slabs and IOSurface GraphicsBackingImage.
+ *
+ * --CONSTRUCTORS-------------------------
+ * public   Graphics_metal(...)   creates Metal-backed Graphics context
+ *
+ * --FUNCTIONS----------------------------
+ * private  mtlImportBacking/mtlAllocBacking/mtlReleaseBacking  IOSurface backings
+ * private  mtlAttachPool/mtlDetachPool                         sibling pool table
+ * private  mtlSubmitCommands/mtlSubmitToSurface/mtlPresentImage execution paths
+ * private  mtlRegisterShader                                   MSL pipeline cache
+ * private  mtlDestroyGraphicsContext                           teardown
+ * ============================================================================
+ */
 
 ;;GETTER
-static inline id<MTLDevice> MtlGfx_device(const MtlGraphicsContext *c) { return (*c).device; }
+static inline id<MTLDevice> MtlGfx_device(const MtlGraphicsContext *c)
+{
+    return (*c).device;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setDevice(MtlGraphicsContext *c, id<MTLDevice> d)
 {
     (*c).device = d;
 }
+
 ;;GETTER
-static inline id<MTLCommandQueue> MtlGfx_queue(const MtlGraphicsContext *c) { return (*c).queue; }
+static inline id<MTLCommandQueue> MtlGfx_queue(const MtlGraphicsContext *c)
+{
+    return (*c).queue;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setQueue(MtlGraphicsContext *c, id<MTLCommandQueue> q)
 {
     (*c).queue = q;
 }
+
 ;;GETTER
-static inline id<MTLLibrary> MtlGfx_library(const MtlGraphicsContext *c) { return (*c).builtinLibrary; }
+static inline id<MTLLibrary> MtlGfx_library(const MtlGraphicsContext *c)
+{
+    return (*c).builtinLibrary;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setLibrary(MtlGraphicsContext *c, id<MTLLibrary> l)
 {
     (*c).builtinLibrary = l;
 }
+
 ;;GETTER
-static inline id<MTLComputePipelineState> MtlGfx_clearPipe(const MtlGraphicsContext *c) { return (*c).clearPipeline; }
+static inline id<MTLComputePipelineState> MtlGfx_clearPipe(const MtlGraphicsContext *c)
+{
+    return (*c).clearPipeline;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setClearPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
 {
     (*c).clearPipeline = p;
 }
+
 ;;GETTER
-static inline id<MTLComputePipelineState> MtlGfx_copyPipe(const MtlGraphicsContext *c) { return (*c).copyPipeline; }
+static inline id<MTLComputePipelineState> MtlGfx_copyPipe(const MtlGraphicsContext *c)
+{
+    return (*c).copyPipeline;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setCopyPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
 {
     (*c).copyPipeline = p;
 }
+
 ;;GETTER
-static inline id<MTLComputePipelineState> MtlGfx_copyToTexPipe(const MtlGraphicsContext *c) { return (*c).copyToTexPipeline; }
+static inline id<MTLComputePipelineState> MtlGfx_copyToTexPipe(const MtlGraphicsContext *c)
+{
+    return (*c).copyToTexPipeline;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setCopyToTexPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
 {
     (*c).copyToTexPipeline = p;
 }
+
 ;;GETTER
-static inline id<MTLComputePipelineState> MtlGfx_presentPipe(const MtlGraphicsContext *c) { return (*c).presentPipeline; }
+static inline id<MTLComputePipelineState> MtlGfx_presentPipe(const MtlGraphicsContext *c)
+{
+    return (*c).presentPipeline;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setPresentPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
 {
     (*c).presentPipeline = p;
 }
+
+;;GETTER
+static inline id<MTLComputePipelineState> MtlGfx_presentBackingRgbaPipe(const MtlGraphicsContext *c)
+{
+    return (*c).presentBackingRgbaPipe;
+}
+
+;;SETTER
+static inline fn MtlGfx_setPresentBackingRgbaPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
+{
+    (*c).presentBackingRgbaPipe = p;
+}
+
+;;GETTER
+static inline id<MTLComputePipelineState> MtlGfx_presentBackingNv12Pipe(const MtlGraphicsContext *c)
+{
+    return (*c).presentBackingNv12Pipe;
+}
+
+;;SETTER
+static inline fn MtlGfx_setPresentBackingNv12Pipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
+{
+    (*c).presentBackingNv12Pipe = p;
+}
+
+;;GETTER
+static inline id<MTLComputePipelineState> MtlGfx_copyBackingRgbaPipe(const MtlGraphicsContext *c)
+{
+    return (*c).copyBackingRgbaPipe;
+}
+
+;;SETTER
+static inline fn MtlGfx_setCopyBackingRgbaPipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
+{
+    (*c).copyBackingRgbaPipe = p;
+}
+
+;;GETTER
+static inline id<MTLComputePipelineState> MtlGfx_copyBackingNv12Pipe(const MtlGraphicsContext *c)
+{
+    return (*c).copyBackingNv12Pipe;
+}
+
+;;SETTER
+static inline fn MtlGfx_setCopyBackingNv12Pipe(MtlGraphicsContext *c, id<MTLComputePipelineState> p)
+{
+    (*c).copyBackingNv12Pipe = p;
+}
+
+;;GETTER
+static inline id<MTLTexture> MtlGfx_dummyTex(const MtlGraphicsContext *c)
+{
+    return (*c).dummyTex;
+}
+
+;;SETTER
+static inline fn MtlGfx_setDummyTex(MtlGraphicsContext *c, id<MTLTexture> t)
+{
+    (*c).dummyTex = t;
+}
+
+;;GETTER
+static inline id<MTLBuffer> MtlGfx_dummyBuf(const MtlGraphicsContext *c)
+{
+    return (*c).dummyBuf;
+}
+
+;;SETTER
+static inline fn MtlGfx_setDummyBuf(MtlGraphicsContext *c, id<MTLBuffer> b)
+{
+    (*c).dummyBuf = b;
+}
+
 ;;GETTER
 static inline u32 MtlGfx_customCount(const MtlGraphicsContext *c)
 {
     return (*c).customCount;
 }
+
 ;;GETTER
 static inline bool MtlGfx_surfacePurgeable(const MtlGraphicsContext *c)
 {
@@ -106,6 +227,7 @@ static inline bool MtlGfx_surfacePurgeable(const MtlGraphicsContext *c)
 
     return (*c).surfacePurgeable;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSurfacePurgeable(MtlGraphicsContext *c, bool v)
 {
@@ -114,36 +236,43 @@ static inline fn MtlGfx_setSurfacePurgeable(MtlGraphicsContext *c, bool v)
 
     (*c).surfacePurgeable = v;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setCustomCount(MtlGraphicsContext *c, u32 n)
 {
     (*c).customCount = n;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_cachedLibCount(const MtlGraphicsContext *c)
 {
     return (*c).cachedLibCount;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setCachedLibCount(MtlGraphicsContext *c, u32 n)
 {
     (*c).cachedLibCount = n;
 }
+
 ;;GETTER
 static inline id<MTLLibrary> MtlGfx_cachedLibAt(const MtlGraphicsContext *c, u32 idx)
 {
     return (*c).cachedLibraries[idx];
 }
+
 ;;SETTER
 static inline fn MtlGfx_setCachedLibAt(MtlGraphicsContext *c, u32 idx, id<MTLLibrary> lib)
 {
     (*c).cachedLibraries[idx] = lib;
 }
+
 ;;GETTER
 static inline string MtlGfx_cachedLibPathAt(const MtlGraphicsContext *c, u32 idx)
 {
     return (*c).cachedLibPaths[idx];
 }
+
 ;;SETTER
 static inline fn MtlGfx_setCachedLibPathAt(MtlGraphicsContext *c, u32 idx, string path)
 {
@@ -157,142 +286,320 @@ static inline fn MtlGfx_setCachedLibPathAt(MtlGraphicsContext *c, u32 idx, strin
     }
     (*c).cachedLibPaths[idx][i] = '\0';
 }
+
 ;;GETTER
-static inline id<MTLComputePipelineState> MtlGfx_customPipeAt(const MtlGraphicsContext *c, u32 idx) { return (*c).customPipelines[idx]; }
+static inline id<MTLComputePipelineState> MtlGfx_customPipeAt(const MtlGraphicsContext *c, u32 idx)
+{
+    return (*c).customPipelines[idx];
+}
+
 ;;SETTER
 static inline fn MtlGfx_setCustomPipeAt(MtlGraphicsContext *c, u32 idx, id<MTLComputePipelineState> p)
 {
     (*c).customPipelines[idx] = p;
 }
+
 ;;GETTER
-static inline id<MTLRenderPipelineState> MtlGfx_renderPipeAt(const MtlGraphicsContext *c, u32 idx) { return (*c).renderPipelines[idx]; }
+static inline id<MTLRenderPipelineState> MtlGfx_renderPipeAt(const MtlGraphicsContext *c, u32 idx)
+{
+    return (*c).renderPipelines[idx];
+}
+
 ;;SETTER
 static inline fn MtlGfx_setRenderPipeAt(MtlGraphicsContext *c, u32 idx, id<MTLRenderPipelineState> p)
 {
     (*c).renderPipelines[idx] = p;
 }
+
 ;;GETTER
-static inline id<MTLRenderPipelineState> MtlGfx_surfaceRenderPipeAt(const MtlGraphicsContext *c, u32 idx) { return (*c).surfaceRenderPipelines[idx]; }
+static inline id<MTLRenderPipelineState> MtlGfx_surfaceRenderPipeAt(const MtlGraphicsContext *c, u32 idx)
+{
+    return (*c).surfaceRenderPipelines[idx];
+}
+
 ;;SETTER
 static inline fn MtlGfx_setSurfaceRenderPipeAt(MtlGraphicsContext *c, u32 idx, id<MTLRenderPipelineState> p)
 {
     (*c).surfaceRenderPipelines[idx] = p;
 }
+
 ;;GETTER
-static inline id<MTLTexture> MtlGfx_renderTex(const MtlGraphicsContext *c) { return (*c).renderTex; }
+static inline id<MTLTexture> MtlGfx_renderTex(const MtlGraphicsContext *c)
+{
+    return (*c).renderTex;
+}
+
 ;;SETTER
-static inline fn MtlGfx_setRenderTex(MtlGraphicsContext *c, id<MTLTexture> t, u32 w, u32 h) {
+static inline fn MtlGfx_setRenderTex(MtlGraphicsContext *c, id<MTLTexture> t, u32 w, u32 h)
+{
     (*c).renderTex = t;
     (*c).renderTexW = w;
     (*c).renderTexH = h;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_renderTexW(const MtlGraphicsContext *c)
 {
     return (*c).renderTexW;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_renderTexH(const MtlGraphicsContext *c)
 {
     return (*c).renderTexH;
 }
+
 ;;GETTER
 static inline IOSurfaceRef MtlGfx_swapSurfaceAt(const MtlGraphicsContext *c, u32 idx)
 {
     return (*c).swapSurfaces[idx];
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSwapSurfaceAt(MtlGraphicsContext *c, u32 idx, IOSurfaceRef s)
 {
     (*c).swapSurfaces[idx] = s;
 }
+
 ;;GETTER
 static inline id<MTLTexture> MtlGfx_swapTexAt(const MtlGraphicsContext *c, u32 idx)
 {
     return (*c).swapTextures[idx];
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSwapTexAt(MtlGraphicsContext *c, u32 idx, id<MTLTexture> t)
 {
     (*c).swapTextures[idx] = t;
 }
+
 ;;GETTER
 static inline id<MTLTexture> MtlGfx_swapSrgbAt(const MtlGraphicsContext *c, u32 idx)
 {
     return (*c).swapSrgbViews[idx];
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSwapSrgbAt(MtlGraphicsContext *c, u32 idx, id<MTLTexture> t)
 {
     (*c).swapSrgbViews[idx] = t;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_swapW(const MtlGraphicsContext *c)
 {
     return (*c).swapW;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_swapH(const MtlGraphicsContext *c)
 {
     return (*c).swapH;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSwapSize(MtlGraphicsContext *c, u32 w, u32 h)
 {
     (*c).swapW = w;
     (*c).swapH = h;
 }
+
 ;;GETTER
 static inline u32 MtlGfx_swapIndex(const MtlGraphicsContext *c)
 {
     return (*c).swapIndex;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSwapIndex(MtlGraphicsContext *c, u32 idx)
 {
     (*c).swapIndex = idx;
 }
+
 ;;GETTER
 static inline bool MtlGfx_ownsDevice(const MtlGraphicsContext *c)
 {
     return (*c).ownsDevice;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setOwnsDevice(MtlGraphicsContext *c, bool v)
 {
     (*c).ownsDevice = v;
 }
+
 ;;GETTER
-static inline id<MTLCommandBuffer> MtlGfx_pendingPresent(const MtlGraphicsContext *c) { return (*c).pendingPresent; }
+static inline id<MTLCommandBuffer> MtlGfx_pendingPresent(const MtlGraphicsContext *c)
+{
+    return (*c).pendingPresent;
+}
+
 ;;SETTER
 static inline fn MtlGfx_setPendingPresent(MtlGraphicsContext *c, id<MTLCommandBuffer> cmd)
 {
     (*c).pendingPresent = cmd;
 }
+
 ;;GETTER
 static inline bool *MtlGfx_deviceLostPtr(MtlGraphicsContext *c)
 {
     return &(*c).deviceLost;
 }
+
 ;;GETTER
 static inline bool MtlGfx_syncPresent(const MtlGraphicsContext *c)
 {
     return (*c).syncPresent;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSyncPresent(MtlGraphicsContext *c, bool v)
 {
     (*c).syncPresent = v;
 }
+
 ;;GETTER
 static inline SecureHandle MtlGfx_selfHandle(const MtlGraphicsContext *c)
 {
     return (*c).selfHandle;
 }
+
 ;;SETTER
 static inline fn MtlGfx_setSelfHandle(MtlGraphicsContext *c, SecureHandle h)
 {
     (*c).selfHandle = h;
+}
+
+;;GETTER
+static inline u32 MtlGfx_auxPoolCount(const MtlGraphicsContext *c)
+{
+    if (!c)
+        return 0u;
+
+    return (*c).auxPoolCount;
+}
+
+;;SETTER
+static inline fn MtlGfx_setAuxPoolCount(MtlGraphicsContext *c, u32 count)
+{
+    if (!c)
+        return;
+
+    (*c).auxPoolCount = count;
+}
+
+;;GETTER
+static inline const ImagePool *MtlGfx_auxPoolAt(const MtlGraphicsContext *c, u32 idx)
+{
+    if (!c || idx >= GRAPHICS_MAX_AUX_POOLS)
+        return nullptr;
+
+    return (*c).auxPools[idx];
+}
+
+;;SETTER
+static inline fn MtlGfx_setAuxPoolAt(MtlGraphicsContext *c, u32 idx, const ImagePool *p)
+{
+    if (!c || idx >= GRAPHICS_MAX_AUX_POOLS)
+        return;
+
+    (*c).auxPools[idx] = p;
+}
+
+;;GETTER
+static inline MtlBackingEntry *MtlGfx_backingMut(MtlGraphicsContext *c, u32 idx)
+{
+    if (!c || idx >= MTL_MAX_BACKING_IMAGES)
+        return nullptr;
+
+    return &(*c).backings[idx];
+}
+
+;;GETTER
+static inline pthread_mutex_t *MtlGfx_backingLock(MtlGraphicsContext *c)
+{
+    if (!c)
+        return nullptr;
+
+    return &(*c).backingLock;
+}
+
+;;GETTER
+static inline const MtlBackingEntry *MtlGfx_backingConst(const MtlGraphicsContext *c, u32 idx)
+{
+    if (!c || idx >= MTL_MAX_BACKING_IMAGES)
+        return nullptr;
+
+    return &(*c).backings[idx];
+}
+
+;;GETTER
+static inline bool MtlBacking_live(const MtlBackingEntry *e)
+{
+    if (!e)
+        return false;
+
+    return (*e).live;
+}
+
+;;GETTER
+static inline IOSurfaceRef MtlBacking_surface(const MtlBackingEntry *e)
+{
+    if (!e)
+        return nullptr;
+
+    return (*e).surface;
+}
+
+;;GETTER
+static inline id<MTLTexture> MtlBacking_plane0(const MtlBackingEntry *e)
+{
+    return (*e).plane0;
+}
+
+;;GETTER
+static inline id<MTLTexture> MtlBacking_plane1(const MtlBackingEntry *e)
+{
+    return (*e).plane1;
+}
+
+;;GETTER
+static inline PixelFormat MtlBacking_format(const MtlBackingEntry *e)
+{
+    if (!e)
+        return PIXEL_FORMAT_RGBA8_UNORM;
+
+    return (*e).format;
+}
+
+;;SETTER
+static inline fn MtlBacking_set(MtlBackingEntry *e, IOSurfaceRef surf,
+                                id<MTLTexture> p0, id<MTLTexture> p1,
+                                u32 w, u32 h, u32 strideBytes,
+                                PixelFormat fmt, u32 planeCount, bool owns)
+{
+    if (!e)
+        return;
+
+    (*e).surface = surf;
+    (*e).plane0 = p0;
+    (*e).plane1 = p1;
+    (*e).width = w;
+    (*e).height = h;
+    (*e).strideBytes = strideBytes;
+    (*e).format = fmt;
+    (*e).planeCount = planeCount;
+    (*e).ownsSurface = owns;
+    (*e).live = true;
+}
+
+;;SETTER
+static inline fn MtlBacking_clear(MtlBackingEntry *e)
+{
+    if (!e)
+        return;
+
+    memset(e, 0, sizeof(MtlBackingEntry));
 }
 
 static const u8 MTL_BUILTIN_EMBED[] = {
@@ -300,39 +607,386 @@ static const u8 MTL_BUILTIN_EMBED[] = {
     , 0
 };
 
-/**
- * Compiles the embedded Metal driver builtin library (clear, copy, present
- * kernels) once at context init.
- * @param dev Metal device
- * @return compiled MTLLibrary or nil on compile failure
- */
-static id<MTLLibrary> mtlLoadBuiltinLibrary(id<MTLDevice> dev) {
+static id<MTLLibrary> mtlLoadBuiltinLibrary(id<MTLDevice> dev)
+{
     NSError *err = nil;
     NSString *src = [NSString stringWithUTF8String:(string) MTL_BUILTIN_EMBED];
     return [dev newLibraryWithSource:src options:nil error:&err];
 }
 
-static bool mtlResolveBuffer(const VideoPool *pool, vpointer addr, bytes len,
-                             id<MTLBuffer> *outBuf, bytes *outOffset) {
-    if (pool == nullptr || addr == 0u || len == 0u || outBuf == nullptr || outOffset == nullptr)
-        return false;
-    VideoSlabInfo slab = { 0 };
+static bool mtlResolveBufferInPool(const ImagePool *pool, vpointer addr, bytes len,
+                                   id<MTLBuffer> *outBuf, bytes *outOffset)
+{
+    ImageSlabInfo slab;
+    memset(&slab, 0, sizeof(ImageSlabInfo));
     bytes off = 0u;
-    if (!VideoPool_findByGpu(pool, addr, len, &slab, &off))
+    if (!ImagePool_findByGpu(pool, addr, len, &slab, &off))
         return false;
-    any rawHandle = MtlVideoSlab_driverHandle(&slab);
+
+    any rawHandle = MtlImageSlab_driverHandle(&slab);
     if (rawHandle == nullptr)
         return false;
+
     MtlSlabHandle *handle = (MtlSlabHandle*) rawHandle;
     id<MTLBuffer> buf = MtlSlabHandle_buffer(handle);
     if (buf == nil)
         return false;
+
     *outBuf = buf;
     *outOffset = off;
     return true;
 }
 
-static bool mtlWaitBounded(MtlGraphicsContext *ctx, id<MTLCommandBuffer> cmd) {
+static bool mtlResolveBuffer(const MtlGraphicsContext *ctx, const ImagePool *pool,
+                             vpointer addr, bytes len,
+                             id<MTLBuffer> *outBuf, bytes *outOffset)
+{
+    if (addr == 0u || len == 0u || outBuf == nullptr || outOffset == nullptr)
+        return false;
+
+    if (pool != nullptr && mtlResolveBufferInPool(pool, addr, len, outBuf, outOffset))
+        return true;
+
+    if (ctx != nullptr) {
+        u32 nAux = MtlGfx_auxPoolCount(ctx);
+        for (u32 i = 0u; i < nAux; i++) {
+            const ImagePool *aux = MtlGfx_auxPoolAt(ctx, i);
+            if (aux != nullptr && mtlResolveBufferInPool(aux, addr, len, outBuf, outOffset))
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool mtlResolveBacking(MtlGraphicsContext *ctx, u32 backingSlot,
+                              id<MTLTexture> *outPlane0, id<MTLTexture> *outPlane1,
+                              PixelFormat *outFmt)
+{
+    if (!ctx || backingSlot == 0u || backingSlot > MTL_MAX_BACKING_IMAGES)
+        return false;
+
+    pthread_mutex_t *lock = MtlGfx_backingLock(ctx);
+    pthread_mutex_lock(lock);
+    const MtlBackingEntry *entry = MtlGfx_backingConst(ctx, backingSlot - 1u);
+    if (!MtlBacking_live(entry)) {
+        pthread_mutex_unlock(lock);
+        return false;
+    }
+
+    id<MTLTexture> p0 = MtlBacking_plane0(entry);
+    id<MTLTexture> p1 = MtlBacking_plane1(entry);
+    PixelFormat fmt = MtlBacking_format(entry);
+    pthread_mutex_unlock(lock);
+
+    if (p0 == nil)
+        return false;
+
+    if (outPlane0)
+        *outPlane0 = p0;
+
+    if (outPlane1)
+        *outPlane1 = p1;
+
+    if (outFmt)
+        *outFmt = fmt;
+
+    return true;
+}
+
+static bool mtlImportBacking(any context, any nativeBacking,
+                             u32 width, u32 height, PixelFormat format,
+                             bool ownsSurface,
+                             u32 *outBackingSlot, u32 *outPlaneCount,
+                             u32 *outStrideBytes)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || !nativeBacking || width == 0u || height == 0u || !outBackingSlot)
+        return false;
+
+    IOSurfaceRef surf = (IOSurfaceRef) nativeBacking;
+    id<MTLDevice> dev = MtlGfx_device(ctx);
+    id<MTLTexture> p0 = nil;
+    id<MTLTexture> p1 = nil;
+    u32 planeCount = 1u;
+    u32 strideBytes = 0u;
+
+    if (format == PIXEL_FORMAT_NV12) {
+        if (IOSurfaceGetPlaneCount(surf) < 2u)
+            return false;
+
+        u32 uvW = (width + 1u) / 2u;
+        u32 uvH = (height + 1u) / 2u;
+        MTLTextureDescriptor *yDesc = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:MTLPixelFormatR8Unorm
+                                         width:(NSUInteger) width
+                                        height:(NSUInteger) height
+                                     mipmapped:NO];
+        yDesc.storageMode = MTLStorageModeShared;
+        yDesc.usage = MTLTextureUsageShaderRead;
+        p0 = [dev newTextureWithDescriptor:yDesc iosurface:surf plane:0u];
+
+        MTLTextureDescriptor *uvDesc = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:MTLPixelFormatRG8Unorm
+                                         width:(NSUInteger) uvW
+                                        height:(NSUInteger) uvH
+                                     mipmapped:NO];
+        uvDesc.storageMode = MTLStorageModeShared;
+        uvDesc.usage = MTLTextureUsageShaderRead;
+        p1 = [dev newTextureWithDescriptor:uvDesc iosurface:surf plane:1u];
+
+        if (p0 == nil || p1 == nil) {
+            if (p0 != nil)
+                [p0 release];
+            if (p1 != nil)
+                [p1 release];
+            return false;
+        }
+        planeCount = 2u;
+        strideBytes = (u32) IOSurfaceGetBytesPerRowOfPlane(surf, 0u);
+    } else {
+        u32 pf = (u32) IOSurfaceGetPixelFormat(surf);
+        MTLPixelFormat mtlFmt = (pf == 0x42475241u)
+            ? MTLPixelFormatBGRA8Unorm
+            : MTLPixelFormatRGBA8Unorm;
+        MTLTextureDescriptor *desc = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:mtlFmt
+                                         width:(NSUInteger) width
+                                        height:(NSUInteger) height
+                                     mipmapped:NO];
+        desc.storageMode = MTLStorageModeShared;
+        desc.usage = MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite | MTLTextureUsageRenderTarget;
+        p0 = [dev newTextureWithDescriptor:desc iosurface:surf plane:0u];
+        if (p0 == nil)
+            return false;
+
+        planeCount = 1u;
+        strideBytes = (u32) IOSurfaceGetBytesPerRow(surf);
+    }
+
+    if (strideBytes == 0u)
+        strideBytes = width * PixelFormat_bytesPerPixel(format);
+
+    pthread_mutex_t *lock = MtlGfx_backingLock(ctx);
+    pthread_mutex_lock(lock);
+    u32 freeIdx = MTL_MAX_BACKING_IMAGES;
+    for (u32 i = 0u; i < MTL_MAX_BACKING_IMAGES; i++) {
+        if (!MtlBacking_live(MtlGfx_backingConst(ctx, i))) {
+            freeIdx = i;
+            break;
+        }
+    }
+    if (freeIdx >= MTL_MAX_BACKING_IMAGES) {
+        pthread_mutex_unlock(lock);
+        if (p1 != nil)
+            [p1 release];
+        if (p0 != nil)
+            [p0 release];
+        return false;
+    }
+
+    if (!ownsSurface)
+        CFRetain(surf);
+
+    MtlBackingEntry *entry = MtlGfx_backingMut(ctx, freeIdx);
+    MtlBacking_set(entry, surf, p0, p1, width, height, strideBytes, format, planeCount, ownsSurface);
+    pthread_mutex_unlock(lock);
+
+    *outBackingSlot = freeIdx + 1u;
+    if (outPlaneCount)
+        *outPlaneCount = planeCount;
+
+    if (outStrideBytes)
+        *outStrideBytes = strideBytes;
+
+    return true;
+}
+
+static bool mtlAllocBacking(any context, u32 width, u32 height, PixelFormat format,
+                            any *outNativeBacking, u32 *outBackingSlot,
+                            u32 *outPlaneCount, u32 *outStrideBytes)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || width == 0u || height == 0u || !outBackingSlot)
+        return false;
+
+    @autoreleasepool {
+        IOSurfaceRef surf = nullptr;
+        if (format == PIXEL_FORMAT_NV12) {
+            u32 yStride = (width + 63u) & ~63u;
+            u32 uvW = (width + 1u) / 2u;
+            u32 uvH = (height + 1u) / 2u;
+            u32 uvStride = ((uvW * 2u) + 63u) & ~63u;
+            u32 ySize = yStride * height;
+            u32 uvSize = uvStride * uvH;
+            NSArray *planes = @[
+                @{
+                    (id) kIOSurfacePlaneWidth: @(width),
+                    (id) kIOSurfacePlaneHeight: @(height),
+                    (id) kIOSurfacePlaneBytesPerElement: @(1u),
+                    (id) kIOSurfacePlaneBytesPerRow: @(yStride),
+                    (id) kIOSurfacePlaneOffset: @(0u),
+                    (id) kIOSurfacePlaneSize: @(ySize),
+                },
+                @{
+                    (id) kIOSurfacePlaneWidth: @(uvW),
+                    (id) kIOSurfacePlaneHeight: @(uvH),
+                    (id) kIOSurfacePlaneBytesPerElement: @(2u),
+                    (id) kIOSurfacePlaneBytesPerRow: @(uvStride),
+                    (id) kIOSurfacePlaneOffset: @(ySize),
+                    (id) kIOSurfacePlaneSize: @(uvSize),
+                },
+            ];
+            NSDictionary *props = @{
+                (id) kIOSurfaceWidth: @(width),
+                (id) kIOSurfaceHeight: @(height),
+                (id) kIOSurfacePixelFormat: @(0x34323076u),
+                (id) kIOSurfacePlaneInfo: planes,
+                (id) kIOSurfaceAllocSize: @(ySize + uvSize),
+            };
+            surf = IOSurfaceCreate((CFDictionaryRef) props);
+        } else {
+            u32 rowBytes = ((width * 4u) + 63u) & ~63u;
+            NSDictionary *props = @{
+                (id) kIOSurfaceWidth: @(width),
+                (id) kIOSurfaceHeight: @(height),
+                (id) kIOSurfaceBytesPerElement: @(4u),
+                (id) kIOSurfaceBytesPerRow: @(rowBytes),
+                (id) kIOSurfacePixelFormat: @(0x52474241u),
+            };
+            surf = IOSurfaceCreate((CFDictionaryRef) props);
+        }
+
+        if (surf == nullptr)
+            return false;
+
+        if (!mtlImportBacking(context, (any) surf, width, height, format, true,
+                              outBackingSlot, outPlaneCount, outStrideBytes)) {
+            CFRelease(surf);
+            return false;
+        }
+        if (outNativeBacking)
+            *outNativeBacking = (any) surf;
+
+        return true;
+    }
+}
+
+static fn mtlReleaseBacking(any context, u32 backingSlot)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || backingSlot == 0u || backingSlot > MTL_MAX_BACKING_IMAGES)
+        return;
+
+    pthread_mutex_t *lock = MtlGfx_backingLock(ctx);
+    pthread_mutex_lock(lock);
+    MtlBackingEntry *entry = MtlGfx_backingMut(ctx, backingSlot - 1u);
+    if (!MtlBacking_live(entry)) {
+        pthread_mutex_unlock(lock);
+        return;
+    }
+
+    id<MTLTexture> p1 = MtlBacking_plane1(entry);
+    id<MTLTexture> p0 = MtlBacking_plane0(entry);
+    IOSurfaceRef surf = MtlBacking_surface(entry);
+    MtlBacking_clear(entry);
+    pthread_mutex_unlock(lock);
+
+    if (p1 != nil)
+        [p1 release];
+
+    if (p0 != nil)
+        [p0 release];
+
+    if (surf != nullptr)
+        CFRelease(surf);
+}
+
+static bool mtlSetBackingPurgeable(any context, u32 backingSlot, bool purgeable)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || backingSlot == 0u || backingSlot > MTL_MAX_BACKING_IMAGES)
+        return false;
+
+    pthread_mutex_t *lock = MtlGfx_backingLock(ctx);
+    pthread_mutex_lock(lock);
+    const MtlBackingEntry *entry = MtlGfx_backingConst(ctx, backingSlot - 1u);
+    if (!MtlBacking_live(entry)) {
+        pthread_mutex_unlock(lock);
+        return false;
+    }
+
+    IOSurfaceRef surf = MtlBacking_surface(entry);
+    if (surf == nullptr) {
+        pthread_mutex_unlock(lock);
+        return false;
+    }
+
+    u32 state = purgeable ? kIOSurfacePurgeableVolatile : kIOSurfacePurgeableNonVolatile;
+    bool ok = IOSurfaceSetPurgeable(surf, state, nullptr) == kIOReturnSuccess;
+    pthread_mutex_unlock(lock);
+    return ok;
+}
+
+static bool mtlIsBackingInUse(any context, u32 backingSlot)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || backingSlot == 0u || backingSlot > MTL_MAX_BACKING_IMAGES)
+        return false;
+
+    pthread_mutex_t *lock = MtlGfx_backingLock(ctx);
+    pthread_mutex_lock(lock);
+    const MtlBackingEntry *entry = MtlGfx_backingConst(ctx, backingSlot - 1u);
+    if (!MtlBacking_live(entry)) {
+        pthread_mutex_unlock(lock);
+        return false;
+    }
+
+    IOSurfaceRef surf = MtlBacking_surface(entry);
+    bool inUse = (surf != nullptr && IOSurfaceIsInUse(surf)) ? true : false;
+    pthread_mutex_unlock(lock);
+    return inUse;
+}
+
+static bool mtlAttachPool(any context, const ImagePool *auxPool)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || !auxPool)
+        return false;
+
+    u32 count = MtlGfx_auxPoolCount(ctx);
+    for (u32 i = 0u; i < count; i++) {
+        if (MtlGfx_auxPoolAt(ctx, i) == auxPool)
+            return true;
+    }
+    if (count >= GRAPHICS_MAX_AUX_POOLS)
+        return false;
+
+    MtlGfx_setAuxPoolAt(ctx, count, auxPool);
+    MtlGfx_setAuxPoolCount(ctx, count + 1u);
+    return true;
+}
+
+static fn mtlDetachPool(any context, const ImagePool *auxPool)
+{
+    MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
+    if (!ctx || !auxPool)
+        return;
+
+    u32 count = MtlGfx_auxPoolCount(ctx);
+    for (u32 i = 0u; i < count; i++) {
+        if (MtlGfx_auxPoolAt(ctx, i) == auxPool) {
+            for (u32 j = i; j + 1u < count; j++)
+                MtlGfx_setAuxPoolAt(ctx, j, MtlGfx_auxPoolAt(ctx, j + 1u));
+
+            MtlGfx_setAuxPoolAt(ctx, count - 1u, nullptr);
+            MtlGfx_setAuxPoolCount(ctx, count - 1u);
+            return;
+        }
+    }
+}
+
+static bool mtlWaitBounded(MtlGraphicsContext *ctx, id<MTLCommandBuffer> cmd)
+{
     dispatch_semaphore_t sem = dispatch_semaphore_create(0);
     dispatch_retain(sem);
     [cmd addCompletedHandler:^(id<MTLCommandBuffer> completed) {
@@ -346,6 +1000,7 @@ static bool mtlWaitBounded(MtlGraphicsContext *ctx, id<MTLCommandBuffer> cmd) {
     dispatch_release(sem);
     if (waited != 0)
         return false;
+
     if (cmd.status != MTLCommandBufferStatusCompleted) {
         if (cmd.error != nil && cmd.error.code == MTL_ERR_DEVICE_REMOVED) {
             bool *lost = MtlGfx_deviceLostPtr(ctx);
@@ -358,21 +1013,26 @@ static bool mtlWaitBounded(MtlGraphicsContext *ctx, id<MTLCommandBuffer> cmd) {
 
 static fn mtlDispatch2D(id<MTLComputeCommandEncoder> enc,
                         id<MTLComputePipelineState> pipe,
-                        u32 width, u32 height) {
+                        u32 width, u32 height)
+{
     NSUInteger tw = pipe.threadExecutionWidth;
     if (tw == 0u)
         tw = 16u;
+
     NSUInteger th = pipe.maxTotalThreadsPerThreadgroup / tw;
     if (th == 0u)
         th = 1u;
+
     if (th > 16u)
         th = 16u;
+
     MTLSize grid = MTLSizeMake((NSUInteger) width, (NSUInteger) height, 1u);
     MTLSize group = MTLSizeMake(tw, th, 1u);
     [enc dispatchThreads:grid threadsPerThreadgroup:group];
 }
 
-static id<MTLTexture> mtlEnsureRenderTexture(MtlGraphicsContext *ctx, u32 width, u32 height) {
+static id<MTLTexture> mtlEnsureRenderTexture(MtlGraphicsContext *ctx, u32 width, u32 height)
+{
     if (width == 0u || height == 0u)
         return nil;
 
@@ -407,13 +1067,16 @@ static id<MTLTexture> mtlEnsureRenderTexture(MtlGraphicsContext *ctx, u32 width,
     return created;
 }
 
-static bool mtlEncodeClear(MtlGraphicsContext *ctx, const VideoPool *pool,
-                           id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd) {
-    GraphicsImage dst = cmd.target;
-    if (!GraphicsImage_isValid(&dst))
+static bool mtlEncodeClear(MtlGraphicsContext *ctx, const ImagePool *pool,
+                           id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd)
+{
+    Image dst = cmd.target;
+    if (!Image_isGraphics(&dst) || !Image_isValid(&dst) || cmd.targetData == 0u)
         return false;
+
     if (PixelFormat_bytesPerPixel(dst.format) != 4u)
         return false;
+
     GraphicsRect bounds = GraphicsRect_4(0, 0, (i32) dst.width, (i32) dst.height);
     GraphicsRect clip = GraphicsRect_isEmpty(cmd.scissor)
         ? bounds
@@ -423,20 +1086,22 @@ static bool mtlEncodeClear(MtlGraphicsContext *ctx, const VideoPool *pool,
 
     id<MTLBuffer> dstBuf = nil;
     bytes dstOff = 0u;
-    if (!mtlResolveBuffer(pool, dst.data, GraphicsImage_byteSize(&dst), &dstBuf, &dstOff))
+    if (!mtlResolveBuffer(ctx, pool, cmd.targetData, Image_byteSize(&dst), &dstBuf, &dstOff))
         return false;
 
-    MtlClearUniform u = {
-        .strideBytes = dst.strideBytes,
-        .x0 = clip.x0,
-        .y0 = clip.y0,
-        .x1 = clip.x1,
-        .y1 = clip.y1,
-        .rgba = cmd.clearColorRGBA,
-    };
+    MtlClearUniform u;
+    memset(&u, 0, sizeof(MtlClearUniform));
+    u.strideBytes = dst.strideBytes;
+    u.x0 = clip.x0;
+    u.y0 = clip.y0;
+    u.x1 = clip.x1;
+    u.y1 = clip.y1;
+    u.rgba = cmd.clearColorRGBA;
+
     id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
     if (enc == nil)
         return false;
+
     id<MTLComputePipelineState> pipe = MtlGfx_clearPipe(ctx);
     [enc setComputePipelineState:pipe];
     [enc setBuffer:dstBuf offset:(NSUInteger) dstOff atIndex:0];
@@ -446,14 +1111,20 @@ static bool mtlEncodeClear(MtlGraphicsContext *ctx, const VideoPool *pool,
     return true;
 }
 
-static bool mtlEncodeCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
-                          id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd) {
-    GraphicsImage dst = cmd.target;
-    GraphicsImage src = cmd.source;
-    if (!GraphicsImage_isValid(&dst) || !GraphicsImage_isValid(&src))
+static bool mtlEncodeCopy(MtlGraphicsContext *ctx, const ImagePool *pool,
+                          id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd)
+{
+    Image dst = cmd.target;
+    Image src = cmd.source;
+    if (!Image_isGraphics(&dst) || !Image_isValid(&dst) || cmd.targetData == 0u)
         return false;
+
+    if (!Image_isValid(&src))
+        return false;
+
     if (dst.format != src.format)
         return false;
+
     u32 bpp = PixelFormat_bytesPerPixel(dst.format);
     if (bpp == 0u)
         return false;
@@ -465,31 +1136,67 @@ static bool mtlEncodeCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
     GraphicsRect clip = GraphicsRect_intersect(dstBounds, placed);
     if (!GraphicsRect_isEmpty(cmd.scissor))
         clip = GraphicsRect_intersect(clip, cmd.scissor);
+
     if (GraphicsRect_isEmpty(clip))
         return true;
 
     id<MTLBuffer> dstBuf = nil;
     bytes dstOff = 0u;
-    id<MTLBuffer> srcBuf = nil;
-    bytes srcOff = 0u;
-    if (!mtlResolveBuffer(pool, dst.data, GraphicsImage_byteSize(&dst), &dstBuf, &dstOff) ||
-        !mtlResolveBuffer(pool, src.data, GraphicsImage_byteSize(&src), &srcBuf, &srcOff))
+    if (!mtlResolveBuffer(ctx, pool, cmd.targetData, Image_byteSize(&dst), &dstBuf, &dstOff))
         return false;
 
-    MtlCopyUniform u = {
-        .dstStrideBytes = dst.strideBytes,
-        .srcStrideBytes = src.strideBytes,
-        .bpp = bpp,
-        .dstX0 = clip.x0,
-        .dstY0 = clip.y0,
-        .srcX0 = clip.x0 - cmd.dstX,
-        .srcY0 = clip.y0 - cmd.dstY,
-        .copyW = GraphicsRect_width(clip),
-        .copyH = GraphicsRect_height(clip),
-    };
+    MtlCopyUniform u;
+    memset(&u, 0, sizeof(MtlCopyUniform));
+    u.dstStrideBytes = dst.strideBytes;
+    u.srcStrideBytes = src.strideBytes;
+    u.bpp = bpp;
+    u.dstX0 = clip.x0;
+    u.dstY0 = clip.y0;
+    u.srcX0 = clip.x0 - cmd.dstX;
+    u.srcY0 = clip.y0 - cmd.dstY;
+    u.copyW = GraphicsRect_width(clip);
+    u.copyH = GraphicsRect_height(clip);
+
+    if (Image_isBacking(&src)) {
+        id<MTLTexture> p0 = nil;
+        id<MTLTexture> p1 = nil;
+        PixelFormat bFmt = PIXEL_FORMAT_RGBA8_UNORM;
+        if (!mtlResolveBacking(ctx, cmd.sourceBackingSlot, &p0, &p1, &bFmt))
+            return false;
+
+        id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
+        if (enc == nil)
+            return false;
+
+        if (bFmt == PIXEL_FORMAT_NV12 && p1 != nil) {
+            id<MTLComputePipelineState> pipe = MtlGfx_copyBackingNv12Pipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setBuffer:dstBuf offset:(NSUInteger) dstOff atIndex:0];
+            [enc setTexture:p0 atIndex:0];
+            [enc setTexture:p1 atIndex:1];
+            [enc setBytes:&u length:sizeof u atIndex:1];
+            mtlDispatch2D(enc, pipe, u.copyW, u.copyH);
+        } else {
+            id<MTLComputePipelineState> pipe = MtlGfx_copyBackingRgbaPipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setBuffer:dstBuf offset:(NSUInteger) dstOff atIndex:0];
+            [enc setTexture:p0 atIndex:0];
+            [enc setBytes:&u length:sizeof u atIndex:1];
+            mtlDispatch2D(enc, pipe, u.copyW, u.copyH);
+        }
+        [enc endEncoding];
+        return true;
+    }
+
+    id<MTLBuffer> srcBuf = nil;
+    bytes srcOff = 0u;
+    if (!mtlResolveBuffer(ctx, pool, cmd.sourceData, Image_byteSize(&src), &srcBuf, &srcOff))
+        return false;
+
     id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
     if (enc == nil)
         return false;
+
     id<MTLComputePipelineState> pipe = MtlGfx_copyPipe(ctx);
     [enc setComputePipelineState:pipe];
     [enc setBuffer:dstBuf offset:(NSUInteger) dstOff atIndex:0];
@@ -500,19 +1207,12 @@ static bool mtlEncodeCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
     return true;
 }
 
-/**
- * Encodes a custom GPU compute shader dispatch (such as collage_scope.metal
- * blur and blend passes) against MTLBuffer-backed VideoPool slices.
- * @param ctx    Metal graphics context
- * @param pool   backing VideoPool
- * @param cmdBuf active Metal command buffer
- * @param cmd    recorded dispatch command
- * @return true on success, false if shader ID or buffers are invalid
- */
-static bool mtlEncodeDispatch(MtlGraphicsContext *ctx, const VideoPool *pool,
-                              id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd) {
+static bool mtlEncodeDispatch(MtlGraphicsContext *ctx, const ImagePool *pool,
+                              id<MTLCommandBuffer> cmdBuf, GraphicsCommand cmd)
+{
     if (cmd.shaderId == 0u || cmd.shaderId > MtlGfx_customCount(ctx))
         return false;
+
     id<MTLComputePipelineState> pipe = MtlGfx_customPipeAt(ctx, cmd.shaderId - 1u);
     if (pipe == nil)
         return false;
@@ -520,30 +1220,41 @@ static bool mtlEncodeDispatch(MtlGraphicsContext *ctx, const VideoPool *pool,
     id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
     if (enc == nil)
         return false;
+
     [enc setComputePipelineState:pipe];
 
-    if (GraphicsImage_isValid(&cmd.target)) {
+    if (Image_isGraphics(&cmd.target) && Image_isValid(&cmd.target)) {
         id<MTLBuffer> dstBuf = nil;
         bytes dstOff = 0u;
-        if (!mtlResolveBuffer(pool, cmd.target.data, GraphicsImage_byteSize(&cmd.target), &dstBuf, &dstOff)) {
+        if (!mtlResolveBuffer(ctx, pool, cmd.targetData, Image_byteSize(&cmd.target), &dstBuf, &dstOff)) {
             [enc endEncoding];
             return false;
         }
         [enc setBuffer:dstBuf offset:(NSUInteger) dstOff atIndex:0];
     }
-    if (GraphicsImage_isValid(&cmd.source)) {
+    if (Image_isGraphics(&cmd.source) && Image_isValid(&cmd.source)) {
         id<MTLBuffer> srcBuf = nil;
         bytes srcOff = 0u;
-        if (!mtlResolveBuffer(pool, cmd.source.data, GraphicsImage_byteSize(&cmd.source), &srcBuf, &srcOff)) {
+        if (!mtlResolveBuffer(ctx, pool, cmd.sourceData, Image_byteSize(&cmd.source), &srcBuf, &srcOff)) {
             [enc endEncoding];
             return false;
         }
         [enc setBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:1];
+    } else if (Image_isBacking(&cmd.source) && Image_isValid(&cmd.source)) {
+        id<MTLTexture> p0 = nil;
+        id<MTLTexture> p1 = nil;
+        PixelFormat bFmt = PIXEL_FORMAT_RGBA8_UNORM;
+        if (!mtlResolveBacking(ctx, cmd.sourceBackingSlot, &p0, &p1, &bFmt)) {
+            [enc endEncoding];
+            return false;
+        }
+        [enc setTexture:p0 atIndex:0];
+        [enc setTexture:(p1 != nil ? p1 : MtlGfx_dummyTex(ctx)) atIndex:1];
     }
     if (cmd.uniformAddr != 0u && cmd.uniformBytes > 0u) {
         id<MTLBuffer> uBuf = nil;
         bytes uOff = 0u;
-        if (!mtlResolveBuffer(pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
+        if (!mtlResolveBuffer(ctx, pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
             [enc endEncoding];
             return false;
         }
@@ -554,53 +1265,86 @@ static bool mtlEncodeDispatch(MtlGraphicsContext *ctx, const VideoPool *pool,
     return true;
 }
 
-static fn mtlDrainPendingPresent(MtlGraphicsContext *ctx) {
+static fn mtlDrainPendingPresent(MtlGraphicsContext *ctx)
+{
     if (ctx == nullptr)
         return;
+
     id<MTLCommandBuffer> pending = MtlGfx_pendingPresent(ctx);
     if (pending == nil)
         return;
+
     [pending waitUntilCompleted];
     [pending release];
     MtlGfx_setPendingPresent(ctx, nil);
 }
 
-static bool mtlSameTarget(GraphicsImage a, GraphicsImage b) {
-    return a.data == b.data && a.width == b.width && a.height == b.height && a.strideBytes == b.strideBytes;
+static bool mtlSameTarget(GraphicsCommand a, GraphicsCommand b)
+{
+    return a.targetData == b.targetData &&
+           a.target.width == b.target.width &&
+           a.target.height == b.target.height &&
+           a.target.strideBytes == b.target.strideBytes;
 }
 
-/**
- * Encodes a contiguous run of GRAPHICS_CMD_DRAW commands targeting the same
- * GraphicsImage inside one Metal render pass.
- * Quirk: blits the VideoPool MTLBuffer into a private MTLTexture before the
- * render pass and blits it back afterward so linear-buffer compute passes and
- * hardware-instanced render passes share the same GraphicsImage storage on GPU.
- * @param ctx       Metal graphics context
- * @param pool      backing VideoPool
- * @param cmdBuf    active Metal command buffer
- * @param cmds      command array
- * @param count     total command count
- * @param startIdx  first GRAPHICS_CMD_DRAW index in the run
- * @param outEndIdx receives the first index after the encoded run
- * @return true on success, false on buffer or pipeline failure
- */
-static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
+static bool mtlBindDrawSource(MtlGraphicsContext *ctx, const ImagePool *pool,
+                              id<MTLRenderCommandEncoder> enc, GraphicsCommand cmd)
+{
+    if (!Image_isValid(&cmd.source))
+        return true;
+
+    if (Image_isGraphics(&cmd.source)) {
+        id<MTLBuffer> srcBuf = nil;
+        bytes srcOff = 0u;
+        if (!mtlResolveBuffer(ctx, pool, cmd.sourceData, Image_byteSize(&cmd.source), &srcBuf, &srcOff))
+            return false;
+
+        [enc setFragmentBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:2];
+        id<MTLTexture> dummy = MtlGfx_dummyTex(ctx);
+        if (dummy != nil) {
+            [enc setFragmentTexture:dummy atIndex:0];
+            [enc setFragmentTexture:dummy atIndex:1];
+        }
+        return true;
+    }
+
+    if (Image_isBacking(&cmd.source)) {
+        id<MTLTexture> p0 = nil;
+        id<MTLTexture> p1 = nil;
+        PixelFormat bFmt = PIXEL_FORMAT_RGBA8_UNORM;
+        if (!mtlResolveBacking(ctx, cmd.sourceBackingSlot, &p0, &p1, &bFmt))
+            return false;
+
+        id<MTLBuffer> dummyB = MtlGfx_dummyBuf(ctx);
+        if (dummyB != nil)
+            [enc setFragmentBuffer:dummyB offset:0u atIndex:2];
+
+        [enc setFragmentTexture:p0 atIndex:0];
+        [enc setFragmentTexture:(p1 != nil ? p1 : MtlGfx_dummyTex(ctx)) atIndex:1];
+        return true;
+    }
+    return false;
+}
+
+static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const ImagePool *pool,
                              id<MTLCommandBuffer> cmdBuf,
                              const GraphicsCommand *cmds, u32 count,
-                             u32 startIdx, u32 *outEndIdx) {
-    GraphicsImage dst = cmds[startIdx].target;
-    if (!GraphicsImage_isValid(&dst))
+                             u32 startIdx, u32 *outEndIdx)
+{
+    GraphicsCommand first = cmds[startIdx];
+    Image dst = first.target;
+    if (!Image_isGraphics(&dst) || !Image_isValid(&dst) || first.targetData == 0u)
         return false;
 
     u32 runEnd = startIdx + 1u;
     while (runEnd < count && cmds[runEnd].kind == GRAPHICS_CMD_DRAW &&
-           mtlSameTarget(dst, cmds[runEnd].target)) {
+           mtlSameTarget(first, cmds[runEnd])) {
         runEnd++;
     }
 
     id<MTLBuffer> dstBuf = nil;
     bytes dstOff = 0u;
-    if (!mtlResolveBuffer(pool, dst.data, GraphicsImage_byteSize(&dst), &dstBuf, &dstOff))
+    if (!mtlResolveBuffer(ctx, pool, first.targetData, Image_byteSize(&dst), &dstBuf, &dstOff))
         return false;
 
     id<MTLTexture> tex = mtlEnsureRenderTexture(ctx, dst.width, dst.height);
@@ -609,11 +1353,12 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
 
     MTLSize texSize = MTLSizeMake((NSUInteger) dst.width, (NSUInteger) dst.height, 1u);
     MTLOrigin zeroOrigin = MTLOriginMake(0u, 0u, 0u);
-    NSUInteger imgBytes = (NSUInteger) GraphicsImage_byteSize(&dst);
+    NSUInteger imgBytes = (NSUInteger) Image_byteSize(&dst);
 
     id<MTLBlitCommandEncoder> blitIn = [cmdBuf blitCommandEncoder];
     if (blitIn == nil)
         return false;
+
     [blitIn copyFromBuffer:dstBuf
               sourceOffset:(NSUInteger) dstOff
          sourceBytesPerRow:(NSUInteger) dst.strideBytes
@@ -633,10 +1378,22 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
     id<MTLRenderCommandEncoder> enc = [cmdBuf renderCommandEncoderWithDescriptor:pass];
     if (enc == nil)
         return false;
-    MTLViewport vp = { 0.0, 0.0, (d64) dst.width, (d64) dst.height, 0.0, 1.0 };
+
+    MTLViewport vp;
+    vp.originX = 0.0;
+    vp.originY = 0.0;
+    vp.width = (d64) dst.width;
+    vp.height = (d64) dst.height;
+    vp.znear = 0.0;
+    vp.zfar = 1.0;
     [enc setViewport:vp];
+
     GraphicsRect bounds = GraphicsRect_4(0, 0, (i32) dst.width, (i32) dst.height);
-    MTLScissorRect fullScissor = { 0u, 0u, (NSUInteger) dst.width, (NSUInteger) dst.height };
+    MTLScissorRect fullScissor;
+    fullScissor.x = 0u;
+    fullScissor.y = 0u;
+    fullScissor.width = (NSUInteger) dst.width;
+    fullScissor.height = (NSUInteger) dst.height;
     id<MTLRenderPipelineState> boundPipe = nil;
 
     for (u32 j = startIdx; j < runEnd; j++) {
@@ -652,22 +1409,14 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
         }
         id<MTLBuffer> instBuf = nil;
         bytes instOff = 0u;
-        if (!mtlResolveBuffer(pool, cmd.vertexAddr, 1u, &instBuf, &instOff)) {
+        if (!mtlResolveBuffer(ctx, pool, cmd.vertexAddr, 1u, &instBuf, &instOff)) {
             [enc endEncoding];
             return false;
         }
         id<MTLBuffer> uBuf = nil;
         bytes uOff = 0u;
         if (cmd.uniformAddr != 0u && cmd.uniformBytes > 0u) {
-            if (!mtlResolveBuffer(pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
-                [enc endEncoding];
-                return false;
-            }
-        }
-        id<MTLBuffer> srcBuf = nil;
-        bytes srcOff = 0u;
-        if (GraphicsImage_isValid(&cmd.source)) {
-            if (!mtlResolveBuffer(pool, cmd.source.data, GraphicsImage_byteSize(&cmd.source), &srcBuf, &srcOff)) {
+            if (!mtlResolveBuffer(ctx, pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
                 [enc endEncoding];
                 return false;
             }
@@ -676,12 +1425,12 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
             GraphicsRect clip = GraphicsRect_intersect(bounds, cmd.scissor);
             if (GraphicsRect_isEmpty(clip))
                 continue;
-            MTLScissorRect sr = {
-                (NSUInteger) clip.x0,
-                (NSUInteger) clip.y0,
-                (NSUInteger) GraphicsRect_width(clip),
-                (NSUInteger) GraphicsRect_height(clip),
-            };
+
+            MTLScissorRect sr;
+            sr.x = (NSUInteger) clip.x0;
+            sr.y = (NSUInteger) clip.y0;
+            sr.width = (NSUInteger) GraphicsRect_width(clip);
+            sr.height = (NSUInteger) GraphicsRect_height(clip);
             [enc setScissorRect:sr];
         } else {
             [enc setScissorRect:fullScissor];
@@ -696,8 +1445,10 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
             [enc setVertexBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
             [enc setFragmentBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
         }
-        if (srcBuf != nil)
-            [enc setFragmentBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:2];
+        if (!mtlBindDrawSource(ctx, pool, enc, cmd)) {
+            [enc endEncoding];
+            return false;
+        }
         [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip
                 vertexStart:0u
                 vertexCount:4u
@@ -708,6 +1459,7 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
     id<MTLBlitCommandEncoder> blitOut = [cmdBuf blitCommandEncoder];
     if (blitOut == nil)
         return false;
+
     [blitOut copyFromTexture:tex
                  sourceSlice:0u
                  sourceLevel:0u
@@ -722,22 +1474,16 @@ static bool mtlEncodeDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
     return true;
 }
 
-/**
- * Encodes and submits all recorded GraphicsCommand entries on the Metal GPU
- * queue, waiting with a bounded 100 ms fence timeout.
- * @param context MtlGraphicsContext handle
- * @param pool    backing VideoPool
- * @param cmds    recorded command list
- * @param count   number of commands to execute
- * @return true on GPU completion, false on timeout, device-lost, or error
- */
-static bool mtlSubmitCommands(any context, const VideoPool *pool,
-                              const GraphicsCommand *cmds, u32 count) {
+static bool mtlSubmitCommands(any context, const ImagePool *pool,
+                              const GraphicsCommand *cmds, u32 count)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr || pool == nullptr)
         return false;
+
     if (!MtlGuard_check("mtlSubmitCommands", MtlGfx_device(ctx), MtlGfx_queue(ctx), MtlGfx_deviceLostPtr(ctx)))
         return false;
+
     if (count == 0u)
         return true;
 
@@ -780,17 +1526,20 @@ static bool mtlSubmitCommands(any context, const VideoPool *pool,
         id<MTLTexture> rtex = MtlGfx_renderTex(ctx);
         if (rtex != nil)
             (discard) [rtex setPurgeableState:MTLPurgeableStateVolatile];
+
         return done;
     }
 }
 
-static d64 mtlSrgbByteToLinear(u8 v) {
+static d64 mtlSrgbByteToLinear(u8 v)
+{
     f32 c = (f32) v / 255.0f;
     f32 lin = c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
     return (d64) lin;
 }
 
-static MTLClearColor mtlClearColorFromRGBA(u32 rgba) {
+static MTLClearColor mtlClearColorFromRGBA(u32 rgba)
+{
     return MTLClearColorMake(
         mtlSrgbByteToLinear(ColorRGBA_red(rgba)),
         mtlSrgbByteToLinear(ColorRGBA_green(rgba)),
@@ -801,12 +1550,15 @@ static MTLClearColor mtlClearColorFromRGBA(u32 rgba) {
 static CAMetalLayer *mtlResolveSurfaceLayer(id<MTLDevice> dev, any nativeSurface,
                                             u32 viewportW, u32 viewportH,
                                             u32 surfaceW, u32 surfaceH,
-                                            bool forceSync, bool *outUseSync) {
+                                            bool forceSync, bool *outUseSync)
+{
     if (outUseSync != nullptr)
         *outUseSync = false;
+
     id obj = (id) nativeSurface;
     if (obj == nil)
         return nil;
+
     u32 drawW = surfaceW >= viewportW ? surfaceW : viewportW;
     u32 drawH = surfaceH >= viewportH ? surfaceH : viewportH;
     CAMetalLayer *layer = nil;
@@ -819,6 +1571,7 @@ static CAMetalLayer *mtlResolveSurfaceLayer(id<MTLDevice> dev, any nativeSurface
         CALayer *host = [view layer];
         if (host == nil)
             return nil;
+
         if ([host isKindOfClass:[CAMetalLayer class]]) {
             layer = (CAMetalLayer*) host;
         } else {
@@ -859,23 +1612,30 @@ static CAMetalLayer *mtlResolveSurfaceLayer(id<MTLDevice> dev, any nativeSurface
     bool useSync = liveResize || forceSync;
     if (layer.device != dev)
         layer.device = dev;
+
     if (layer.pixelFormat != MTLPixelFormatBGRA8Unorm)
         layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+
     if (layer.framebufferOnly)
         layer.framebufferOnly = NO;
-    if (layer.maximumDrawableCount != 3)
-        layer.maximumDrawableCount = 3;
+
+    if (layer.maximumDrawableCount != MTL_SWAP_COUNT)
+        layer.maximumDrawableCount = MTL_SWAP_COUNT;
+
     layer.presentsWithTransaction = useSync ? YES : NO;
     CGSize curSize = layer.drawableSize;
     if (curSize.width != (CGFloat) drawW || curSize.height != (CGFloat) drawH)
         layer.drawableSize = CGSizeMake((CGFloat) drawW, (CGFloat) drawH);
+
     if (outUseSync != nullptr)
         *outUseSync = useSync;
+
     return layer;
 }
 
 static bool mtlFlushSurfaceClear(id<MTLCommandBuffer> cmdBuf,
-                                 id<MTLTexture> srgbView, u32 clearRGBA) {
+                                 id<MTLTexture> srgbView, u32 clearRGBA)
+{
     MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
     pass.colorAttachments[0].texture = srgbView;
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -884,18 +1644,19 @@ static bool mtlFlushSurfaceClear(id<MTLCommandBuffer> cmdBuf,
     id<MTLRenderCommandEncoder> enc = [cmdBuf renderCommandEncoderWithDescriptor:pass];
     if (enc == nil)
         return false;
+
     [enc endEncoding];
     return true;
 }
 
-static bool mtlEncodeSurfaceCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
+static bool mtlEncodeSurfaceCopy(MtlGraphicsContext *ctx, const ImagePool *pool,
                                  id<MTLCommandBuffer> cmdBuf, id<MTLTexture> rawTex,
-                                 u32 viewportW, u32 viewportH, GraphicsCommand cmd) {
-    GraphicsImage src = cmd.source;
-    if (!GraphicsImage_isValid(&src))
+                                 u32 viewportW, u32 viewportH, GraphicsCommand cmd)
+{
+    Image src = cmd.source;
+    if (!Image_isValid(&src))
         return false;
-    if (PixelFormat_bytesPerPixel(src.format) != 4u)
-        return false;
+
     GraphicsRect dstBounds = GraphicsRect_4(0, 0, (i32) viewportW, (i32) viewportH);
     GraphicsRect placed = GraphicsRect_4(cmd.dstX, cmd.dstY,
                                          cmd.dstX + (i32) src.width,
@@ -903,28 +1664,73 @@ static bool mtlEncodeSurfaceCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
     GraphicsRect clip = GraphicsRect_intersect(dstBounds, placed);
     if (!GraphicsRect_isEmpty(cmd.scissor))
         clip = GraphicsRect_intersect(clip, cmd.scissor);
+
     if (GraphicsRect_isEmpty(clip))
         return true;
 
-    id<MTLBuffer> srcBuf = nil;
-    bytes srcOff = 0u;
-    if (!mtlResolveBuffer(pool, src.data, GraphicsImage_byteSize(&src), &srcBuf, &srcOff))
+    if (Image_isBacking(&src)) {
+        id<MTLTexture> p0 = nil;
+        id<MTLTexture> p1 = nil;
+        PixelFormat bFmt = PIXEL_FORMAT_RGBA8_UNORM;
+        if (!mtlResolveBacking(ctx, cmd.sourceBackingSlot, &p0, &p1, &bFmt))
+            return false;
+
+        MtlPresentUniform pu;
+        memset(&pu, 0, sizeof(MtlPresentUniform));
+        pu.srcWidth = src.width;
+        pu.srcHeight = src.height;
+        pu.srcStrideBytes = src.strideBytes;
+        pu.dstWidth = viewportW;
+        pu.dstHeight = viewportH;
+
+        id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
+        if (enc == nil)
+            return false;
+
+        if (bFmt == PIXEL_FORMAT_NV12 && p1 != nil) {
+            id<MTLComputePipelineState> pipe = MtlGfx_presentBackingNv12Pipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setTexture:p0 atIndex:0];
+            [enc setTexture:p1 atIndex:1];
+            [enc setTexture:rawTex atIndex:2];
+            [enc setBytes:&pu length:sizeof pu atIndex:0];
+            mtlDispatch2D(enc, pipe, pu.dstWidth, pu.dstHeight);
+        } else {
+            id<MTLComputePipelineState> pipe = MtlGfx_presentBackingRgbaPipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setTexture:p0 atIndex:0];
+            [enc setTexture:rawTex atIndex:1];
+            [enc setBytes:&pu length:sizeof pu atIndex:0];
+            mtlDispatch2D(enc, pipe, pu.dstWidth, pu.dstHeight);
+        }
+        [enc endEncoding];
+        return true;
+    }
+
+    if (PixelFormat_bytesPerPixel(src.format) != 4u)
         return false;
 
-    MtlCopyUniform u = {
-        .dstStrideBytes = 0u,
-        .srcStrideBytes = src.strideBytes,
-        .bpp = 4u,
-        .dstX0 = clip.x0,
-        .dstY0 = clip.y0,
-        .srcX0 = clip.x0 - cmd.dstX,
-        .srcY0 = clip.y0 - cmd.dstY,
-        .copyW = GraphicsRect_width(clip),
-        .copyH = GraphicsRect_height(clip),
-    };
+    id<MTLBuffer> srcBuf = nil;
+    bytes srcOff = 0u;
+    if (!mtlResolveBuffer(ctx, pool, cmd.sourceData, Image_byteSize(&src), &srcBuf, &srcOff))
+        return false;
+
+    MtlCopyUniform u;
+    memset(&u, 0, sizeof(MtlCopyUniform));
+    u.dstStrideBytes = 0u;
+    u.srcStrideBytes = src.strideBytes;
+    u.bpp = 4u;
+    u.dstX0 = clip.x0;
+    u.dstY0 = clip.y0;
+    u.srcX0 = clip.x0 - cmd.dstX;
+    u.srcY0 = clip.y0 - cmd.dstY;
+    u.copyW = GraphicsRect_width(clip);
+    u.copyH = GraphicsRect_height(clip);
+
     id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
     if (enc == nil)
         return false;
+
     id<MTLComputePipelineState> pipe = MtlGfx_copyToTexPipe(ctx);
     [enc setComputePipelineState:pipe];
     [enc setBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:0];
@@ -935,12 +1741,13 @@ static bool mtlEncodeSurfaceCopy(MtlGraphicsContext *ctx, const VideoPool *pool,
     return true;
 }
 
-static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *pool,
+static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const ImagePool *pool,
                                     id<MTLCommandBuffer> cmdBuf, id<MTLTexture> srgbView,
                                     u32 viewportW, u32 viewportH,
                                     bool hasClear, u32 clearRGBA,
                                     const GraphicsCommand *cmds, u32 count,
-                                    u32 startIdx, u32 *outEndIdx) {
+                                    u32 startIdx, u32 *outEndIdx)
+{
     u32 runEnd = startIdx + 1u;
     while (runEnd < count && cmds[runEnd].kind == GRAPHICS_CMD_DRAW)
         runEnd++;
@@ -955,10 +1762,22 @@ static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *po
     id<MTLRenderCommandEncoder> enc = [cmdBuf renderCommandEncoderWithDescriptor:pass];
     if (enc == nil)
         return false;
-    MTLViewport vp = { 0.0, 0.0, (d64) viewportW, (d64) viewportH, 0.0, 1.0 };
+
+    MTLViewport vp;
+    vp.originX = 0.0;
+    vp.originY = 0.0;
+    vp.width = (d64) viewportW;
+    vp.height = (d64) viewportH;
+    vp.znear = 0.0;
+    vp.zfar = 1.0;
     [enc setViewport:vp];
+
     GraphicsRect bounds = GraphicsRect_4(0, 0, (i32) viewportW, (i32) viewportH);
-    MTLScissorRect fullScissor = { 0u, 0u, (NSUInteger) viewportW, (NSUInteger) viewportH };
+    MTLScissorRect fullScissor;
+    fullScissor.x = 0u;
+    fullScissor.y = 0u;
+    fullScissor.width = (NSUInteger) viewportW;
+    fullScissor.height = (NSUInteger) viewportH;
     id<MTLRenderPipelineState> boundPipe = nil;
 
     for (u32 j = startIdx; j < runEnd; j++) {
@@ -974,22 +1793,14 @@ static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *po
         }
         id<MTLBuffer> instBuf = nil;
         bytes instOff = 0u;
-        if (!mtlResolveBuffer(pool, cmd.vertexAddr, 1u, &instBuf, &instOff)) {
+        if (!mtlResolveBuffer(ctx, pool, cmd.vertexAddr, 1u, &instBuf, &instOff)) {
             [enc endEncoding];
             return false;
         }
         id<MTLBuffer> uBuf = nil;
         bytes uOff = 0u;
         if (cmd.uniformAddr != 0u && cmd.uniformBytes > 0u) {
-            if (!mtlResolveBuffer(pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
-                [enc endEncoding];
-                return false;
-            }
-        }
-        id<MTLBuffer> srcBuf = nil;
-        bytes srcOff = 0u;
-        if (GraphicsImage_isValid(&cmd.source)) {
-            if (!mtlResolveBuffer(pool, cmd.source.data, GraphicsImage_byteSize(&cmd.source), &srcBuf, &srcOff)) {
+            if (!mtlResolveBuffer(ctx, pool, cmd.uniformAddr, cmd.uniformBytes, &uBuf, &uOff)) {
                 [enc endEncoding];
                 return false;
             }
@@ -998,12 +1809,12 @@ static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *po
             GraphicsRect clip = GraphicsRect_intersect(bounds, cmd.scissor);
             if (GraphicsRect_isEmpty(clip))
                 continue;
-            MTLScissorRect sr = {
-                (NSUInteger) clip.x0,
-                (NSUInteger) clip.y0,
-                (NSUInteger) GraphicsRect_width(clip),
-                (NSUInteger) GraphicsRect_height(clip),
-            };
+
+            MTLScissorRect sr;
+            sr.x = (NSUInteger) clip.x0;
+            sr.y = (NSUInteger) clip.y0;
+            sr.width = (NSUInteger) GraphicsRect_width(clip);
+            sr.height = (NSUInteger) GraphicsRect_height(clip);
             [enc setScissorRect:sr];
         } else {
             [enc setScissorRect:fullScissor];
@@ -1018,8 +1829,10 @@ static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *po
             [enc setVertexBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
             [enc setFragmentBuffer:uBuf offset:(NSUInteger) uOff atIndex:1];
         }
-        if (srcBuf != nil)
-            [enc setFragmentBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:2];
+        if (!mtlBindDrawSource(ctx, pool, enc, cmd)) {
+            [enc endEncoding];
+            return false;
+        }
         [enc drawPrimitives:MTLPrimitiveTypeTriangleStrip
                 vertexStart:0u
                 vertexCount:4u
@@ -1030,9 +1843,11 @@ static bool mtlEncodeSurfaceDrawRun(MtlGraphicsContext *ctx, const VideoPool *po
     return true;
 }
 
-static fn mtlReleaseSwapchain(MtlGraphicsContext *ctx) {
+static fn mtlReleaseSwapchain(MtlGraphicsContext *ctx)
+{
     if (ctx == nullptr)
         return;
+
     for (u32 i = 0u; i < MTL_SWAP_COUNT; i++) {
         id<MTLTexture> sv = MtlGfx_swapSrgbAt(ctx, i);
         if (sv != nil) {
@@ -1054,7 +1869,8 @@ static fn mtlReleaseSwapchain(MtlGraphicsContext *ctx) {
     MtlGfx_setSwapIndex(ctx, 0u);
 }
 
-static bool mtlEnsureSwapchain(MtlGraphicsContext *ctx, u32 width, u32 height) {
+static bool mtlEnsureSwapchain(MtlGraphicsContext *ctx, u32 width, u32 height)
+{
     if (ctx == nullptr || width == 0u || height == 0u)
         return false;
 
@@ -1224,29 +2040,14 @@ static fn mtlCommitPresentLayer(CALayer *layer, IOSurfaceRef surf,
         [CATransaction flush];
 }
 
-/**
- * Renders all recorded commands directly on the Metal GPU into a custom
- * 3-IOSurface screen-sized swapchain and swaps CALayer.contents atomically
- * with layer geometry inside a CATransaction (flushing synchronously during
- * live resize and committing asynchronously at rest).
- * @param context       MtlGraphicsContext handle
- * @param pool          backing VideoPool for primitive and atlas buffers
- * @param nativeSurface NSView or CALayer target
- * @param viewportW     active window viewport width in pixels
- * @param viewportH     active window viewport height in pixels
- * @param surfaceW      fixed backing IOSurface width in pixels
- * @param surfaceH      fixed backing IOSurface height in pixels
- * @param cmds          recorded command list
- * @param count         number of commands to execute
- * @return true on success, false on IOSurface, shader, or GPU failure
- */
 static fn mtlSetSurfacePurgeable(any context, bool purgeable);
 
-static bool mtlSubmitToSurface(any context, const VideoPool *pool,
+static bool mtlSubmitToSurface(any context, const ImagePool *pool,
                                any nativeSurface,
                                u32 viewportW, u32 viewportH,
                                u32 surfaceW, u32 surfaceH,
-                               const GraphicsCommand *cmds, u32 count) {
+                               const GraphicsCommand *cmds, u32 count)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr || pool == nullptr || nativeSurface == nullptr)
         return false;
@@ -1345,7 +2146,8 @@ static bool mtlSubmitToSurface(any context, const VideoPool *pool,
     }
 }
 
-static bool mtlSurfacePrefersMetalLayer(any nativeSurface) {
+static bool mtlSurfacePrefersMetalLayer(any nativeSurface)
+{
     id obj = (id) nativeSurface;
     if (obj == nil)
         return false;
@@ -1363,22 +2165,76 @@ static bool mtlSurfacePrefersMetalLayer(any nativeSurface) {
     return false;
 }
 
-;;INTENTION("NSView targets share the single 2-IOSurface CALayer swapchain with mtlSubmitToSurface so switching between direct and offscreen-filtered frames never leaves a stale CAMetalLayer occluding the window")
-/**
- * Presents a VideoPool RGBA8 GraphicsImage onto the shared 2-IOSurface CALayer
- * swapchain (for NSView/CALayer surfaces) or a CAMetalLayer drawable on the
- * GPU via the graphvex_present_rgba8 compute kernel (handling RGBA to BGRA
- * conversion on GPU with zero CPU pixel copies).
- * @param context       MtlGraphicsContext handle
- * @param pool          backing VideoPool
- * @param nativeSurface NSView, CALayer, or CAMetalLayer target (nullptr is a no-op)
- * @param image         rendered RGBA8 GraphicsImage to display
- * @return true on success, false if swapchain/drawable acquisition or dispatch fails
- */
-static bool mtlPresentImage(any context, const VideoPool *pool,
-                            any nativeSurface, const GraphicsImage *image) {
+static bool mtlEncodePresentSource(MtlGraphicsContext *ctx, const ImagePool *pool,
+                                   id<MTLCommandBuffer> cmdBuf, id<MTLTexture> dstTex,
+                                   u32 dstW, u32 dstH, const Image *image)
+{
+    MtlPresentUniform u;
+    memset(&u, 0, sizeof(MtlPresentUniform));
+    u.srcWidth = Image_width(image);
+    u.srcHeight = Image_height(image);
+    u.srcStrideBytes = Image_strideBytes(image);
+    u.dstWidth = dstW;
+    u.dstHeight = dstH;
+
+    if (Image_isBacking(image)) {
+        const GraphicsBackingImage *bi = Image_asBackingConst(image);
+        id<MTLTexture> p0 = nil;
+        id<MTLTexture> p1 = nil;
+        PixelFormat bFmt = PIXEL_FORMAT_RGBA8_UNORM;
+        if (!mtlResolveBacking(ctx, GraphicsBackingImage_backingSlot(bi), &p0, &p1, &bFmt))
+            return false;
+
+        id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
+        if (enc == nil)
+            return false;
+
+        if (bFmt == PIXEL_FORMAT_NV12 && p1 != nil) {
+            id<MTLComputePipelineState> pipe = MtlGfx_presentBackingNv12Pipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setTexture:p0 atIndex:0];
+            [enc setTexture:p1 atIndex:1];
+            [enc setTexture:dstTex atIndex:2];
+            [enc setBytes:&u length:sizeof u atIndex:0];
+            mtlDispatch2D(enc, pipe, u.dstWidth, u.dstHeight);
+        } else {
+            id<MTLComputePipelineState> pipe = MtlGfx_presentBackingRgbaPipe(ctx);
+            [enc setComputePipelineState:pipe];
+            [enc setTexture:p0 atIndex:0];
+            [enc setTexture:dstTex atIndex:1];
+            [enc setBytes:&u length:sizeof u atIndex:0];
+            mtlDispatch2D(enc, pipe, u.dstWidth, u.dstHeight);
+        }
+        [enc endEncoding];
+        return true;
+    }
+
+    const GraphicsImage *gi = Image_asGraphicsConst(image);
+    id<MTLBuffer> srcBuf = nil;
+    bytes srcOff = 0u;
+    if (!mtlResolveBuffer(ctx, pool, GraphicsImage_data(gi), Image_byteSize(image), &srcBuf, &srcOff))
+        return false;
+
+    id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
+    if (enc == nil)
+        return false;
+
+    id<MTLComputePipelineState> pipe = MtlGfx_presentPipe(ctx);
+    [enc setComputePipelineState:pipe];
+    [enc setBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:0];
+    [enc setTexture:dstTex atIndex:0];
+    [enc setBytes:&u length:sizeof u atIndex:1];
+    mtlDispatch2D(enc, pipe, u.dstWidth, u.dstHeight);
+    [enc endEncoding];
+    return true;
+}
+
+;;INTENTION("NSView targets share the double-buffered 2-IOSurface CALayer backing with mtlSubmitToSurface so switching between direct and offscreen-filtered frames never leaves a stale CAMetalLayer occluding the window")
+static bool mtlPresentImage(any context, const ImagePool *pool,
+                            any nativeSurface, const Image *image)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
-    if (ctx == nullptr || pool == nullptr || !GraphicsImage_isValid(image))
+    if (ctx == nullptr || pool == nullptr || !Image_isValid(image))
         return false;
 
     if (!MtlGuard_check("mtlPresentImage", MtlGfx_device(ctx), MtlGfx_queue(ctx), MtlGfx_deviceLostPtr(ctx)))
@@ -1388,12 +2244,8 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
         return true;
 
     @autoreleasepool {
-        u32 imgW = GraphicsImage_width(image);
-        u32 imgH = GraphicsImage_height(image);
-        id<MTLBuffer> srcBuf = nil;
-        bytes srcOff = 0u;
-        if (!mtlResolveBuffer(pool, GraphicsImage_data(image), GraphicsImage_byteSize(image), &srcBuf, &srcOff))
-            return false;
+        u32 imgW = Image_width(image);
+        u32 imgH = Image_height(image);
 
         if (!mtlSurfacePrefersMetalLayer(nativeSurface)) {
             mtlDrainPendingPresent(ctx);
@@ -1424,29 +2276,12 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
             if (surf == nullptr || rawTex == nil)
                 return false;
 
-            MtlPresentUniform u;
-            memset(&u, 0, sizeof(MtlPresentUniform));
-            u.srcWidth = imgW;
-            u.srcHeight = imgH;
-            u.srcStrideBytes = GraphicsImage_strideBytes(image);
-            u.dstWidth = drawW;
-            u.dstHeight = drawH;
-
             id<MTLCommandBuffer> cmdBuf = [MtlGfx_queue(ctx) commandBuffer];
             if (cmdBuf == nil)
                 return false;
 
-            id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
-            if (enc == nil)
+            if (!mtlEncodePresentSource(ctx, pool, cmdBuf, rawTex, drawW, drawH, image))
                 return false;
-
-            id<MTLComputePipelineState> pipe = MtlGfx_presentPipe(ctx);
-            [enc setComputePipelineState:pipe];
-            [enc setBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:0];
-            [enc setTexture:rawTex atIndex:0];
-            [enc setBytes:&u length:sizeof u atIndex:1];
-            mtlDispatch2D(enc, pipe, u.dstWidth, u.dstHeight);
-            [enc endEncoding];
 
             if (!mtlWaitBounded(ctx, cmdBuf))
                 return false;
@@ -1469,33 +2304,17 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
             return false;
 
         id<MTLTexture> tex = drawable.texture;
-        MtlPresentUniform u;
-        memset(&u, 0, sizeof(MtlPresentUniform));
-        u.srcWidth = imgW;
-        u.srcHeight = imgH;
-        u.srcStrideBytes = GraphicsImage_strideBytes(image);
-        u.dstWidth = (u32) tex.width;
-        u.dstHeight = (u32) tex.height;
-
         id<MTLCommandBuffer> cmdBuf = [MtlGfx_queue(ctx) commandBuffer];
         if (cmdBuf == nil)
             return false;
 
-        id<MTLComputeCommandEncoder> enc = [cmdBuf computeCommandEncoder];
-        if (enc == nil)
+        if (!mtlEncodePresentSource(ctx, pool, cmdBuf, tex, (u32) tex.width, (u32) tex.height, image))
             return false;
-
-        id<MTLComputePipelineState> pipe = MtlGfx_presentPipe(ctx);
-        [enc setComputePipelineState:pipe];
-        [enc setBuffer:srcBuf offset:(NSUInteger) srcOff atIndex:0];
-        [enc setTexture:tex atIndex:0];
-        [enc setBytes:&u length:sizeof u atIndex:1];
-        mtlDispatch2D(enc, pipe, u.dstWidth, u.dstHeight);
-        [enc endEncoding];
 
         if (useSync) {
             if (!mtlWaitBounded(ctx, cmdBuf))
                 return false;
+
             [drawable present];
             [CATransaction flush];
             return true;
@@ -1510,7 +2329,8 @@ static bool mtlPresentImage(any context, const VideoPool *pool,
     }
 }
 
-static fn mtlSetSyncPresent(any context, bool sync) {
+static fn mtlSetSyncPresent(any context, bool sync)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx != nullptr)
         MtlGfx_setSyncPresent(ctx, sync);
@@ -1533,20 +2353,27 @@ static fn mtlSetSurfacePurgeable(any context, bool purgeable)
 }
 
 ;;DECONSTRUCT
-static fn mtlDestroyGraphicsContext(any context) {
+static fn mtlDestroyGraphicsContext(any context)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr)
         return;
+
     SecureHandle sh = MtlGfx_selfHandle(ctx);
     mtlDrainPendingPresent(ctx);
+    for (u32 i = 0u; i < MTL_MAX_BACKING_IMAGES; i++)
+        mtlReleaseBacking(context, i + 1u);
+
     u32 nCustom = MtlGfx_customCount(ctx);
     for (u32 i = 0u; i < nCustom; i++) {
         id<MTLComputePipelineState> p = MtlGfx_customPipeAt(ctx, i);
         if (p != nil)
             [p release];
+
         id<MTLRenderPipelineState> rp = MtlGfx_renderPipeAt(ctx, i);
         if (rp != nil)
             [rp release];
+
         id<MTLRenderPipelineState> srp = MtlGfx_surfaceRenderPipeAt(ctx, i);
         if (srp != nil)
             [srp release];
@@ -1554,16 +2381,40 @@ static fn mtlDestroyGraphicsContext(any context) {
     mtlReleaseSwapchain(ctx);
     if (MtlGfx_renderTex(ctx) != nil)
         [MtlGfx_renderTex(ctx) release];
+
+    if (MtlGfx_dummyTex(ctx) != nil)
+        [MtlGfx_dummyTex(ctx) release];
+
+    if (MtlGfx_dummyBuf(ctx) != nil)
+        [MtlGfx_dummyBuf(ctx) release];
+
+    if (MtlGfx_copyBackingNv12Pipe(ctx) != nil)
+        [MtlGfx_copyBackingNv12Pipe(ctx) release];
+
+    if (MtlGfx_copyBackingRgbaPipe(ctx) != nil)
+        [MtlGfx_copyBackingRgbaPipe(ctx) release];
+
+    if (MtlGfx_presentBackingNv12Pipe(ctx) != nil)
+        [MtlGfx_presentBackingNv12Pipe(ctx) release];
+
+    if (MtlGfx_presentBackingRgbaPipe(ctx) != nil)
+        [MtlGfx_presentBackingRgbaPipe(ctx) release];
+
     if (MtlGfx_presentPipe(ctx) != nil)
         [MtlGfx_presentPipe(ctx) release];
+
     if (MtlGfx_copyToTexPipe(ctx) != nil)
         [MtlGfx_copyToTexPipe(ctx) release];
+
     if (MtlGfx_copyPipe(ctx) != nil)
         [MtlGfx_copyPipe(ctx) release];
+
     if (MtlGfx_clearPipe(ctx) != nil)
         [MtlGfx_clearPipe(ctx) release];
+
     if (MtlGfx_library(ctx) != nil)
         [MtlGfx_library(ctx) release];
+
     u32 nCached = MtlGfx_cachedLibCount(ctx);
     for (u32 i = 0u; i < nCached; i++) {
         id<MTLLibrary> clib = MtlGfx_cachedLibAt(ctx, i);
@@ -1573,16 +2424,19 @@ static fn mtlDestroyGraphicsContext(any context) {
     if (MtlGfx_ownsDevice(ctx)) {
         if (MtlGfx_queue(ctx) != nil)
             [MtlGfx_queue(ctx) release];
+
         if (MtlGfx_device(ctx) != nil)
             [MtlGfx_device(ctx) release];
     }
+    pthread_mutex_destroy(MtlGfx_backingLock(ctx));
     if (SecureHandle_isValid(sh))
         (discard) SecureMemoryArena_free(Graphvex_secureArena(), sh);
 }
 
 static id<MTLComputePipelineState> mtlBuildPipeline(id<MTLDevice> dev,
                                                     id<MTLLibrary> lib,
-                                                    string fnName) {
+                                                    string fnName)
+{
     NSString *name = [NSString stringWithUTF8String:fnName];
     id<MTLFunction> func = [lib newFunctionWithName:name];
     if (func == nil) {
@@ -1602,7 +2456,8 @@ static id<MTLComputePipelineState> mtlBuildPipeline(id<MTLDevice> dev,
 static id<MTLRenderPipelineState> mtlBuildRenderPipeline(id<MTLDevice> dev,
                                                          id<MTLLibrary> lib,
                                                          string entryPair,
-                                                         MTLPixelFormat pixelFormat) {
+                                                         MTLPixelFormat pixelFormat)
+{
     string colon = nullptr;
     for (string p = entryPair; *p != '\0'; p++) {
         if (*p == ':') {
@@ -1624,8 +2479,10 @@ static id<MTLRenderPipelineState> mtlBuildRenderPipeline(id<MTLDevice> dev,
         fprint(stderr, "mtlBuildRenderPipeline: missing function in ", entryPair);
         if (vertFn != nil)
             [vertFn release];
+
         if (fragFn != nil)
             [fragFn release];
+
         return nil;
     }
 
@@ -1706,26 +2563,16 @@ static id<MTLLibrary> mtlAcquireLibrary(MtlGraphicsContext *ctx, string path, bo
     return lib;
 }
 
-/**
- * Reads an MSL shader file from disk (with per-context MTLLibrary caching),
- * compiles it into a Metal compute or render pipeline state, and stores it in
- * MtlGraphicsContext.
- * Cold path: callers cache the returned shader ID per Graphics context so
- * disk I/O and MSL compilation happen once rather than per frame.
- * @param context   MtlGraphicsContext handle
- * @param path      relative path to the .metal source file
- * @param entryName compute kernel name, or "vert:frag" pair for render stage 0
- * @param stage     0 for hardware render pipeline, non-zero for compute kernel
- * @return 1-based shader ID on success, or 0 on load, compile, or capacity failure
- */
-static u32 mtlRegisterShader(any context, string path, string entryName,
-                             u32 stage) {
+static u32 mtlRegisterShader(any context, string path, string entryName, u32 stage)
+{
     MtlGraphicsContext *ctx = (MtlGraphicsContext*) context;
     if (ctx == nullptr || path == nullptr || entryName == nullptr)
         return 0u;
+
     u32 count = MtlGfx_customCount(ctx);
     if (count >= MTL_MAX_CUSTOM_SHADERS)
         return 0u;
+
     bool ownedLib = false;
     id<MTLLibrary> lib = mtlAcquireLibrary(ctx, path, &ownedLib);
     if (lib == nil)
@@ -1738,11 +2585,14 @@ static u32 mtlRegisterShader(any context, string path, string entryName,
             MtlGfx_device(ctx), lib, entryName, MTLPixelFormatBGRA8Unorm_sRGB);
         if (ownedLib)
             [lib release];
+
         if (rpipe == nil || spipe == nil) {
             if (rpipe != nil)
                 [rpipe release];
+
             if (spipe != nil)
                 [spipe release];
+
             return 0u;
         }
         MtlGfx_setRenderPipeAt(ctx, count, rpipe);
@@ -1754,25 +2604,30 @@ static u32 mtlRegisterShader(any context, string path, string entryName,
     id<MTLComputePipelineState> pipe = mtlBuildPipeline(MtlGfx_device(ctx), lib, entryName);
     if (ownedLib)
         [lib release];
+
     if (pipe == nil)
         return 0u;
+
     MtlGfx_setCustomPipeAt(ctx, count, pipe);
     MtlGfx_setCustomCount(ctx, count + 1u);
     return count + 1u;
 }
 
-static bool mtlIsMetalName(string s) {
+static bool mtlIsMetalName(string s)
+{
     if (s == nullptr)
         return false;
+
     return s[0] == 'm' && s[1] == 'e' && s[2] == 't' && s[3] == 'a' && s[4] == 'l' && s[5] == '\0';
 }
 
-static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
+static MtlGraphicsContext *MtlGraphicsContext_init(ImagePool *pool)
+{
     id<MTLDevice> dev = nil;
     id<MTLCommandQueue> queue = nil;
     bool ownsDevice = false;
 
-    VideoPoolDriver poolDriver = VideoPool_driver(pool);
+    ImagePoolDriver poolDriver = ImagePool_driver(pool);
     if (mtlIsMetalName(poolDriver.name) && poolDriver.context != nullptr) {
         MtlPoolContext *pctx = (MtlPoolContext*) poolDriver.context;
         dev = MtlPoolContext_device(pctx);
@@ -1781,6 +2636,7 @@ static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
         dev = MTLCreateSystemDefaultDevice();
         if (dev == nil)
             return nullptr;
+
         queue = [dev newCommandQueue];
         if (queue == nil) {
             [dev release];
@@ -1803,7 +2659,39 @@ static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
     id<MTLComputePipelineState> copyPipe = mtlBuildPipeline(dev, lib, "graphvex_copy_bytes");
     id<MTLComputePipelineState> copyToTexPipe = mtlBuildPipeline(dev, lib, "graphvex_copy_to_tex_rgba8");
     id<MTLComputePipelineState> presentPipe = mtlBuildPipeline(dev, lib, "graphvex_present_rgba8");
-    if (clearPipe == nil || copyPipe == nil || copyToTexPipe == nil || presentPipe == nil) {
+    id<MTLComputePipelineState> presentBackingRgbaPipe = mtlBuildPipeline(dev, lib, "graphvex_present_backing_rgba");
+    id<MTLComputePipelineState> presentBackingNv12Pipe = mtlBuildPipeline(dev, lib, "graphvex_present_backing_nv12");
+    id<MTLComputePipelineState> copyBackingRgbaPipe = mtlBuildPipeline(dev, lib, "graphvex_copy_backing_rgba");
+    id<MTLComputePipelineState> copyBackingNv12Pipe = mtlBuildPipeline(dev, lib, "graphvex_copy_backing_nv12");
+
+    MTLTextureDescriptor *dummyDesc = [MTLTextureDescriptor
+        texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                     width:1u
+                                    height:1u
+                                 mipmapped:NO];
+    dummyDesc.storageMode = MTLStorageModeShared;
+    dummyDesc.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> dummyTex = [dev newTextureWithDescriptor:dummyDesc];
+    u8 zeroPx[16];
+    memset(zeroPx, 0, sizeof(zeroPx));
+    id<MTLBuffer> dummyBuf = [dev newBufferWithBytes:zeroPx length:sizeof(zeroPx) options:MTLResourceStorageModeShared];
+
+    if (clearPipe == nil || copyPipe == nil || copyToTexPipe == nil || presentPipe == nil ||
+        presentBackingRgbaPipe == nil || presentBackingNv12Pipe == nil ||
+        copyBackingRgbaPipe == nil || copyBackingNv12Pipe == nil ||
+        dummyTex == nil || dummyBuf == nil) {
+        if (dummyBuf != nil)
+            [dummyBuf release];
+        if (dummyTex != nil)
+            [dummyTex release];
+        if (copyBackingNv12Pipe != nil)
+            [copyBackingNv12Pipe release];
+        if (copyBackingRgbaPipe != nil)
+            [copyBackingRgbaPipe release];
+        if (presentBackingNv12Pipe != nil)
+            [presentBackingNv12Pipe release];
+        if (presentBackingRgbaPipe != nil)
+            [presentBackingRgbaPipe release];
         if (presentPipe != nil)
             [presentPipe release];
         if (copyToTexPipe != nil)
@@ -1829,6 +2717,13 @@ static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
     if (ctx == nullptr) {
         if (SecureHandle_isValid(sh))
             (discard) SecureMemoryArena_free(sa, sh);
+
+        [dummyBuf release];
+        [dummyTex release];
+        [copyBackingNv12Pipe release];
+        [copyBackingRgbaPipe release];
+        [presentBackingNv12Pipe release];
+        [presentBackingRgbaPipe release];
         [presentPipe release];
         [copyToTexPipe release];
         [copyPipe release];
@@ -1849,36 +2744,49 @@ static MtlGraphicsContext *MtlGraphicsContext_init(VideoPool *pool) {
     MtlGfx_setCopyPipe(ctx, copyPipe);
     MtlGfx_setCopyToTexPipe(ctx, copyToTexPipe);
     MtlGfx_setPresentPipe(ctx, presentPipe);
+    MtlGfx_setPresentBackingRgbaPipe(ctx, presentBackingRgbaPipe);
+    MtlGfx_setPresentBackingNv12Pipe(ctx, presentBackingNv12Pipe);
+    MtlGfx_setCopyBackingRgbaPipe(ctx, copyBackingRgbaPipe);
+    MtlGfx_setCopyBackingNv12Pipe(ctx, copyBackingNv12Pipe);
+    MtlGfx_setDummyTex(ctx, dummyTex);
+    MtlGfx_setDummyBuf(ctx, dummyBuf);
     MtlGfx_setOwnsDevice(ctx, ownsDevice);
+    pthread_mutex_init(MtlGfx_backingLock(ctx), nullptr);
     return ctx;
 }
 
 ;;CONSTRUCTOR
-/**
- * Creates a Metal-backed Graphics context bound to the given VideoPool.
- * @param pool backing Metal VideoPool
- * @return newly allocated Graphics context, or nullptr on failure
- */
-Graphics *Graphics_metal(VideoPool *pool)
+Graphics *Graphics_metal(ImagePool *pool)
 {
     if (pool == nullptr)
         return nullptr;
+
     MtlGraphicsContext *ctx = MtlGraphicsContext_init(pool);
     if (ctx == nullptr)
         return nullptr;
-    GraphicsDriver driver = {
-        .name = "metal",
-        .context = ctx,
-        .registerShader = mtlRegisterShader,
-        .submitCommands = mtlSubmitCommands,
-        .submitToSurface = mtlSubmitToSurface,
-        .presentImage = mtlPresentImage,
-        .setSyncPresent = mtlSetSyncPresent,
-        .setSurfacePurgeable = mtlSetSurfacePurgeable,
-        .destroyContext = mtlDestroyGraphicsContext,
-    };
+
+    GraphicsDriver driver;
+    memset(&driver, 0, sizeof(GraphicsDriver));
+    driver.name = "metal";
+    driver.context = ctx;
+    driver.registerShader = mtlRegisterShader;
+    driver.submitCommands = mtlSubmitCommands;
+    driver.submitToSurface = mtlSubmitToSurface;
+    driver.presentImage = mtlPresentImage;
+    driver.setSyncPresent = mtlSetSyncPresent;
+    driver.setSurfacePurgeable = mtlSetSurfacePurgeable;
+    driver.importBacking = mtlImportBacking;
+    driver.allocBacking = mtlAllocBacking;
+    driver.releaseBacking = mtlReleaseBacking;
+    driver.setBackingPurgeable = mtlSetBackingPurgeable;
+    driver.isBackingInUse = mtlIsBackingInUse;
+    driver.attachPool = mtlAttachPool;
+    driver.detachPool = mtlDetachPool;
+    driver.destroyContext = mtlDestroyGraphicsContext;
+
     Graphics *g = Graphics(pool, &driver);
     if (g == nullptr)
         mtlDestroyGraphicsContext(ctx);
+
     return g;
 }
