@@ -2,17 +2,18 @@
 #define GRAPHVEX_CORE_SURFACE_H
 
 /**
- * core/surface.h -- reusable screen presentation Surface extending GraphicsImage.
+ * core/surface.h -- reusable double-buffered screen presentation Surface
+ * inheriting GraphicsBackingImage at offset 0 (which inherits Image at offset 0).
  *
- * GraphicsImage is the retained raster buffer currency (BufferedImage).
- * Surface extends GraphicsImage at offset 0 strictly for presenting to a
- * screen: it reuses fixed OS backing buffers (IOSurface on Apple Metal, outside
- * VideoPool), clears and repaints in place instead of destroying and
- * rebuilding, and owns the low-level Surface_present / Surface_presentImage
- * seam invoked by Frame above.
+ * Surface reuses at most 2 OS backing buffers (double-buffered ceiling;
+ * triple-buffering is reserved strictly for meld 3D scenes), clears and
+ * repaints in place instead of destroying and rebuilding, and owns the
+ * low-level Surface_present / Surface_presentImage seam invoked by Frame above.
  */
 
 #include "core/graphics.h"
+
+#define SURFACE_MAX_BACKING_SLOTS 2u
 
 ;;CLASSNAME("SurfaceFlag")
 
@@ -30,31 +31,32 @@ typedef enum SurfaceFlag {
 } SurfaceFlag;
 
 ;;CLASSNAME("Surface")
-;;INHERITS("GraphicsImage")
+;;INHERITS("GraphicsBackingImage")
 
 /**
- * Reusable screen presentation surface inheriting GraphicsImage at offset 0.
+ * Reusable double-buffered screen presentation surface inheriting
+ * GraphicsBackingImage at offset 0 (and Image at offset 0).
  *
- * GraphicsImage base  - embedded GraphicsImage viewport descriptor at offset 0
- * Graphics *graphics  - borrowed active Graphics context
- * any nativeSurface   - borrowed opaque OS surface (NSView / CALayer on Apple)
- * u32 backingWidth    - fixed reusable OS backing surface width in pixels
- * u32 backingHeight   - fixed reusable OS backing surface height in pixels
- * u32 flags           - SurfaceFlag bitmask
- * u32 _pad            - alignment padding to 64 bytes
+ * GraphicsBackingImage base - active OS backing descriptor at offset 0
+ * any nativeSurface         - borrowed opaque OS surface (NSView / CALayer)
+ * u32 backingWidth          - fixed reusable OS backing surface width in pixels
+ * u32 backingHeight         - fixed reusable OS backing surface height in pixels
+ * u32 surfaceFlags          - SurfaceFlag bitmask
+ * u32 activeSlot            - active double-buffer slot index (0 or 1)
+ * u64 _pad                  - alignment padding to 96 bytes
  */
 typedef struct Surface {
-    GraphicsImage base;
-    Graphics *graphics;
+    GraphicsBackingImage base;
     any nativeSurface;
     u32 backingWidth;
     u32 backingHeight;
-    u32 flags;
-    u32 _pad;
+    u32 surfaceFlags;
+    u32 activeSlot;
+    u64 _pad;
 } Surface;
 
-_Static_assert(offsetof(Surface, base) == 0, "Surface must inherit GraphicsImage at offset 0");
-_Static_assert(sizeof(Surface) == 64, "Surface obeys 32-byte multiple (64B)");
+_Static_assert(offsetof(Surface, base) == 0, "Surface must inherit GraphicsBackingImage at offset 0");
+_Static_assert(sizeof(Surface) == 96, "Surface obeys 32-byte multiple (96B)");
 
 Surface Surface_0();
 Surface Surface_4(Graphics *g, any nativeSurface, u32 width, u32 height);
@@ -65,8 +67,10 @@ bool Surface_initInPlace(Surface *self, Graphics *g, any nativeSurface,
                          u32 width, u32 height, PixelFormat format);
 fn Surface_deinit(Surface *self);
 
-GraphicsImage *Surface_image(Surface *self);
-const GraphicsImage *Surface_imageConst(const Surface *self);
+GraphicsBackingImage *Surface_backing(Surface *self);
+const GraphicsBackingImage *Surface_backingConst(const Surface *self);
+Image *Surface_image(Surface *self);
+const Image *Surface_imageConst(const Surface *self);
 Graphics *Surface_graphics(const Surface *self);
 any Surface_nativeSurface(const Surface *self);
 u32 Surface_width(const Surface *self);
@@ -85,6 +89,6 @@ bool Surface_clear(Surface *self, u32 clearRGBA);
 bool Surface_begin(Surface *self, u32 clearRGBA);
 fn Surface_setPurgeable(Surface *self, bool purgeable);
 bool Surface_present(Surface *self, bool sync);
-bool Surface_presentImage(Surface *self, const GraphicsImage *image, bool sync);
+bool Surface_presentImage(Surface *self, const Image *image, bool sync);
 
 #endif
