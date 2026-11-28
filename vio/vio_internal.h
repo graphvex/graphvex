@@ -5,344 +5,444 @@
 #include "nio/graphvex_memory.h"
 #include "re/atomic/atomic.h"
 
-typedef struct VideoSlabRecord {
-    VideoSlabInfo info;
-    VideoArena *owner;
+/**
+ * Per-slab ownership and bump cursor record inside an ImagePool.
+ *
+ * ImageSlabInfo info - driver slab metadata
+ * ImageArena *owner  - current owning arena (nullptr when free)
+ * bytes cursor       - bump offset within slab
+ * bytes liveBytes    - live allocated bytes in slab
+ * u32 idleResets     - consecutive resets without allocations
+ * bool inUse         - true while assigned to an arena
+ * bool reusable      - true when OS pages are advised reusable
+ */
+typedef struct ImageSlabRecord {
+    ImageSlabInfo info;
+    ImageArena *owner;
     bytes cursor;
     bytes liveBytes;
     u32 idleResets;
     bool inUse;
     bool reusable;
-} VideoSlabRecord;
+} ImageSlabRecord;
 
-typedef struct VideoFreeBlock {
+/**
+ * Freed sub-allocation node stored on an ImageArena free list.
+ *
+ * vpointer addr             - GPU virtual address of free block
+ * bytes length              - byte length of free block
+ * struct ImageFreeBlock *next - next free node
+ */
+typedef struct ImageFreeBlock {
     vpointer addr;
     bytes length;
-    struct VideoFreeBlock *next;
-} VideoFreeBlock;
+    struct ImageFreeBlock *next;
+} ImageFreeBlock;
 
-typedef struct VideoLiveBlock {
+/**
+ * Active sub-allocation node stored on an ImageArena live list.
+ *
+ * vpointer addr             - GPU virtual address of live block
+ * bytes length              - byte length of live block
+ * struct ImageLiveBlock *next - next live node
+ */
+typedef struct ImageLiveBlock {
     vpointer addr;
     bytes length;
-    struct VideoLiveBlock *next;
-} VideoLiveBlock;
+    struct ImageLiveBlock *next;
+} ImageLiveBlock;
 
-struct VideoPool {
-    VideoPoolDriver driver;
+/**
+ * Internal state for ImagePool.
+ *
+ * ImagePoolDriver driver  - backend slab driver vtable
+ * SpinLock lock           - protects slab table mutations
+ * bytes slabBytes         - default slab byte size
+ * ImageSlabRecord *slabs  - growable slab array
+ * bytes slabCount         - active slab count
+ * bytes slabCapacity      - allocated slab array capacity
+ * u64 exhaustionCount     - total slab allocation refusals
+ * bool exhaustionReported - one-shot THROW guard
+ */
+struct ImagePool {
+    ImagePoolDriver driver;
     SpinLock lock;
     bytes slabBytes;
-    VideoSlabRecord *slabs;
+    ImageSlabRecord *slabs;
     bytes slabCount;
     bytes slabCapacity;
     u64 exhaustionCount;
     bool exhaustionReported;
 };
 
-struct VideoArena {
-    VideoPool *pool;
-    VideoMemoryDomain domain;
+/**
+ * Internal state for ImageArena.
+ *
+ * ImagePool *pool         - parent ImagePool
+ * ImageMemoryDomain domain - residency domain
+ * SpinLock lock           - protects arena lists and counters
+ * bytes maxBytes          - optional hard byte budget (0 = unbounded)
+ * bytes capacityBytes     - sum of owned slab capacities
+ * bytes usedBytes         - current live byte usage
+ * ImageFreeBlock *freeHead - recycled block list
+ * ImageLiveBlock *liveHead - live block list
+ * u64 exhaustionCount     - total allocation refusals
+ * bool exhaustionReported - one-shot THROW guard
+ */
+struct ImageArena {
+    ImagePool *pool;
+    ImageMemoryDomain domain;
     SpinLock lock;
     bytes maxBytes;
     bytes capacityBytes;
     bytes usedBytes;
-    VideoFreeBlock *freeHead;
-    VideoLiveBlock *liveHead;
+    ImageFreeBlock *freeHead;
+    ImageLiveBlock *liveHead;
     u64 exhaustionCount;
     bool exhaustionReported;
 };
 
 ;;GETTER
-static inline VideoPoolDriver VideoPool_driver(const VideoPool *p)
+static inline ImagePoolDriver ImagePool_driver(const ImagePool *p)
 {
     return (*p).driver;
 }
+
 ;;SETTER
-static inline fn VideoPool_setDriver(VideoPool *p, VideoPoolDriver d)
+static inline fn ImagePool_setDriver(ImagePool *p, ImagePoolDriver d)
 {
     (*p).driver = d;
 }
+
 ;;GETTER
-static inline SpinLock *VideoPool_lockPtr(VideoPool *p)
+static inline SpinLock *ImagePool_lockPtr(ImagePool *p)
 {
     return &(*p).lock;
 }
+
 ;;GETTER
-static inline bytes VideoPool_slabBytesField(const VideoPool *p)
+static inline bytes ImagePool_slabBytesField(const ImagePool *p)
 {
     return (*p).slabBytes;
 }
+
 ;;SETTER
-static inline fn VideoPool_setSlabBytesField(VideoPool *p, bytes n)
+static inline fn ImagePool_setSlabBytesField(ImagePool *p, bytes n)
 {
     (*p).slabBytes = n;
 }
+
 ;;GETTER
-static inline VideoSlabRecord *VideoPool_slabs(const VideoPool *p)
+static inline ImageSlabRecord *ImagePool_slabs(const ImagePool *p)
 {
     return (*p).slabs;
 }
+
 ;;SETTER
-static inline fn VideoPool_setSlabs(VideoPool *p, VideoSlabRecord *s)
+static inline fn ImagePool_setSlabs(ImagePool *p, ImageSlabRecord *s)
 {
     (*p).slabs = s;
 }
+
 ;;GETTER
-static inline bytes VideoPool_slabCountField(const VideoPool *p)
+static inline bytes ImagePool_slabCountField(const ImagePool *p)
 {
     return (*p).slabCount;
 }
+
 ;;SETTER
-static inline fn VideoPool_setSlabCountField(VideoPool *p, bytes n)
+static inline fn ImagePool_setSlabCountField(ImagePool *p, bytes n)
 {
     (*p).slabCount = n;
 }
+
 ;;GETTER
-static inline bytes VideoPool_slabCapacity(const VideoPool *p)
+static inline bytes ImagePool_slabCapacity(const ImagePool *p)
 {
     return (*p).slabCapacity;
 }
+
 ;;SETTER
-static inline fn VideoPool_setSlabCapacity(VideoPool *p, bytes n)
+static inline fn ImagePool_setSlabCapacity(ImagePool *p, bytes n)
 {
     (*p).slabCapacity = n;
 }
+
 ;;GETTER
-static inline u64 VideoPool_exhaustionCountField(const VideoPool *p)
+static inline u64 ImagePool_exhaustionCountField(const ImagePool *p)
 {
     return (*p).exhaustionCount;
 }
+
 ;;SETTER
-static inline fn VideoPool_setExhaustionCountField(VideoPool *p, u64 n)
+static inline fn ImagePool_setExhaustionCountField(ImagePool *p, u64 n)
 {
     (*p).exhaustionCount = n;
 }
+
 ;;GETTER
-static inline bool VideoPool_exhaustionReported(const VideoPool *p)
+static inline bool ImagePool_exhaustionReported(const ImagePool *p)
 {
     return (*p).exhaustionReported;
 }
+
 ;;SETTER
-static inline fn VideoPool_setExhaustionReported(VideoPool *p, bool v)
+static inline fn ImagePool_setExhaustionReported(ImagePool *p, bool v)
 {
     (*p).exhaustionReported = v;
 }
 
 ;;GETTER
-static inline VideoPool *VideoArena_poolField(const VideoArena *a)
+static inline ImagePool *ImageArena_poolField(const ImageArena *a)
 {
     return (*a).pool;
 }
+
 ;;SETTER
-static inline fn VideoArena_setPoolField(VideoArena *a, VideoPool *p)
+static inline fn ImageArena_setPoolField(ImageArena *a, ImagePool *p)
 {
     (*a).pool = p;
 }
+
 ;;GETTER
-static inline VideoMemoryDomain VideoArena_domainField(const VideoArena *a)
+static inline ImageMemoryDomain ImageArena_domainField(const ImageArena *a)
 {
     return (*a).domain;
 }
+
 ;;SETTER
-static inline fn VideoArena_setDomainField(VideoArena *a, VideoMemoryDomain d)
+static inline fn ImageArena_setDomainField(ImageArena *a, ImageMemoryDomain d)
 {
     (*a).domain = d;
 }
+
 ;;GETTER
-static inline SpinLock *VideoArena_lockPtr(VideoArena *a)
+static inline SpinLock *ImageArena_lockPtr(ImageArena *a)
 {
     return &(*a).lock;
 }
+
 ;;GETTER
-static inline bytes VideoArena_maxBytesField(const VideoArena *a)
+static inline bytes ImageArena_maxBytesField(const ImageArena *a)
 {
     return (*a).maxBytes;
 }
+
 ;;SETTER
-static inline fn VideoArena_setMaxBytesField(VideoArena *a, bytes n)
+static inline fn ImageArena_setMaxBytesField(ImageArena *a, bytes n)
 {
     (*a).maxBytes = n;
 }
+
 ;;GETTER
-static inline bytes VideoArena_capacityBytesField(const VideoArena *a)
+static inline bytes ImageArena_capacityBytesField(const ImageArena *a)
 {
     return (*a).capacityBytes;
 }
+
 ;;SETTER
-static inline fn VideoArena_setCapacityBytesField(VideoArena *a, bytes n)
+static inline fn ImageArena_setCapacityBytesField(ImageArena *a, bytes n)
 {
     (*a).capacityBytes = n;
 }
+
 ;;GETTER
-static inline bytes VideoArena_usedBytesField(const VideoArena *a)
+static inline bytes ImageArena_usedBytesField(const ImageArena *a)
 {
     return (*a).usedBytes;
 }
+
 ;;SETTER
-static inline fn VideoArena_setUsedBytesField(VideoArena *a, bytes n)
+static inline fn ImageArena_setUsedBytesField(ImageArena *a, bytes n)
 {
     (*a).usedBytes = n;
 }
+
 ;;GETTER
-static inline VideoFreeBlock *VideoArena_freeHead(const VideoArena *a)
+static inline ImageFreeBlock *ImageArena_freeHead(const ImageArena *a)
 {
     return (*a).freeHead;
 }
+
 ;;SETTER
-static inline fn VideoArena_setFreeHead(VideoArena *a, VideoFreeBlock *n)
+static inline fn ImageArena_setFreeHead(ImageArena *a, ImageFreeBlock *n)
 {
     (*a).freeHead = n;
 }
+
 ;;GETTER
-static inline VideoLiveBlock *VideoArena_liveHead(const VideoArena *a)
+static inline ImageLiveBlock *ImageArena_liveHead(const ImageArena *a)
 {
     return (*a).liveHead;
 }
+
 ;;SETTER
-static inline fn VideoArena_setLiveHead(VideoArena *a, VideoLiveBlock *n)
+static inline fn ImageArena_setLiveHead(ImageArena *a, ImageLiveBlock *n)
 {
     (*a).liveHead = n;
 }
+
 ;;GETTER
-static inline u64 VideoArena_exhaustionCountField(const VideoArena *a)
+static inline u64 ImageArena_exhaustionCountField(const ImageArena *a)
 {
     return (*a).exhaustionCount;
 }
+
 ;;SETTER
-static inline fn VideoArena_setExhaustionCountField(VideoArena *a, u64 n)
+static inline fn ImageArena_setExhaustionCountField(ImageArena *a, u64 n)
 {
     (*a).exhaustionCount = n;
 }
+
 ;;GETTER
-static inline bool VideoArena_exhaustionReported(const VideoArena *a)
+static inline bool ImageArena_exhaustionReported(const ImageArena *a)
 {
     return (*a).exhaustionReported;
 }
+
 ;;SETTER
-static inline fn VideoArena_setExhaustionReported(VideoArena *a, bool v)
+static inline fn ImageArena_setExhaustionReported(ImageArena *a, bool v)
 {
     (*a).exhaustionReported = v;
 }
 
 ;;GETTER
-static inline VideoFreeBlock *VideoFreeBlock_next(const VideoFreeBlock *b)
+static inline ImageFreeBlock *ImageFreeBlock_next(const ImageFreeBlock *b)
 {
     return (*b).next;
 }
+
 ;;SETTER
-static inline fn VideoFreeBlock_setNext(VideoFreeBlock *b, VideoFreeBlock *n)
+static inline fn ImageFreeBlock_setNext(ImageFreeBlock *b, ImageFreeBlock *n)
 {
     (*b).next = n;
 }
+
 ;;GETTER
-static inline vpointer VideoFreeBlock_addr(const VideoFreeBlock *b)
+static inline vpointer ImageFreeBlock_addr(const ImageFreeBlock *b)
 {
     return (*b).addr;
 }
+
 ;;SETTER
-static inline fn VideoFreeBlock_setAddr(VideoFreeBlock *b, vpointer a)
+static inline fn ImageFreeBlock_setAddr(ImageFreeBlock *b, vpointer a)
 {
     (*b).addr = a;
 }
+
 ;;GETTER
-static inline bytes VideoFreeBlock_length(const VideoFreeBlock *b)
+static inline bytes ImageFreeBlock_length(const ImageFreeBlock *b)
 {
     return (*b).length;
 }
+
 ;;SETTER
-static inline fn VideoFreeBlock_setLength(VideoFreeBlock *b, bytes l)
+static inline fn ImageFreeBlock_setLength(ImageFreeBlock *b, bytes l)
 {
     (*b).length = l;
 }
 
 ;;GETTER
-static inline VideoLiveBlock *VideoLiveBlock_next(const VideoLiveBlock *b)
+static inline ImageLiveBlock *ImageLiveBlock_next(const ImageLiveBlock *b)
 {
     return (*b).next;
 }
+
 ;;SETTER
-static inline fn VideoLiveBlock_setNext(VideoLiveBlock *b, VideoLiveBlock *n)
+static inline fn ImageLiveBlock_setNext(ImageLiveBlock *b, ImageLiveBlock *n)
 {
     (*b).next = n;
 }
+
 ;;GETTER
-static inline vpointer VideoLiveBlock_addr(const VideoLiveBlock *b)
+static inline vpointer ImageLiveBlock_addr(const ImageLiveBlock *b)
 {
     return (*b).addr;
 }
+
 ;;SETTER
-static inline fn VideoLiveBlock_setAddr(VideoLiveBlock *b, vpointer a)
+static inline fn ImageLiveBlock_setAddr(ImageLiveBlock *b, vpointer a)
 {
     (*b).addr = a;
 }
+
 ;;GETTER
-static inline bytes VideoLiveBlock_length(const VideoLiveBlock *b)
+static inline bytes ImageLiveBlock_length(const ImageLiveBlock *b)
 {
     return (*b).length;
 }
+
 ;;SETTER
-static inline fn VideoLiveBlock_setLength(VideoLiveBlock *b, bytes l)
+static inline fn ImageLiveBlock_setLength(ImageLiveBlock *b, bytes l)
 {
     (*b).length = l;
 }
 
 ;;GETTER
-static inline VideoSlabInfo VideoSlabRecord_info(const VideoSlabRecord *r)
+static inline ImageSlabInfo ImageSlabRecord_info(const ImageSlabRecord *r)
 {
     return (*r).info;
 }
+
 ;;GETTER
-static inline bytes VideoSlabRecord_liveBytes(const VideoSlabRecord *r)
+static inline bytes ImageSlabRecord_liveBytes(const ImageSlabRecord *r)
 {
     return (*r).liveBytes;
 }
+
 ;;SETTER
-static inline fn VideoSlabRecord_setCursor(VideoSlabRecord *r, bytes c)
+static inline fn ImageSlabRecord_setCursor(ImageSlabRecord *r, bytes c)
 {
     (*r).cursor = c;
 }
+
 ;;SETTER
-static inline fn VideoSlabRecord_setLiveBytes(VideoSlabRecord *r, bytes n)
+static inline fn ImageSlabRecord_setLiveBytes(ImageSlabRecord *r, bytes n)
 {
     (*r).liveBytes = n;
 }
 
 ;;GETTER
-static inline any VideoSlabInfo_driverHandle(const VideoSlabInfo *s)
+static inline any ImageSlabInfo_driverHandle(const ImageSlabInfo *s)
 {
     return (*s).driverHandle;
 }
+
 ;;GETTER
-static inline bytes VideoSlabInfo_length(const VideoSlabInfo *s)
+static inline bytes ImageSlabInfo_length(const ImageSlabInfo *s)
 {
     return (*s).length;
 }
 
 ;;GETTER
-static inline u32 VideoSlabRecord_idleResets(const VideoSlabRecord *s)
+static inline u32 ImageSlabRecord_idleResets(const ImageSlabRecord *s)
 {
     if (!s)
         return 0u;
 
     return (*s).idleResets;
 }
+
 ;;SETTER
-static inline fn VideoSlabRecord_setIdleResets(VideoSlabRecord *s, u32 n)
+static inline fn ImageSlabRecord_setIdleResets(ImageSlabRecord *s, u32 n)
 {
     if (!s)
         return;
 
     (*s).idleResets = n;
 }
+
 ;;GETTER
-static inline bool VideoSlabRecord_reusable(const VideoSlabRecord *s)
+static inline bool ImageSlabRecord_reusable(const ImageSlabRecord *s)
 {
     if (!s)
         return false;
 
     return (*s).reusable;
 }
+
 ;;SETTER
-static inline fn VideoSlabRecord_setReusable(VideoSlabRecord *s, bool v)
+static inline fn ImageSlabRecord_setReusable(ImageSlabRecord *s, bool v)
 {
     if (!s)
         return;
@@ -351,16 +451,16 @@ static inline fn VideoSlabRecord_setReusable(VideoSlabRecord *s, bool v)
 }
 
 ;;GETTER
-static inline bool VideoPoolDriver_hasAlloc(const VideoPoolDriver *d)
+static inline bool ImagePoolDriver_hasAlloc(const ImagePoolDriver *d)
 {
     return (*d).allocSlab != nullptr && (*d).freeSlab != nullptr;
 }
 
-VideoSlabRecord *VideoPool_acquireSlab(VideoPool *pool, VideoArena *owner, VideoMemoryDomain domain, bytes minBytes);
-fn VideoPool_prepareSlabForUse(VideoSlabRecord *slab);
-fn VideoPool_releaseArenaSlabs(VideoPool *pool, VideoArena *owner);
-bytes VideoPool_resetArenaSlabs(VideoPool *pool, VideoArena *owner, bool aggressive);
-bool VideoPool_findByGpu(const VideoPool *pool, vpointer addr, bytes length, VideoSlabInfo *outInfo, bytes *outOffset);
-bool VideoPool_findByCpu(const VideoPool *pool, pointer cpuAddr, VideoSlabInfo *outInfo, bytes *outOffset);
+ImageSlabRecord *ImagePool_acquireSlab(ImagePool *pool, ImageArena *owner, ImageMemoryDomain domain, bytes minBytes);
+fn ImagePool_prepareSlabForUse(ImageSlabRecord *slab);
+fn ImagePool_releaseArenaSlabs(ImagePool *pool, ImageArena *owner);
+bytes ImagePool_resetArenaSlabs(ImagePool *pool, ImageArena *owner, bool aggressive);
+bool ImagePool_findByGpu(const ImagePool *pool, vpointer addr, bytes length, ImageSlabInfo *outInfo, bytes *outOffset);
+bool ImagePool_findByCpu(const ImagePool *pool, pointer cpuAddr, ImageSlabInfo *outInfo, bytes *outOffset);
 
 #endif

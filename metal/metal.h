@@ -14,6 +14,6 @@
 
 #include "metal/mtl_guard.h"
 
-Graphics *Graphics_metal(VideoPool *pool);
+Graphics *Graphics_metal(ImagePool *pool);
 
 #endif

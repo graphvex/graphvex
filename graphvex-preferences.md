@@ -7,10 +7,11 @@ gist.md (`../../../../metadata/gists/preferences/gist.md`) is the compressed law
 ## Tier and Ownership
 
 **Tier:** `core` (GPU Driver). graphvex is **just the API**.
-**Owns:** the GPU memory substrate (`vio/`: `VideoPool` -> `VideoArena` -> `vpointer`), the backend-agnostic GPU object classes (`core/`), the four drivers (`vulkan/`, `metal/`, `direct/`, `wgpu/`), and the shader module registry (`shader/`).
-**Does not own:** drawing vocabulary, UI composition or scenes. Those live in sibling core repos:
-* **collage** (`../compositor/`), rect-first, forward-rendered compositor; owns `lang/`, `paint/`, `text/`, elements, filters.
-* **meld** (`../meld/`), retained 2D/3D renderer; owns `Mesh`, `Meshlet`, scenes, spaces, terrain.
+**Owns:** the GPU image memory substrate (`vio/`: `ImagePool` to `ImageArena` to `vpointer`), the backend-agnostic GPU object classes (`core/`: `Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `Graphics`), the four drivers (`vulkan/`, `metal/`, `direct/`, `wgpu/`), and the shader module registry (`shader/`).
+**Does not own:** drawing vocabulary, UI composition, media decoding, or scenes. Those live in sibling core repos:
+* **collage** (`../compositor/`), rect-first, forward-rendered compositor; owns `CompositorPool`/`CompositorArena`, `CompositeSurface`, `lang/`, `paint/`, `text/`, elements, filters.
+* **meld** (`../meld/`), retained 2D/3D renderer; owns `ScenePool`/`SceneArena` (and triple-buffering for heavy 3D scenes), `Mesh`, `Meshlet`, scenes, spaces, terrain.
+* **datamosh** (`../datamosh/`), media decoding/conversion engine; owns `MediaPool`/`MediaArena` (software/scrub rings) and produces zero-copy `GraphicsBackingImage` frames via `graphvex/api`.
 Borrows: lib (`vex.h`), re (`Memory_*`), vexspoke (CPU/behavior). Includes point down only; collage and meld include graphvex, never the reverse, and never each other.
 
 Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `another-rewrite`.
@@ -32,10 +33,15 @@ Supersedes `../api_old/graphvex-preferences.md` (frozen). Rewrite branch: `anoth
 
 ### Unified Graphics Abstraction Law
 
-* Consumers (`ramon`, `collage`, `meld`) see only the unified `Graphics` surface (`Graphics`, `GraphicsImage`, `GraphicsRect`, `GraphicsCommand`, `PixelFormat`, `ColorRGBA`) over `vio/` (`VideoPool`, `VideoArena`, `vpointer`). Zero Vulkan, Metal, Direct3D, or wgpu types, enums, or handles leak into public headers.
-* **No Swapchain:** `Swapchain` is forbidden in the public API. Everything renders into `vpointer`-backed `GraphicsImage` buffers and presents via `Graphics_present(g, nativeSurface, &image)`. Any OS drawable/layer plumbing stays strictly inside the four driver folders.
+* Consumers (`ramon`, `collage`, `meld`, `datamosh`, `image`) see only the unified `Graphics` surface (`Graphics`, `Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `GraphicsRect`, `GraphicsCommand`, `PixelFormat`, `ColorRGBA`) over `vio/` (`ImagePool`, `ImageArena`, `ImageMemory`, `vpointer`). Zero Vulkan, Metal, Direct3D, wgpu, or IOSurface/DMA-BUF/DXGI types, enums, or handles leak into public headers.
+* **Image Hierarchy (two distinct flavors under one currency):**
+  * `Image` (32-byte base) is the universal read/sample consumer currency accepted by `Graphics_drawWithSource`, `Graphics_dispatchWithSource`, `Surface_presentImage`, `collage`, and `darling`.
+  * `GraphicsImage` inherits `Image` at offset 0 and is `ImagePool`/`ImageArena`-owned (`vpointer data` GPU buffer: icons, stills, offscreen passes, crops).
+  * `GraphicsBackingImage` inherits `Image` at offset 0 as a **sibling** (never inheriting `GraphicsImage`): it wraps external OS/hardware surfaces outside `ImagePool` (`IOSurface` on macOS, DMA-BUF on Linux, DXGI on Windows) for zero-copy video frames (`datamosh`), cross-process frames (`elrio`), and screen presentation (`Surface`).
+  * Presentation inheritance ladder: `Image` to `GraphicsBackingImage` to `Surface` (`api`) to `CompositeSurface` (`collage`) to `Frame` (`darling`).
+* **No Swapchain (Double-Buffer Ceiling for Surface):** `Swapchain` is forbidden in the public API. `Surface` cycles at most **2** OS backing buffers (double-buffered). Triple-buffering is intentionally excluded from `Surface` and reserved strictly for heavy 3D `meld` scenes. Any OS drawable/layer plumbing stays strictly inside the four driver folders.
 * **Zero-Copy Crop + Explicit Copy:** `Graphics_crop(src, x0, y0, x1, y1)` returns a zero-copy `GraphicsImage` sub-view (advancing `vpointer` and preserving parent `strideBytes`). Standalone tightly-packed copies are explicit via `Graphics_copy(g, arena, src)`, `Graphics_copy(g, arena, src, x0, y0, x1, y1)`, and `Graphics_copyTo`.
-* **No Feature Toggles (Bindless Baseline):** `graphvex` does not expose `Capability` toggles or backend feature probes to clients. Bindless image slots are always-on by construction, every `GraphicsImage` is auto-registered at creation (slot `0` reserved for dummy white).
+* **No Feature Toggles (Bindless Baseline):** `graphvex` does not expose `Capability` toggles or backend feature probes to clients. Bindless image slots are always-on by construction, every `GraphicsImage` and `GraphicsBackingImage` is auto-registered at creation (slot `0` reserved for dummy white).
 * Every internal driver wait obeys `FENCE_WAIT_TIMEOUT_NS` (100ms max); indefinite GPU waits (`UINT64_MAX`) are prohibited.
 * `graphvex` holds no drawing vocabulary: no meshes, fonts, shapes, brushes, strokes, elements or filters.
 

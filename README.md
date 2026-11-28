@@ -1,16 +1,17 @@
 # graphvex (api), the GPU API
 
-graphvex is **just the API**: backend-agnostic GPU objects (`Graphics`, `GraphicsImage`, `VideoPool`, `VideoArena`, `GraphicsCommand`, `ShaderSource`, `ShaderBytes`, `SecureMemoryPool`, `SecureMemoryArena`) and the drivers that implement them. It draws nothing by itself.
+graphvex is **just the API**: backend-agnostic GPU objects (`Graphics`, `Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `ImagePool`, `ImageArena`, `GraphicsCommand`, `ShaderSource`, `ShaderBytes`, `SecureMemoryPool`, `SecureMemoryArena`) and the drivers that implement them. It draws nothing by itself.
 
 ```text
-graphvex (api) to collage (rect-first, forward compositor) | meld (retained renderers) to darling (UI, incl. 3D panel)
+Image (currency) to GraphicsImage (ImagePool) | GraphicsBackingImage (OS backing: video, Surface to CompositeSurface to Frame)
+graphvex (api) to collage (rect-first, forward compositor) | meld (retained renderers) | datamosh (video) to darling (UI)
 ```
 
 ## Scope and limitations
 
-- **No swapchain, ever.** `graphvex/api` is a non-swapchain, image-first graphics API by design. Callers render directly into `GraphicsImage` storage and publish to a native surface via `Graphics_present`. Double-buffering images (two active backing arenas and at most two platform drawables) is the ceiling -- triple-buffered swapchains are intentionally excluded.
+- **No swapchain, ever (double-buffered Surface ceiling).** `graphvex/api` is a non-swapchain, image-first graphics API by design. `Surface` inherits `GraphicsBackingImage` and cycles at most **2** OS backing buffers (double-buffered). Triple-buffering is excluded from `Surface` and reserved strictly for `meld` 3D scenes.
 - **No shader source files here.** `graphvex/api/shader/` owns shader processing and file/bundle loading (`shader.h`, `shader.c`) only. Compositor shaders belong to `graphvex/compositor/shader/`, and 3D/scene shaders belong to `graphvex/meld/shader/`. Only driver-internal builtin kernels (`metal/builtin.metal`) live inside their driver directory.
-- **Isolated graphics memory (5-pool model).** GPU texture, framebuffer, atlas, and buffer slabs (`VideoPool` / `VideoArena` on both Metal and `software-uma`) are standalone OS mappings bracketed by leading and trailing `PROT_NONE` guard pages, completely detached from `re`'s shared CPU `MemoryPool`. CPU-side graphics metadata (`Graphics`, driver contexts, shader blobs, command lists) allocates out of `sandcastles`'s `SecureMemoryPool` / `SecureMemoryArena` (`sandcastles/nio/nio.h`). In the broader stack, `meld` (3D scenes, including `<canvas>` / Three.js for `darling-for-web`), `datamosh` (video/media), and `sandcastles` (per-tab untrusted apps) each own their own standalone pools.
+- **Isolated domain memory pools.** GPU image slabs (`ImagePool` / `ImageArena` on both Metal and `software-uma`) are standalone OS mappings bracketed by leading and trailing `PROT_NONE` guard pages, completely detached from `re`'s shared CPU `MemoryPool`. CPU-side graphics metadata (`Graphics`, driver contexts, shader blobs, command lists) allocates out of `sandcastles`'s `SecureMemoryPool` / `SecureMemoryArena` (`sandcastles/nio/nio.h`). Each sibling owns its own domain pool: `collage` (`CompositorPool`/`CompositorArena`), `meld` (`ScenePool`/`SceneArena`), `datamosh` (`MediaPool`/`MediaArena`), and `sandcastles` (per-tab untrusted apps).
 - **No drawing vocabulary here.** Fonts, shapes, brushes, filters, and UI widgets belong to `compositor` (`collage`) and `darling`; meshes, materials, and scenes belong to `meld`.
 
 ## Deliberate seams
@@ -24,6 +25,6 @@ graphvex (api) to collage (rect-first, forward compositor) | meld (retained rend
 
 ## Layout
 
-`core/` backend-free classes | `vio/` VideoPool/VideoArena/VideoMemory | `nio/` SecureMemoryPool/SecureMemoryArena | `metal/ vulkan/ direct/ wgpu/` drivers | `shader/` shader processing | `tests/`
+`core/` backend-free classes (`Image`, `GraphicsImage`, `GraphicsBackingImage`, `Surface`, `Graphics`) | `vio/` ImagePool/ImageArena/ImageMemory | `nio/` SecureMemoryPool/SecureMemoryArena | `metal/ vulkan/ direct/ wgpu/` drivers | `shader/` shader processing | `image/` OS-native ImageIO & format conversion | `tests/`
 
 Laws: [graphvex-preferences.md](graphvex-preferences.md).

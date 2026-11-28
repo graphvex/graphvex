@@ -1,148 +1,192 @@
 #include "vex.h"
 #include "vio/vio_internal.h"
 
+#include <string.h>
+
 ;;DEFINITION
-/** VideoArena is a per-subsystem virtual GPU arena carved from a VideoPool.
- * It sub-allocates vpointer ranges with power-of-two alignment (floor 32B,
- * default 256B), recycles freed blocks on a free list, supports O(1) reset for
- * per-frame transient GPU scratch, and enforces optional hard byte budgets. */
+/**
+ * ============================================================================
+ * DEFINITION: ImageArena
+ * ============================================================================
+ * Per-subsystem virtual GPU arena carved from an ImagePool. Sub-allocates
+ * vpointer ranges with power-of-two alignment (floor 32B, default 256B),
+ * recycles freed blocks on a free list, supports O(1) reset for per-frame
+ * transient GPU scratch, and enforces optional hard byte budgets.
+ * ============================================================================
+ */
 
 ;;OVERVIEW
-/** CLASS: VideoArena (vio/varena.c)
- * STRUCT FIELDS: parent VideoPool, VideoMemoryDomain, SpinLock, maxBytes,
- * capacityBytes, usedBytes, freeHead, liveHead, exhaustion counter.
- * PRIVATE HELPERS: alignUp, isPow2, recordArenaExhaustion, trackLiveBlock.
- * FUNCTION REGISTRY: create, destroy, alloc, free, reset, accessors.
- * CONTRACT: returns 0 (null vpointer) on exhaustion or invalid size; zero
- * libc allocations (metadata lives in Graphvex_arena()). */
+/**
+ * ============================================================================
+ * CLASS: ImageArena (vio/varena.c)
+ * ============================================================================
+ * Virtual GPU arena sub-allocator over ImagePool slabs.
+ *
+ * --CONSTRUCTORS-------------------------
+ * public   ImageArena_3(...)          constructs arena over ImagePool
+ *
+ * --FUNCTIONS----------------------------
+ * public   ImageArena_destroy(...)    releases arena bookkeeping and slabs
+ * public   ImageArena_alloc(...)      allocates aligned vpointer range
+ * public   ImageArena_free(...)       recycles vpointer block
+ * public   ImageArena_reset(...)      resets arena cursors in O(1)
+ * public   ImageArena_trim(...)       aggressively returns idle slabs
+ *
+ * --GETTERS------------------------------
+ * public   ImageArena_pool/domain/usedBytes/capacity/maxBytes/exhaustionCount
+ * ============================================================================
+ */
 
-static bool isPow2(bytes n) {
+static bool isPow2(bytes n)
+{
     return n != 0u && (n & (n - 1u)) == 0u;
 }
 
-static bytes alignUp(bytes value, bytes alignment) {
+static bytes alignUp(bytes value, bytes alignment)
+{
     bytes mask = alignment - 1u;
     if (value > SIZE_MAX - mask)
         return 0u;
+
     return (value + mask) & ~mask;
 }
 
-static fn recordArenaExhaustion(VideoArena *arena, bytes requested) {
-    if (VideoArena_exhaustionCountField(arena) != UINT64_MAX)
-        VideoArena_setExhaustionCountField(arena, VideoArena_exhaustionCountField(arena) + 1u);
-    if (!VideoArena_exhaustionReported(arena)) {
-        THROW("VideoArena: allocation refused for %zu bytes", requested);
-        VideoArena_setExhaustionReported(arena, true);
+static fn recordArenaExhaustion(ImageArena *arena, bytes requested)
+{
+    if (ImageArena_exhaustionCountField(arena) != UINT64_MAX)
+        ImageArena_setExhaustionCountField(arena, ImageArena_exhaustionCountField(arena) + 1u);
+
+    if (!ImageArena_exhaustionReported(arena)) {
+        THROW("ImageArena: allocation refused for %zu bytes", requested);
+        ImageArena_setExhaustionReported(arena, true);
     }
 }
 
-static bool trackLiveBlock(VideoArena *arena, vpointer addr, bytes length) {
-    VideoLiveBlock *node = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *node);
+static bool trackLiveBlock(ImageArena *arena, vpointer addr, bytes length)
+{
+    ImageLiveBlock *node = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *node);
     if (node == nullptr)
         return false;
-    VideoLiveBlock_setAddr(node, addr);
-    VideoLiveBlock_setLength(node, length);
-    VideoLiveBlock_setNext(node, VideoArena_liveHead(arena));
-    VideoArena_setLiveHead(arena, node);
+
+    ImageLiveBlock_setAddr(node, addr);
+    ImageLiveBlock_setLength(node, length);
+    ImageLiveBlock_setNext(node, ImageArena_liveHead(arena));
+    ImageArena_setLiveHead(arena, node);
     return true;
 }
 
-static fn clearBookkeeping(VideoArena *arena) {
-    VideoFreeBlock *f = VideoArena_freeHead(arena);
+static fn clearBookkeeping(ImageArena *arena)
+{
+    ImageFreeBlock *f = ImageArena_freeHead(arena);
     while (f != nullptr) {
-        VideoFreeBlock *next = VideoFreeBlock_next(f);
+        ImageFreeBlock *next = ImageFreeBlock_next(f);
         MemoryArena_free(Graphvex_arena(), f);
         f = next;
     }
-    VideoArena_setFreeHead(arena, nullptr);
-    VideoLiveBlock *l = VideoArena_liveHead(arena);
+    ImageArena_setFreeHead(arena, nullptr);
+    ImageLiveBlock *l = ImageArena_liveHead(arena);
     while (l != nullptr) {
-        VideoLiveBlock *next = VideoLiveBlock_next(l);
+        ImageLiveBlock *next = ImageLiveBlock_next(l);
         MemoryArena_free(Graphvex_arena(), l);
         l = next;
     }
-    VideoArena_setLiveHead(arena, nullptr);
+    ImageArena_setLiveHead(arena, nullptr);
 }
 
 ;;CONSTRUCTOR
-VideoArena *VideoArena_3(VideoPool *pool, VideoMemoryDomain domain, bytes maxBytes)
+/**
+ * Constructs a virtual ImageArena carved from pool.
+ * @param pool     parent ImagePool
+ * @param domain   memory domain (shared, private, staging)
+ * @param maxBytes optional hard byte cap (0 = unbounded)
+ * @return owned ImageArena pointer, or nullptr on failure
+ */
+ImageArena *ImageArena_3(ImagePool *pool, ImageMemoryDomain domain, bytes maxBytes)
 {
     if (pool == nullptr) {
-        THROW("VideoArena: rejected null VideoPool");
+        THROW("ImageArena: rejected null ImagePool");
         return nullptr;
     }
-    VideoArena *arena = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *arena);
+    ImageArena *arena = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *arena);
     if (arena == nullptr) {
-        THROW("VideoArena: failed to allocate arena metadata");
+        THROW("ImageArena: failed to allocate arena metadata");
         return nullptr;
     }
     memset(arena, 0, sizeof *arena);
-    VideoArena_setPoolField(arena, pool);
-    VideoArena_setDomainField(arena, domain);
-    VideoArena_setMaxBytesField(arena, maxBytes);
+    ImageArena_setPoolField(arena, pool);
+    ImageArena_setDomainField(arena, domain);
+    ImageArena_setMaxBytesField(arena, maxBytes);
     return arena;
 }
 
-fn VideoArena_destroy(VideoArena *arena) {
+;;DECONSTRUCT
+fn ImageArena_destroy(ImageArena *arena)
+{
     if (arena == nullptr)
         return;
-    SpinLock_lock(VideoArena_lockPtr(arena));
+
+    SpinLock_lock(ImageArena_lockPtr(arena));
     clearBookkeeping(arena);
-    VideoPool *pool = VideoArena_poolField(arena);
-    VideoArena_setUsedBytesField(arena, 0u);
-    VideoArena_setCapacityBytesField(arena, 0u);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
-    VideoPool_releaseArenaSlabs(pool, arena);
+    ImagePool *pool = ImageArena_poolField(arena);
+    ImageArena_setUsedBytesField(arena, 0u);
+    ImageArena_setCapacityBytesField(arena, 0u);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
+    ImagePool_releaseArenaSlabs(pool, arena);
     MemoryArena_free(Graphvex_arena(), arena);
 }
 
-vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment) {
+vpointer ImageArena_alloc(ImageArena *arena, bytes numBytes, bytes alignment)
+{
     if (arena == nullptr || numBytes == 0u)
         return 0u;
-    bytes align = alignment == 0u ? VIDEO_MEMORY_DEFAULT_ALIGN : alignment;
-    if (align < VIDEO_MEMORY_ALIGN_FLOOR)
-        align = VIDEO_MEMORY_ALIGN_FLOOR;
+
+    bytes align = alignment == 0u ? IMAGE_MEMORY_DEFAULT_ALIGN : alignment;
+    if (align < IMAGE_MEMORY_ALIGN_FLOOR)
+        align = IMAGE_MEMORY_ALIGN_FLOOR;
+
     if (!isPow2(align)) {
-        THROW("VideoArena: alignment must be power of two, got %zu", align);
+        THROW("ImageArena: alignment must be power of two, got %zu", align);
         return 0u;
     }
-    bytes size = alignUp(numBytes, VIDEO_MEMORY_ALIGN_FLOOR);
+    bytes size = alignUp(numBytes, IMAGE_MEMORY_ALIGN_FLOOR);
     if (size == 0u)
         return 0u;
-    SpinLock_lock(VideoArena_lockPtr(arena));
-    bytes maxB = VideoArena_maxBytesField(arena);
-    if (maxB != 0u && VideoArena_usedBytesField(arena) + size > maxB) {
+
+    SpinLock_lock(ImageArena_lockPtr(arena));
+    bytes maxB = ImageArena_maxBytesField(arena);
+    if (maxB != 0u && ImageArena_usedBytesField(arena) + size > maxB) {
         recordArenaExhaustion(arena, size);
-        SpinLock_unlock(VideoArena_lockPtr(arena));
+        SpinLock_unlock(ImageArena_lockPtr(arena));
         return 0u;
     }
-    VideoFreeBlock *prev = nullptr;
-    VideoFreeBlock *curr = VideoArena_freeHead(arena);
+    ImageFreeBlock *prev = nullptr;
+    ImageFreeBlock *curr = ImageArena_freeHead(arena);
     while (curr != nullptr) {
-        vpointer cand = VideoFreeBlock_addr(curr);
-        bytes candLen = VideoFreeBlock_length(curr);
+        vpointer cand = ImageFreeBlock_addr(curr);
+        bytes candLen = ImageFreeBlock_length(curr);
         if ((cand & (align - 1u)) == 0u && candLen >= size) {
             if (prev == nullptr)
-                VideoArena_setFreeHead(arena, VideoFreeBlock_next(curr));
+                ImageArena_setFreeHead(arena, ImageFreeBlock_next(curr));
             else
-                VideoFreeBlock_setNext(prev, VideoFreeBlock_next(curr));
+                ImageFreeBlock_setNext(prev, ImageFreeBlock_next(curr));
+
             MemoryArena_free(Graphvex_arena(), curr);
             if (!trackLiveBlock(arena, cand, candLen)) {
                 recordArenaExhaustion(arena, size);
-                SpinLock_unlock(VideoArena_lockPtr(arena));
+                SpinLock_unlock(ImageArena_lockPtr(arena));
                 return 0u;
             }
-            VideoArena_setUsedBytesField(arena, VideoArena_usedBytesField(arena) + candLen);
-            SpinLock_unlock(VideoArena_lockPtr(arena));
+            ImageArena_setUsedBytesField(arena, ImageArena_usedBytesField(arena) + candLen);
+            SpinLock_unlock(ImageArena_lockPtr(arena));
             return cand;
         }
         prev = curr;
-        curr = VideoFreeBlock_next(curr);
+        curr = ImageFreeBlock_next(curr);
     }
-    VideoPool *pool = VideoArena_poolField(arena);
-    SpinLock_lock(VideoPool_lockPtr(pool));
-    VideoSlabRecord *slabs = VideoPool_slabs(pool);
-    bytes slabCount = VideoPool_slabCountField(pool);
+    ImagePool *pool = ImageArena_poolField(arena);
+    SpinLock_lock(ImagePool_lockPtr(pool));
+    ImageSlabRecord *slabs = ImagePool_slabs(pool);
+    bytes slabCount = ImagePool_slabCountField(pool);
     for (bytes i = 0u; i < slabCount; ++i) {
         if (slabs[i].inUse && slabs[i].owner == arena) {
             vpointer base = slabs[i].info.gpuBase;
@@ -150,136 +194,168 @@ vpointer VideoArena_alloc(VideoArena *arena, bytes numBytes, bytes alignment) {
             if (aligned >= base) {
                 bytes nextOff = (bytes) (aligned - base);
                 if (nextOff <= slabs[i].info.length && size <= slabs[i].info.length - nextOff) {
-                    VideoPool_prepareSlabForUse(&slabs[i]);
+                    ImagePool_prepareSlabForUse(&slabs[i]);
                     slabs[i].cursor = nextOff + size;
                     slabs[i].liveBytes += size;
-                    SpinLock_unlock(VideoPool_lockPtr(pool));
+                    SpinLock_unlock(ImagePool_lockPtr(pool));
                     if (!trackLiveBlock(arena, aligned, size)) {
                         recordArenaExhaustion(arena, size);
-                        SpinLock_unlock(VideoArena_lockPtr(arena));
+                        SpinLock_unlock(ImageArena_lockPtr(arena));
                         return 0u;
                     }
-                    VideoArena_setUsedBytesField(arena, VideoArena_usedBytesField(arena) + size);
-                    SpinLock_unlock(VideoArena_lockPtr(arena));
+                    ImageArena_setUsedBytesField(arena, ImageArena_usedBytesField(arena) + size);
+                    SpinLock_unlock(ImageArena_lockPtr(arena));
                     return aligned;
                 }
             }
         }
     }
-    SpinLock_unlock(VideoPool_lockPtr(pool));
+    SpinLock_unlock(ImagePool_lockPtr(pool));
     bytes minSlab = size + align;
-    VideoSlabRecord *slab = VideoPool_acquireSlab(pool, arena, VideoArena_domainField(arena), minSlab);
+    ImageSlabRecord *slab = ImagePool_acquireSlab(pool, arena, ImageArena_domainField(arena), minSlab);
     if (slab == nullptr) {
         recordArenaExhaustion(arena, size);
-        SpinLock_unlock(VideoArena_lockPtr(arena));
+        SpinLock_unlock(ImageArena_lockPtr(arena));
         return 0u;
     }
-    SpinLock_lock(VideoPool_lockPtr(pool));
-    VideoSlabInfo info = VideoSlabRecord_info(slab);
+    SpinLock_lock(ImagePool_lockPtr(pool));
+    ImageSlabInfo info = ImageSlabRecord_info(slab);
     vpointer base = info.gpuBase;
     vpointer aligned = (vpointer) alignUp((bytes) base, align);
     bytes nextOff = (bytes) (aligned - base);
     if (nextOff > info.length || size > info.length - nextOff) {
-        SpinLock_unlock(VideoPool_lockPtr(pool));
+        SpinLock_unlock(ImagePool_lockPtr(pool));
         recordArenaExhaustion(arena, size);
-        SpinLock_unlock(VideoArena_lockPtr(arena));
+        SpinLock_unlock(ImageArena_lockPtr(arena));
         return 0u;
     }
-    VideoSlabRecord_setCursor(slab, nextOff + size);
-    VideoSlabRecord_setLiveBytes(slab, VideoSlabRecord_liveBytes(slab) + size);
+    ImageSlabRecord_setCursor(slab, nextOff + size);
+    ImageSlabRecord_setLiveBytes(slab, ImageSlabRecord_liveBytes(slab) + size);
     bytes slabLen = info.length;
-    SpinLock_unlock(VideoPool_lockPtr(pool));
-    VideoArena_setCapacityBytesField(arena, VideoArena_capacityBytesField(arena) + slabLen);
+    SpinLock_unlock(ImagePool_lockPtr(pool));
+    ImageArena_setCapacityBytesField(arena, ImageArena_capacityBytesField(arena) + slabLen);
     if (!trackLiveBlock(arena, aligned, size)) {
         recordArenaExhaustion(arena, size);
-        SpinLock_unlock(VideoArena_lockPtr(arena));
+        SpinLock_unlock(ImageArena_lockPtr(arena));
         return 0u;
     }
-    VideoArena_setUsedBytesField(arena, VideoArena_usedBytesField(arena) + size);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
+    ImageArena_setUsedBytesField(arena, ImageArena_usedBytesField(arena) + size);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
     return aligned;
 }
 
-fn VideoArena_free(VideoArena *arena, vpointer addr) {
+fn ImageArena_free(ImageArena *arena, vpointer addr)
+{
     if (arena == nullptr || addr == 0u)
         return;
-    SpinLock_lock(VideoArena_lockPtr(arena));
-    VideoLiveBlock *prev = nullptr;
-    VideoLiveBlock *curr = VideoArena_liveHead(arena);
+
+    SpinLock_lock(ImageArena_lockPtr(arena));
+    ImageLiveBlock *prev = nullptr;
+    ImageLiveBlock *curr = ImageArena_liveHead(arena);
     while (curr != nullptr) {
-        if (VideoLiveBlock_addr(curr) == addr) {
-            bytes len = VideoLiveBlock_length(curr);
+        if (ImageLiveBlock_addr(curr) == addr) {
+            bytes len = ImageLiveBlock_length(curr);
             if (prev == nullptr)
-                VideoArena_setLiveHead(arena, VideoLiveBlock_next(curr));
+                ImageArena_setLiveHead(arena, ImageLiveBlock_next(curr));
             else
-                VideoLiveBlock_setNext(prev, VideoLiveBlock_next(curr));
+                ImageLiveBlock_setNext(prev, ImageLiveBlock_next(curr));
+
             MemoryArena_free(Graphvex_arena(), curr);
-            VideoFreeBlock *f = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *f);
+            ImageFreeBlock *f = MemoryArena_alloc(Graphvex_arena(), 0, sizeof *f);
             if (f != nullptr) {
-                VideoFreeBlock_setAddr(f, addr);
-                VideoFreeBlock_setLength(f, len);
-                VideoFreeBlock_setNext(f, VideoArena_freeHead(arena));
-                VideoArena_setFreeHead(arena, f);
+                ImageFreeBlock_setAddr(f, addr);
+                ImageFreeBlock_setLength(f, len);
+                ImageFreeBlock_setNext(f, ImageArena_freeHead(arena));
+                ImageArena_setFreeHead(arena, f);
             }
-            if (VideoArena_usedBytesField(arena) >= len)
-                VideoArena_setUsedBytesField(arena, VideoArena_usedBytesField(arena) - len);
-            SpinLock_unlock(VideoArena_lockPtr(arena));
+            if (ImageArena_usedBytesField(arena) >= len)
+                ImageArena_setUsedBytesField(arena, ImageArena_usedBytesField(arena) - len);
+
+            SpinLock_unlock(ImageArena_lockPtr(arena));
             return;
         }
         prev = curr;
-        curr = VideoLiveBlock_next(curr);
+        curr = ImageLiveBlock_next(curr);
     }
-    SpinLock_unlock(VideoArena_lockPtr(arena));
+    SpinLock_unlock(ImageArena_lockPtr(arena));
 }
 
-fn VideoArena_reset(VideoArena *arena) {
+fn ImageArena_reset(ImageArena *arena)
+{
     if (arena == nullptr)
         return;
-    SpinLock_lock(VideoArena_lockPtr(arena));
+
+    SpinLock_lock(ImageArena_lockPtr(arena));
     clearBookkeeping(arena);
-    VideoArena_setUsedBytesField(arena, 0u);
-    VideoPool *pool = VideoArena_poolField(arena);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
-    bytes remCap = VideoPool_resetArenaSlabs(pool, arena, false);
-    SpinLock_lock(VideoArena_lockPtr(arena));
-    VideoArena_setCapacityBytesField(arena, remCap);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
+    ImageArena_setUsedBytesField(arena, 0u);
+    ImagePool *pool = ImageArena_poolField(arena);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
+    bytes remCap = ImagePool_resetArenaSlabs(pool, arena, false);
+    SpinLock_lock(ImageArena_lockPtr(arena));
+    ImageArena_setCapacityBytesField(arena, remCap);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
 }
 
-fn VideoArena_trim(VideoArena *arena) {
+fn ImageArena_trim(ImageArena *arena)
+{
     if (arena == nullptr)
         return;
-    SpinLock_lock(VideoArena_lockPtr(arena));
+
+    SpinLock_lock(ImageArena_lockPtr(arena));
     clearBookkeeping(arena);
-    VideoArena_setUsedBytesField(arena, 0u);
-    VideoPool *pool = VideoArena_poolField(arena);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
-    bytes remCap = VideoPool_resetArenaSlabs(pool, arena, true);
-    SpinLock_lock(VideoArena_lockPtr(arena));
-    VideoArena_setCapacityBytesField(arena, remCap);
-    SpinLock_unlock(VideoArena_lockPtr(arena));
+    ImageArena_setUsedBytesField(arena, 0u);
+    ImagePool *pool = ImageArena_poolField(arena);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
+    bytes remCap = ImagePool_resetArenaSlabs(pool, arena, true);
+    SpinLock_lock(ImageArena_lockPtr(arena));
+    ImageArena_setCapacityBytesField(arena, remCap);
+    SpinLock_unlock(ImageArena_lockPtr(arena));
 }
 
-VideoPool *VideoArena_pool(const VideoArena *arena) {
-    return arena == nullptr ? nullptr : VideoArena_poolField(arena);
+ImagePool *ImageArena_pool(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return nullptr;
+
+    return ImageArena_poolField(arena);
 }
 
-VideoMemoryDomain VideoArena_domain(const VideoArena *arena) {
-    return arena == nullptr ? VIDEO_MEMORY_SHARED : VideoArena_domainField(arena);
+ImageMemoryDomain ImageArena_domain(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return IMAGE_MEMORY_SHARED;
+
+    return ImageArena_domainField(arena);
 }
 
-bytes VideoArena_usedBytes(const VideoArena *arena) {
-    return arena == nullptr ? 0u : VideoArena_usedBytesField(arena);
+bytes ImageArena_usedBytes(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return 0u;
+
+    return ImageArena_usedBytesField(arena);
 }
 
-bytes VideoArena_capacity(const VideoArena *arena) {
-    return arena == nullptr ? 0u : VideoArena_capacityBytesField(arena);
+bytes ImageArena_capacity(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return 0u;
+
+    return ImageArena_capacityBytesField(arena);
 }
 
-bytes VideoArena_maxBytes(const VideoArena *arena) {
-    return arena == nullptr ? 0u : VideoArena_maxBytesField(arena);
+bytes ImageArena_maxBytes(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return 0u;
+
+    return ImageArena_maxBytesField(arena);
 }
 
-u64 VideoArena_exhaustionCount(const VideoArena *arena) {
-    return arena == nullptr ? 0u : VideoArena_exhaustionCountField(arena);
+u64 ImageArena_exhaustionCount(const ImageArena *arena)
+{
+    if (arena == nullptr)
+        return 0u;
+
+    return ImageArena_exhaustionCountField(arena);
 }
